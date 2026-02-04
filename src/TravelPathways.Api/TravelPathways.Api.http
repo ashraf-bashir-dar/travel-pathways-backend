@@ -1,0 +1,6 @@
+@TravelPathways.Api_HostAddress = http://localhost:5258
+
+GET {{TravelPathways.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

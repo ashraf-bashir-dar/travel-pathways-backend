@@ -83,6 +83,8 @@ public sealed class LeadsController : TenantControllerBase
         [FromQuery] string? searchTerm = null,
         [FromQuery] LeadStatus? status = null,
         [FromQuery] LeadSource? source = null,
+        [FromQuery] DateTime? assignedFrom = null,
+        [FromQuery] DateTime? assignedTo = null,
         CancellationToken ct = default)
     {
         pageNumber = Math.Max(1, pageNumber);
@@ -101,6 +103,10 @@ public sealed class LeadsController : TenantControllerBase
             query = query.Where(l => l.Status == status.Value);
         if (source.HasValue)
             query = query.Where(l => l.LeadSource == source.Value);
+        if (assignedFrom.HasValue)
+            query = query.Where(l => l.CreatedAt.Date >= assignedFrom.Value.Date);
+        if (assignedTo.HasValue)
+            query = query.Where(l => l.CreatedAt.Date <= assignedTo.Value.Date);
 
         var total = await query.CountAsync(ct);
         var leads = await query

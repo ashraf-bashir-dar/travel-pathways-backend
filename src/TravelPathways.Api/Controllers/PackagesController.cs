@@ -612,6 +612,11 @@ public sealed class PackagesController : TenantControllerBase
             : Path.Combine(_env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot"), "uploads");
         if (!Directory.Exists(uploadsRoot)) return model;
 
+        var maxImagesPerHotel = 2;
+        var maxConfig = _configuration["PdfGenerator:MaxImagesPerHotel"]?.Trim() ?? _configuration["PdfGenerator__MaxImagesPerHotel"]?.Trim();
+        if (!string.IsNullOrEmpty(maxConfig) && int.TryParse(maxConfig, out var n) && n >= 0)
+            maxImagesPerHotel = Math.Min(n, 4);
+
         string? ToDataUrl(string? url)
         {
             if (string.IsNullOrWhiteSpace(url)) return null;
@@ -648,7 +653,7 @@ public sealed class PackagesController : TenantControllerBase
             Nights = h.Nights,
             IsHouseboat = h.IsHouseboat,
             Amenities = h.Amenities,
-            ImageUrls = (h.ImageUrls ?? []).Select(ToDataUrl).Where(u => !string.IsNullOrEmpty(u)).Select(u => u!).ToList()
+            ImageUrls = (h.ImageUrls ?? []).Take(maxImagesPerHotel).Select(ToDataUrl).Where(u => !string.IsNullOrEmpty(u)).Select(u => u!).ToList()
         }).ToList();
         var inlinedCover = inlinedHotels.SelectMany(h => h.ImageUrls).Take(4).ToList();
 

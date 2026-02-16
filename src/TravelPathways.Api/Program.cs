@@ -89,6 +89,8 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<TenantMiddleware>();
 builder.Services.AddScoped<FileStorage>();
+builder.Services.AddSingleton<TravelPathways.Api.Services.IChromiumBrowserProvider, TravelPathways.Api.Services.ChromiumBrowserProvider>();
+builder.Services.AddHostedService<TravelPathways.Api.Services.ChromiumBrowserHostedService>();
 builder.Services.AddScoped<TravelPathways.Api.Services.IPackagePdfGenerator, TravelPathways.Api.Services.PackagePdfGenerator>();
 builder.Services.AddScoped<TravelPathways.Api.Services.IEmailService,
                           TravelPathways.Api.Services.EmailService>();

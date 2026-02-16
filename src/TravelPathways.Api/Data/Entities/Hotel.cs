@@ -36,6 +36,8 @@ public sealed class AccommodationRate : TenantEntityBase
 
     public DateTime FromDate { get; set; }
     public DateTime ToDate { get; set; }
+    /// <summary>e.g. Standard, Deluxe, Suite, Luxury, Other.</summary>
+    public string? RoomCategory { get; set; }
     public AccommodationMealPlan MealPlan { get; set; } = AccommodationMealPlan.MAP;
 
     public decimal CostPrice { get; set; }

@@ -29,6 +29,7 @@ public sealed class HotelsController : TenantControllerBase
         public required string HotelId { get; init; }
         public required DateTime FromDate { get; init; }
         public required DateTime ToDate { get; init; }
+        public string? RoomCategory { get; init; }
         public required AccommodationMealPlan MealPlan { get; init; }
         public required decimal CostPrice { get; init; }
         public required decimal SellingPrice { get; init; }
@@ -72,6 +73,7 @@ public sealed class HotelsController : TenantControllerBase
     {
         public DateTime FromDate { get; set; }
         public DateTime ToDate { get; set; }
+        public string? RoomCategory { get; set; }
         public AccommodationMealPlan MealPlan { get; set; } = AccommodationMealPlan.MAP;
         public decimal CostPrice { get; set; }
         public decimal SellingPrice { get; set; }
@@ -107,45 +109,59 @@ public sealed class HotelsController : TenantControllerBase
         [FromQuery] int pageSize = 50,
         [FromQuery] string? searchTerm = null,
         [FromQuery] bool? isHouseboat = null,
+        [FromQuery] int? starRating = null,
         CancellationToken ct = default)
     {
-        pageNumber = Math.Max(1, pageNumber);
-        pageSize = Math.Clamp(pageSize, 1, 200);
-
-        var query = _db.Hotels.AsNoTracking()
-            .Include(h => h.Rates)
-            .Include(h => h.Area)
-            .Where(h => h.TenantId == TenantId);
-
-        if (isHouseboat is not null)
+        try
         {
-            query = query.Where(h => h.IsHouseboat == isHouseboat.Value);
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Clamp(pageSize, 1, 200);
+
+            var query = _db.Hotels.AsNoTracking()
+                .Include(h => h.Rates)
+                .Include(h => h.Area)
+                .Where(h => h.TenantId == TenantId);
+
+            if (isHouseboat is not null)
+            {
+                query = query.Where(h => h.IsHouseboat == isHouseboat.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var s = searchTerm.Trim().ToLower();
+                query = query.Where(h => h.Name.ToLower().Contains(s) || h.City.ToLower().Contains(s) || h.Address.ToLower().Contains(s));
+            }
+
+            if (starRating is >= 1 and <= 5)
+            {
+                query = query.Where(h => h.StarRating != null && h.StarRating == starRating.Value);
+            }
+
+            var total = await query.CountAsync(ct);
+            var hotels = await query
+                .OrderByDescending(h => h.CreatedAt)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(ct);
+
+            var items = hotels.Select(ToDto).ToList();
+            var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+
+            return ApiResponse<PaginatedResponse<HotelDto>>.Ok(new PaginatedResponse<HotelDto>
+            {
+                Items = items,
+                TotalCount = total,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalPages = totalPages
+            });
         }
-
-        if (!string.IsNullOrWhiteSpace(searchTerm))
+        catch (Exception ex)
         {
-            var s = searchTerm.Trim().ToLower();
-            query = query.Where(h => h.Name.ToLower().Contains(s) || h.City.ToLower().Contains(s) || h.Address.ToLower().Contains(s));
+
+            throw;
         }
-
-        var total = await query.CountAsync(ct);
-        var hotels = await query
-            .OrderByDescending(h => h.CreatedAt)
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(ct);
-
-        var items = hotels.Select(ToDto).ToList();
-        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
-
-        return ApiResponse<PaginatedResponse<HotelDto>>.Ok(new PaginatedResponse<HotelDto>
-        {
-            Items = items,
-            TotalCount = total,
-            PageNumber = pageNumber,
-            PageSize = pageSize,
-            TotalPages = totalPages
-        });
     }
 
     [HttpGet("{id:guid}")]
@@ -195,6 +211,7 @@ public sealed class HotelsController : TenantControllerBase
                     HotelId = hotel.Id,
                     FromDate = r.FromDate,
                     ToDate = r.ToDate,
+                    RoomCategory = r.RoomCategory?.Trim(),
                     MealPlan = r.MealPlan,
                     CostPrice = r.CostPrice,
                     SellingPrice = r.SellingPrice,
@@ -248,6 +265,7 @@ public sealed class HotelsController : TenantControllerBase
                     HotelId = hotel.Id,
                     FromDate = r.FromDate,
                     ToDate = r.ToDate,
+                    RoomCategory = r.RoomCategory?.Trim(),
                     MealPlan = r.MealPlan,
                     CostPrice = r.CostPrice,
                     SellingPrice = r.SellingPrice,
@@ -342,6 +360,7 @@ public sealed class HotelsController : TenantControllerBase
                 HotelId = r.HotelId.ToString("D"),
                 FromDate = r.FromDate,
                 ToDate = r.ToDate,
+                RoomCategory = r.RoomCategory,
                 MealPlan = r.MealPlan,
                 CostPrice = r.CostPrice,
                 SellingPrice = r.SellingPrice,

@@ -55,6 +55,10 @@ namespace TravelPathways.Api.Data.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<string>("RoomCategory")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("MealPlan")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -247,12 +251,17 @@ namespace TravelPathways.Api.Data.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("ItineraryTemplateId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
                     b.HasIndex("HotelId");
+
+                    b.HasIndex("ItineraryTemplateId");
 
                     b.HasIndex("PackageId");
 
@@ -680,11 +689,18 @@ namespace TravelPathways.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal>("Discount")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime>("EndDate")
                         .HasColumnType("datetime2");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
+
+                    b.Property<string>("InclusionIds")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid?>("LeadId")
                         .HasColumnType("uniqueidentifier");
@@ -728,6 +744,37 @@ namespace TravelPathways.Api.Data.Migrations
                     b.HasIndex("VehicleId");
 
                     b.ToTable("Packages");
+                });
+
+            modelBuilder.Entity("TravelPathways.Api.Data.Entities.ItineraryTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DestinationMaster");
                 });
 
             modelBuilder.Entity("TravelPathways.Api.Data.Entities.TransportCompany", b =>
@@ -917,6 +964,11 @@ namespace TravelPathways.Api.Data.Migrations
                         .WithMany()
                         .HasForeignKey("HotelId");
 
+                    b.HasOne("TravelPathways.Api.Data.Entities.ItineraryTemplate", "ItineraryTemplate")
+                        .WithMany()
+                        .HasForeignKey("ItineraryTemplateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("TravelPathways.Api.Data.Entities.TourPackage", "Package")
                         .WithMany("DayWiseItinerary")
                         .HasForeignKey("PackageId")
@@ -924,6 +976,8 @@ namespace TravelPathways.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Hotel");
+
+                    b.Navigation("ItineraryTemplate");
 
                     b.Navigation("Package");
                 });

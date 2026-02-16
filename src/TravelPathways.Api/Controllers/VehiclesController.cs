@@ -54,6 +54,7 @@ public sealed class VehiclesController : TenantControllerBase
         [FromQuery] int pageSize = 50,
         [FromQuery] string? searchTerm = null,
         [FromQuery] Guid? companyId = null,
+        [FromQuery] VehicleType? vehicleType = null,
         CancellationToken ct = default)
     {
         pageNumber = Math.Max(1, pageNumber);
@@ -66,6 +67,11 @@ public sealed class VehiclesController : TenantControllerBase
         if (companyId is not null)
         {
             query = query.Where(v => v.TransportCompanyId == companyId.Value);
+        }
+
+        if (vehicleType is not null)
+        {
+            query = query.Where(v => v.VehicleType == vehicleType.Value);
         }
 
         if (!string.IsNullOrWhiteSpace(searchTerm))

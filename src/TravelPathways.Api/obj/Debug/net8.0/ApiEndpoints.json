@@ -1,5 +1,21 @@
 [
   {
+    "ContainingType": "Program\u002B\u003C\u003Ec",
+    "Method": "\u003C\u003CMain\u003E$\u003Eb__0_12",
+    "RelativePath": "",
+    "HttpMethod": "GET",
+    "IsController": false,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "System.Void",
+        "MediaTypes": [],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
     "ContainingType": "TravelPathways.Api.Controllers.PlansController",
     "Method": "GetPlans",
     "RelativePath": "api/admin/plans",
@@ -637,6 +653,11 @@
         "Name": "isHouseboat",
         "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "IsRequired": false
+      },
+      {
+        "Name": "starRating",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
       }
     ],
     "ReturnTypes": [
@@ -849,6 +870,135 @@
     ]
   },
   {
+    "ContainingType": "TravelPathways.Api.Controllers.ItineraryTemplatesController",
+    "Method": "GetAll",
+    "RelativePath": "api/itinerary-templates",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[System.Collections.Generic.List\u00601[[TravelPathways.Api.Controllers.ItineraryTemplatesController\u002BItineraryTemplateDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.ItineraryTemplatesController",
+    "Method": "Create",
+    "RelativePath": "api/itinerary-templates",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "TravelPathways.Api.Controllers.ItineraryTemplatesController\u002BCreateItineraryTemplateRequestDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[TravelPathways.Api.Controllers.ItineraryTemplatesController\u002BItineraryTemplateDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.ItineraryTemplatesController",
+    "Method": "GetById",
+    "RelativePath": "api/itinerary-templates/{id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[TravelPathways.Api.Controllers.ItineraryTemplatesController\u002BItineraryTemplateDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.ItineraryTemplatesController",
+    "Method": "Update",
+    "RelativePath": "api/itinerary-templates/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "request",
+        "Type": "TravelPathways.Api.Controllers.ItineraryTemplatesController\u002BUpdateItineraryTemplateRequestDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[TravelPathways.Api.Controllers.ItineraryTemplatesController\u002BItineraryTemplateDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.ItineraryTemplatesController",
+    "Method": "Delete",
+    "RelativePath": "api/itinerary-templates/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
     "ContainingType": "TravelPathways.Api.Controllers.LeadsController",
     "Method": "GetLeads",
     "RelativePath": "api/leads",
@@ -868,6 +1018,16 @@
       },
       {
         "Name": "searchTerm",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "status",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "source",
         "Type": "System.String",
         "IsRequired": false
       }
@@ -1138,6 +1298,21 @@
         "Name": "searchTerm",
         "Type": "System.String",
         "IsRequired": false
+      },
+      {
+        "Name": "status",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "arrivalDateFrom",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "arrivalDateTo",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
       }
     ],
     "ReturnTypes": [
@@ -1258,6 +1433,46 @@
           "text/json"
         ],
         "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.PackagesController",
+    "Method": "GetPackagePdf",
+    "RelativePath": "api/packages/{id}/pdf",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Mvc.FileResult",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "Microsoft.AspNetCore.Mvc.ProblemDetails",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 404
+      },
+      {
+        "Type": "System.Void",
+        "MediaTypes": [],
+        "StatusCode": 500
       }
     ]
   },
@@ -1678,6 +1893,11 @@
       {
         "Name": "companyId",
         "Type": "System.Nullable\u00601[[System.Guid, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "vehicleType",
+        "Type": "System.String",
         "IsRequired": false
       }
     ],

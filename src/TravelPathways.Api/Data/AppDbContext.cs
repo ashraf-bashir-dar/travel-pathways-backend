@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TravelPathways.Api.Common;
 using TravelPathways.Api.Data.Entities;
 using TravelPathways.Api.MultiTenancy;
@@ -32,6 +33,7 @@ public sealed class AppDbContext : DbContext
 
     public DbSet<TourPackage> Packages => Set<TourPackage>();
     public DbSet<DayItinerary> DayItineraries => Set<DayItinerary>();
+    public DbSet<ItineraryTemplate> ItineraryTemplates => Set<ItineraryTemplate>();
 
     public DbSet<State> States => Set<State>();
     public DbSet<City> Cities => Set<City>();
@@ -55,7 +57,7 @@ public sealed class AppDbContext : DbContext
 
         modelBuilder.Entity<Lead>()
             .Property(x => x.Status)
-            .HasConversion<string>();
+            .HasConversion(new LeadStatusConverter());
 
         modelBuilder.Entity<Lead>()
             .HasMany<LeadFollowUp>()
@@ -65,7 +67,7 @@ public sealed class AppDbContext : DbContext
 
         modelBuilder.Entity<LeadFollowUp>()
             .Property(f => f.Status)
-            .HasConversion<string>();
+            .HasConversion(new FollowUpStatusConverter());
 
         modelBuilder.Entity<Hotel>()
             .Property(h => h.Amenities)
@@ -131,7 +133,7 @@ public sealed class AppDbContext : DbContext
 
         modelBuilder.Entity<TourPackage>()
             .Property(p => p.Status)
-            .HasConversion<string>();
+            .HasConversion(new PackageStatusConverter());
 
         modelBuilder.Entity<TourPackage>()
             .Property(p => p.TotalAmount)
@@ -142,6 +144,16 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<TourPackage>()
             .Property(p => p.BalanceAmount)
             .HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<TourPackage>()
+            .Property(p => p.Discount)
+            .HasColumnType("decimal(18,2)");
+
+        modelBuilder.Entity<TourPackage>()
+            .Property(p => p.InclusionIds)
+            .HasConversion(new JsonValueConverter<List<string>>());
+        modelBuilder.Entity<TourPackage>()
+            .Property(p => p.InclusionIds)
+            .Metadata.SetValueComparer(new JsonValueComparer<List<string>, string>());
 
         modelBuilder.Entity<DayItinerary>()
             .Property(d => d.MealPlan)
@@ -164,6 +176,9 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<DayItinerary>()
             .Property(d => d.HotelCost)
             .HasColumnType("decimal(18,2)");
+
+        modelBuilder.Entity<ItineraryTemplate>()
+            .ToTable("DestinationMaster");
 
         modelBuilder.Entity<Tenant>()
             .Property(t => t.EnabledModules)
@@ -249,6 +264,7 @@ public sealed class AppDbContext : DbContext
     {
         // Note: EF will parameterize these values per DbContext instance.
         modelBuilder.Entity<Lead>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
+        modelBuilder.Entity<LeadFollowUp>().HasQueryFilter(f => _tenant.IsSuperAdmin || Set<Lead>().Any(l => l.Id == f.LeadId));
         modelBuilder.Entity<Hotel>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
         modelBuilder.Entity<AccommodationRate>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
         modelBuilder.Entity<TransportCompany>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
@@ -256,6 +272,7 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<VehiclePricing>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
         modelBuilder.Entity<TourPackage>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
         modelBuilder.Entity<DayItinerary>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
+        modelBuilder.Entity<ItineraryTemplate>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
     }
 
     public override int SaveChanges()

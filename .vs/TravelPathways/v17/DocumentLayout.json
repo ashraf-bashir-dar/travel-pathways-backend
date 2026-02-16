@@ -1,10 +1,38 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways-frontend\\backend\\",
+  "WorkspaceRootPath": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways-frontend\\backend\\src\\travelpathways.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\dockerfile||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\dockerfile||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\services\\packagepdfgenerator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\services\\packagepdfgenerator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\controllers\\hotelscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\controllers\\hotelscontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\travelpathways.api.http||{5703B403-55E7-4C63-8C88-A8F52C7A45C5}",
+      "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\travelpathways.api.http||{5703B403-55E7-4C63-8C88-A8F52C7A45C5}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\script_ensuredestinationmaster.sql||{CC5D8DF0-88F4-4BB2-9DBB-B48CEE65C30A}",
+      "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\script_ensuredestinationmaster.sql||{CC5D8DF0-88F4-4BB2-9DBB-B48CEE65C30A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\script_additinerarytemplates.sql||{CC5D8DF0-88F4-4BB2-9DBB-B48CEE65C30A}",
+      "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\script_additinerarytemplates.sql||{CC5D8DF0-88F4-4BB2-9DBB-B48CEE65C30A}"
     }
   ],
   "DocumentGroupContainers": [
@@ -14,8 +42,12 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 3,
+          "SelectedChildIndex": 4,
           "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:128:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"
+            },
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
@@ -31,15 +63,100 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
-              "Title": "Program.cs",
-              "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways-frontend\\backend\\src\\TravelPathways.Api\\Program.cs",
-              "RelativeDocumentMoniker": "src\\TravelPathways.Api\\Program.cs",
-              "ToolTip": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways-frontend\\backend\\src\\TravelPathways.Api\\Program.cs",
-              "RelativeToolTip": "src\\TravelPathways.Api\\Program.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-04T09:42:33.134Z",
+              "Title": "Dockerfile",
+              "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Dockerfile",
+              "RelativeDocumentMoniker": "src\\TravelPathways.Api\\Dockerfile",
+              "ToolTip": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Dockerfile",
+              "RelativeToolTip": "src\\TravelPathways.Api\\Dockerfile",
+              "ViewState": "AgIAACcAAAAAAAAAAAAAABIAAAAQAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2026-02-14T16:48:46.816Z",
               "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "PackagePdfGenerator.cs",
+              "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Services\\PackagePdfGenerator.cs",
+              "RelativeDocumentMoniker": "src\\TravelPathways.Api\\Services\\PackagePdfGenerator.cs",
+              "ToolTip": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Services\\PackagePdfGenerator.cs",
+              "RelativeToolTip": "src\\TravelPathways.Api\\Services\\PackagePdfGenerator.cs",
+              "ViewState": "AgIAAPoAAAAAAAAAAAAswAkBAABDAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-13T17:29:48.115Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "AuthController.cs",
+              "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Controllers\\AuthController.cs",
+              "RelativeDocumentMoniker": "src\\TravelPathways.Api\\Controllers\\AuthController.cs",
+              "ToolTip": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Controllers\\AuthController.cs",
+              "RelativeToolTip": "src\\TravelPathways.Api\\Controllers\\AuthController.cs",
+              "ViewState": "AgIAAFEAAAAAAAAAAAAhwFkAAAAIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-12T07:14:18.914Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "HotelsController.cs",
+              "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Controllers\\HotelsController.cs",
+              "RelativeDocumentMoniker": "src\\TravelPathways.Api\\Controllers\\HotelsController.cs",
+              "ToolTip": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Controllers\\HotelsController.cs",
+              "RelativeToolTip": "src\\TravelPathways.Api\\Controllers\\HotelsController.cs",
+              "ViewState": "AgIAAGsAAAAAAAAAAIAwwHUAAAA0AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-12T17:39:07.477Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\appsettings.json",
+              "RelativeDocumentMoniker": "src\\TravelPathways.Api\\appsettings.json",
+              "ToolTip": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\appsettings.json",
+              "RelativeToolTip": "src\\TravelPathways.Api\\appsettings.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAAfAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-02-12T17:04:14.657Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "Script_AddItineraryTemplates.sql",
+              "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Script_AddItineraryTemplates.sql",
+              "RelativeDocumentMoniker": "src\\TravelPathways.Api\\Script_AddItineraryTemplates.sql",
+              "ToolTip": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Script_AddItineraryTemplates.sql",
+              "RelativeToolTip": "src\\TravelPathways.Api\\Script_AddItineraryTemplates.sql",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
+              "WhenOpened": "2026-02-12T18:21:18.027Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "Script_EnsureDestinationMaster.sql",
+              "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Script_EnsureDestinationMaster.sql",
+              "RelativeDocumentMoniker": "src\\TravelPathways.Api\\Script_EnsureDestinationMaster.sql",
+              "ToolTip": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Script_EnsureDestinationMaster.sql",
+              "RelativeToolTip": "src\\TravelPathways.Api\\Script_EnsureDestinationMaster.sql",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000826|",
+              "WhenOpened": "2026-02-12T18:21:34.365Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "TravelPathways.Api.http",
+              "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\TravelPathways.Api.http",
+              "RelativeDocumentMoniker": "src\\TravelPathways.Api\\TravelPathways.Api.http",
+              "ToolTip": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\TravelPathways.Api.http",
+              "RelativeToolTip": "src\\TravelPathways.Api\\TravelPathways.Api.http",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAAYAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003502|",
+              "WhenOpened": "2026-02-12T18:21:41.364Z"
             }
           ]
         }

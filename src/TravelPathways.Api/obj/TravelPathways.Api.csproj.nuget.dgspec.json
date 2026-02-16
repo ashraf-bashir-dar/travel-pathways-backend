@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Lenovo\\source\\repos\\travel-pathways-frontend\\backend\\src\\TravelPathways.Api\\TravelPathways.Api.csproj": {}
+    "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\TravelPathways.Api.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Lenovo\\source\\repos\\travel-pathways-frontend\\backend\\src\\TravelPathways.Api\\TravelPathways.Api.csproj": {
+    "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\TravelPathways.Api.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways-frontend\\backend\\src\\TravelPathways.Api\\TravelPathways.Api.csproj",
+        "projectUniqueName": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\TravelPathways.Api.csproj",
         "projectName": "TravelPathways.Api",
-        "projectPath": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways-frontend\\backend\\src\\TravelPathways.Api\\TravelPathways.Api.csproj",
+        "projectPath": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\TravelPathways.Api.csproj",
         "packagesPath": "C:\\Users\\Lenovo\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways-frontend\\backend\\src\\TravelPathways.Api\\obj\\",
+        "outputPath": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -73,6 +73,10 @@
               "suppressParent": "All",
               "target": "Package",
               "version": "[8.0.14, )"
+            },
+            "PuppeteerSharp": {
+              "target": "Package",
+              "version": "[21.0.1, )"
             },
             "Swashbuckle.AspNetCore": {
               "target": "Package",

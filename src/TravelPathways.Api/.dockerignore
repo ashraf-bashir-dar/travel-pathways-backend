@@ -1,0 +1,10 @@
+bin/
+obj/
+**/.dockerignore
+**/.env
+**/.git
+**/.vs
+**/*.user
+**/node_modules/
+wwwroot/uploads/*
+*.md

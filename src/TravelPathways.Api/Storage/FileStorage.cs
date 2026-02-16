@@ -1,17 +1,24 @@
+using Microsoft.Extensions.Configuration;
+
 namespace TravelPathways.Api.Storage;
 
 public sealed class FileStorage
 {
     private readonly IWebHostEnvironment _env;
+    private readonly string _uploadsRoot;
 
-    public FileStorage(IWebHostEnvironment env)
+    public FileStorage(IWebHostEnvironment env, IConfiguration configuration)
     {
         _env = env;
+        var customPath = configuration["Uploads:Path"]?.Trim() ?? configuration["Uploads__Path"]?.Trim();
+        _uploadsRoot = !string.IsNullOrEmpty(customPath)
+            ? customPath
+            : Path.Combine(env.WebRootPath ?? Path.Combine(env.ContentRootPath, "wwwroot"), "uploads");
     }
 
     public async Task<string> SaveTenantFileAsync(Guid tenantId, string category, IFormFile file, CancellationToken ct)
     {
-        var uploadsRoot = Path.Combine(_env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot"), "uploads");
+        var uploadsRoot = _uploadsRoot;
         var folder = Path.Combine(uploadsRoot, "tenants", tenantId.ToString("D"), category);
         Directory.CreateDirectory(folder);
 
@@ -30,7 +37,7 @@ public sealed class FileStorage
 
     public async Task<string> SaveTransportCompanyFileAsync(Guid tenantId, Guid companyId, string category, IFormFile file, CancellationToken ct)
     {
-        var uploadsRoot = Path.Combine(_env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot"), "uploads");
+        var uploadsRoot = _uploadsRoot;
         var folder = Path.Combine(uploadsRoot, "tenants", tenantId.ToString("D"), "transport-companies", companyId.ToString("D"), category);
         Directory.CreateDirectory(folder);
 
@@ -48,7 +55,7 @@ public sealed class FileStorage
 
     public async Task<string> SaveHotelImageAsync(Guid tenantId, Guid hotelId, IFormFile file, CancellationToken ct)
     {
-        var uploadsRoot = Path.Combine(_env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot"), "uploads");
+        var uploadsRoot = _uploadsRoot;
         var folder = Path.Combine(uploadsRoot, "tenants", tenantId.ToString("D"), "hotels", hotelId.ToString("D"), "images");
         Directory.CreateDirectory(folder);
 

@@ -1,0 +1,53 @@
+# Build results
+[Dd]ebug/
+[Rr]elease/
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+publish/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+# Visual Studio
+.vs/
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# NuGet
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# PuppeteerSharp / Chrome (downloaded at runtime - never commit)
+**/Chrome/
+**/ChromeHeadlessShell/
+**/PuppeteerSharp*
+
+# User uploads (never commit - use persistent storage in production)
+**/wwwroot/uploads/
+wwwroot/uploads/
+
+# IDE / OS
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# App / config (keep appsettings.Development.json if you want, or ignore and use env)
+# appsettings.Development.json
+
+# Long paths that can break Windows
+**/publish/

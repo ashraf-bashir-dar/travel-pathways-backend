@@ -81,6 +81,8 @@ public sealed class LeadsController : TenantControllerBase
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 50,
         [FromQuery] string? searchTerm = null,
+        [FromQuery] LeadStatus? status = null,
+        [FromQuery] LeadSource? source = null,
         CancellationToken ct = default)
     {
         pageNumber = Math.Max(1, pageNumber);
@@ -95,6 +97,10 @@ public sealed class LeadsController : TenantControllerBase
                 l.PhoneNumber.ToLower().Contains(s) ||
                 l.Address.ToLower().Contains(s));
         }
+        if (status.HasValue)
+            query = query.Where(l => l.Status == status.Value);
+        if (source.HasValue)
+            query = query.Where(l => l.LeadSource == source.Value);
 
         var total = await query.CountAsync(ct);
         var leads = await query
@@ -180,7 +186,7 @@ public sealed class LeadsController : TenantControllerBase
             {
                 LeadId = id,
                 FollowUpDate = DateTime.UtcNow,
-                Status = MapLeadStatusToFollowUpStatus(lead.Status),
+                Status = (FollowUpStatus)(int)lead.Status,
                 Notes = string.IsNullOrWhiteSpace(lead.Notes) ? null : lead.Notes.Trim(),
                 CreatedBy = createdBy
             });
@@ -194,20 +200,18 @@ public sealed class LeadsController : TenantControllerBase
             }
         }
 
-        return ApiResponse<LeadDto>.Ok(ToDto(lead));
-    }
-
-    private static FollowUpStatus MapLeadStatusToFollowUpStatus(LeadStatus leadStatus)
-    {
-        return leadStatus switch
+        // Sync package status: when lead status changes, update all packages for this lead to the same status
+        if (oldStatus != lead.Status)
         {
-            LeadStatus.New => FollowUpStatus.InProgress,
-            LeadStatus.Contacted => FollowUpStatus.Contacted,
-            LeadStatus.Qualified => FollowUpStatus.CallbackScheduled,
-            LeadStatus.Converted => FollowUpStatus.Confirmed,
-            LeadStatus.Lost => FollowUpStatus.NotInterested,
-            _ => FollowUpStatus.InProgress
-        };
+            var packagesToUpdate = await _db.Packages.Where(p => p.LeadId == id && p.TenantId == TenantId).ToListAsync(ct);
+            var newPackageStatus = (PackageStatus)(int)lead.Status;
+            foreach (var p in packagesToUpdate)
+                p.Status = newPackageStatus;
+            if (packagesToUpdate.Count > 0)
+                await _db.SaveChangesAsync(ct);
+        }
+
+        return ApiResponse<LeadDto>.Ok(ToDto(lead));
     }
 
     [HttpDelete("{id:guid}")]

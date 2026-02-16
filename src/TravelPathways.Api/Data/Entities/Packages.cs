@@ -28,10 +28,15 @@ public sealed class TourPackage : TenantEntityBase
     public Vehicle? Vehicle { get; set; }
 
     public decimal TotalAmount { get; set; }
+    /// <summary>Discount amount (e.g. in INR). Final package cost = TotalAmount - Discount.</summary>
+    public decimal Discount { get; set; }
     public decimal AdvanceAmount { get; set; }
     public decimal BalanceAmount { get; set; }
 
-    public PackageStatus Status { get; set; } = PackageStatus.Draft;
+    public PackageStatus Status { get; set; } = PackageStatus.New;
+
+    /// <summary>Ids of inclusion options that are selected (shown as Inclusions in PDF). Unselected appear as Exclusions.</summary>
+    public List<string> InclusionIds { get; set; } = [];
 
     public List<DayItinerary> DayWiseItinerary { get; set; } = [];
 
@@ -64,6 +69,10 @@ public sealed class DayItinerary : TenantEntityBase
     public List<string> Meals { get; set; } = [];
 
     public string? Notes { get; set; }
+
+    /// <summary>Optional link to DestinationMaster (day description template) for PDF heading "Day 01: Template Name".</summary>
+    public Guid? ItineraryTemplateId { get; set; }
+    public ItineraryTemplate? ItineraryTemplate { get; set; }
 
     public decimal HotelCost { get; set; }
 }

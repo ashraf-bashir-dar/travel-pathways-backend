@@ -13,6 +13,7 @@
           "Microsoft.EntityFrameworkCore.Design": "8.0.22",
           "Microsoft.EntityFrameworkCore.SqlServer": "8.0.22",
           "Microsoft.EntityFrameworkCore.Tools": "8.0.14",
+          "PuppeteerSharp": "21.0.1",
           "Swashbuckle.AspNetCore": "6.6.2"
         },
         "runtime": {
@@ -664,6 +665,18 @@
           }
         }
       },
+      "PuppeteerSharp/21.0.1": {
+        "dependencies": {
+          "Microsoft.Extensions.Logging": "8.0.1",
+          "WebDriverBiDi-Relaxed": "0.0.41"
+        },
+        "runtime": {
+          "lib/net8.0/PuppeteerSharp.dll": {
+            "assemblyVersion": "21.0.1.0",
+            "fileVersion": "21.0.1.0"
+          }
+        }
+      },
       "Swashbuckle.AspNetCore/6.6.2": {
         "dependencies": {
           "Microsoft.Extensions.ApiDescription.Server": "6.0.5",
@@ -946,6 +959,14 @@
             "assetType": "runtime",
             "assemblyVersion": "6.0.0.0",
             "fileVersion": "6.0.21.52210"
+          }
+        }
+      },
+      "WebDriverBiDi-Relaxed/0.0.41": {
+        "runtime": {
+          "lib/net8.0/WebDriverBiDi.dll": {
+            "assemblyVersion": "0.0.41.0",
+            "fileVersion": "0.0.41.0"
           }
         }
       }
@@ -1258,6 +1279,13 @@
       "path": "mono.texttemplating/2.2.1",
       "hashPath": "mono.texttemplating.2.2.1.nupkg.sha512"
     },
+    "PuppeteerSharp/21.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-mNjfQLP/DOYABB9verHvf+hPXBJ/n9RH+cYqeTa2hF/7EZ/H3yxJ4sq2VcKVwyTFiiv3tySUDzccV1Vu3Eefng==",
+      "path": "puppeteersharp/21.0.1",
+      "hashPath": "puppeteersharp.21.0.1.nupkg.sha512"
+    },
     "Swashbuckle.AspNetCore/6.6.2": {
       "type": "package",
       "serviceable": true,
@@ -1509,6 +1537,13 @@
       "sha512": "sha512-IXoJOXIqc39AIe+CIR7koBtRGMiCt/LPM3lI+PELtDIy9XdyeSrwXFdWV9dzJ2Awl0paLWUaknLxFQ5HpHZUog==",
       "path": "system.windows.extensions/6.0.0",
       "hashPath": "system.windows.extensions.6.0.0.nupkg.sha512"
+    },
+    "WebDriverBiDi-Relaxed/0.0.41": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-yHhYpJxnlZ7bpv+N/YzDcPLQgwHk9EFUiuJLOcPAp+2+xa/un0+KzPRl8srwWjiu73RHnSKvaVD0ZTEtfJ5fsA==",
+      "path": "webdriverbidi-relaxed/0.0.41",
+      "hashPath": "webdriverbidi-relaxed.0.0.41.nupkg.sha512"
     }
   }
 }

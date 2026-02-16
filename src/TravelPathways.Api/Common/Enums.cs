@@ -15,7 +15,8 @@ public enum AppModuleKey
     Packages = 2,
     Hotels = 3,
     Houseboats = 4,
-    Transport = 5
+    Transport = 5,
+    Master = 6
 }
 
 public enum TenantDocumentType
@@ -41,32 +42,38 @@ public enum LeadSource
 
 public enum LeadStatus
 {
-    New = 0,
-    Contacted = 1,
-    Qualified = 2,
-    Converted = 3,
-    Lost = 4
+    Matured = 0,
+    NotInterested = 1,
+    NoResponse = 2,
+    TripCancelled = 3,
+    TripConfirmed = 4,
+    PackageSent = 5,
+    Followup = 6,
+    AlreadyBooked = 7,
+    New = 8
 }
 
-/// <summary>Status of a single follow-up for a lead.</summary>
+/// <summary>Status of a single follow-up for a lead. Aligned with LeadStatus where applicable.</summary>
 public enum FollowUpStatus
 {
-    InProgress = 0,
-    Contacted = 1,
-    PlanPostponed = 2,
-    PlanCanceled = 3,
-    Confirmed = 4,
-    NoResponse = 5,
-    CallbackScheduled = 6,
-    NotInterested = 7
+    Matured = 0,
+    NotInterested = 1,
+    NoResponse = 2,
+    TripCancelled = 3,
+    TripConfirmed = 4,
+    PackageSent = 5,
+    Followup = 6,
+    AlreadyBooked = 7,
+    New = 8
 }
 
 public enum AccommodationMealPlan
 {
-    RoomOnly = 0,
+    RoomOnly = 0,   // EP - Room only
     CP = 1,
-    MAP = 2,
-    AP = 3
+    MAP = 2,        // Dinner + Breakfast
+    AP = 3,         // Breakfast + Lunch + Dinner
+    BreakfastOnly = 4
 }
 
 public enum VehicleType
@@ -88,14 +95,18 @@ public enum RateType
     Flat = 3
 }
 
+/// <summary>Package status matches lead status (same values). When lead status changes, package status is synced.</summary>
 public enum PackageStatus
 {
-    Draft = 0,
-    Quoted = 1,
-    Confirmed = 2,
-    InProgress = 3,
-    Completed = 4,
-    Cancelled = 5
+    Matured = 0,
+    NotInterested = 1,
+    NoResponse = 2,
+    TripCancelled = 3,
+    TripConfirmed = 4,
+    PackageSent = 5,
+    Followup = 6,
+    AlreadyBooked = 7,
+    New = 8
 }
 
 /// <summary>Billing cycle for subscription pricing. All amounts in INR.</summary>

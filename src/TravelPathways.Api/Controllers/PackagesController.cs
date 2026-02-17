@@ -31,6 +31,14 @@ public sealed class PackagesController : TenantControllerBase
         _env = env;
     }
 
+    private static int DaysInclusive(DateTime start, DateTime end)
+    {
+        var s = start.Date;
+        var e = end.Date;
+        var days = (e - s).Days + 1;
+        return Math.Max(1, days);
+    }
+
     public sealed class DayItineraryDto
     {
         public required string Id { get; init; }
@@ -298,7 +306,8 @@ public sealed class PackagesController : TenantControllerBase
             PackageName = request.PackageName.Trim(),
             StartDate = request.StartDate,
             EndDate = request.EndDate,
-            NumberOfDays = Math.Max(1, request.DayWiseItinerary.Count),
+            // Use the date range as the source of truth so transport/hotel/PDF stay consistent.
+            NumberOfDays = DaysInclusive(request.StartDate, request.EndDate),
             NumberOfAdults = request.NumberOfAdults,
             NumberOfChildren = request.NumberOfChildren,
             VehicleId = request.VehicleId,
@@ -375,7 +384,8 @@ public sealed class PackagesController : TenantControllerBase
         pkg.PackageName = request.PackageName.Trim();
         pkg.StartDate = request.StartDate;
         pkg.EndDate = request.EndDate;
-        pkg.NumberOfDays = Math.Max(1, request.DayWiseItinerary.Count);
+        // Use the date range as the source of truth so transport/hotel/PDF stay consistent.
+        pkg.NumberOfDays = DaysInclusive(request.StartDate, request.EndDate);
         pkg.NumberOfAdults = request.NumberOfAdults;
         pkg.NumberOfChildren = request.NumberOfChildren;
         pkg.VehicleId = request.VehicleId;

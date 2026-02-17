@@ -36,6 +36,8 @@ public sealed class LeadsController : TenantControllerBase
         public string? Notes { get; init; }
         public required string TenantId { get; init; }
         public string? AssignedToUserId { get; init; }
+        /// <summary>Display name of the user this lead is assigned to (e.g. "John Doe").</summary>
+        public string? AssignedToUserName { get; init; }
         public required DateTime CreatedAt { get; init; }
         public required DateTime UpdatedAt { get; init; }
         public required string CreatedBy { get; init; }
@@ -51,6 +53,8 @@ public sealed class LeadsController : TenantControllerBase
         public string Address { get; set; } = string.Empty;
         public LeadSource LeadSource { get; set; } = LeadSource.Other;
         public string? Notes { get; set; }
+        /// <summary>Optional. Assign this lead to a user (sales team member) in the same tenant.</summary>
+        public Guid? AssignedToUserId { get; set; }
     }
 
     public sealed class UpdateLeadRequestDto : CreateLeadRequestDto
@@ -76,6 +80,21 @@ public sealed class LeadsController : TenantControllerBase
         public string? Notes { get; set; }
     }
 
+    /// <summary>Returns (current user id, can see all leads in tenant). Sales/Viewer can only see their own assigned leads.</summary>
+    private (Guid? UserId, bool CanSeeAllLeads) GetCurrentUserLeadScope()
+    {
+        var role = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
+        var isAdmin = string.Equals(role, UserRole.Admin.ToString(), StringComparison.OrdinalIgnoreCase);
+        var isSuperAdmin = string.Equals(role, UserRole.SuperAdmin.ToString(), StringComparison.OrdinalIgnoreCase);
+        if (isAdmin || isSuperAdmin)
+            return (null, true);
+
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            return (null, false);
+        return (userId, false);
+    }
+
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PaginatedResponse<LeadDto>>>> GetLeads(
         [FromQuery] int pageNumber = 1,
@@ -83,6 +102,7 @@ public sealed class LeadsController : TenantControllerBase
         [FromQuery] string? searchTerm = null,
         [FromQuery] LeadStatus? status = null,
         [FromQuery] LeadSource? source = null,
+        [FromQuery] Guid? assignedToUserId = null,
         [FromQuery] DateTime? assignedFrom = null,
         [FromQuery] DateTime? assignedTo = null,
         CancellationToken ct = default)
@@ -90,7 +110,14 @@ public sealed class LeadsController : TenantControllerBase
         pageNumber = Math.Max(1, pageNumber);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
+        var (currentUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
         var query = _db.Leads.AsNoTracking().Where(l => l.TenantId == TenantId);
+
+        if (!canSeeAllLeads && currentUserId.HasValue)
+            query = query.Where(l => l.AssignedToUserId == currentUserId.Value);
+        else if (assignedToUserId.HasValue)
+            query = query.Where(l => l.AssignedToUserId == assignedToUserId.Value);
+
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
             var s = searchTerm.Trim().ToLower();
@@ -110,6 +137,7 @@ public sealed class LeadsController : TenantControllerBase
 
         var total = await query.CountAsync(ct);
         var leads = await query
+            .Include(l => l.AssignedToUser)
             .OrderByDescending(l => l.CreatedAt)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
@@ -128,11 +156,62 @@ public sealed class LeadsController : TenantControllerBase
         });
     }
 
+    /// <summary>Lead count per user for the current tenant. Admin only; sales person cannot see other users' counts.</summary>
+    [HttpGet("assignment-summary")]
+    public async Task<ActionResult<ApiResponse<List<LeadAssignmentSummaryDto>>>> GetAssignmentSummary(CancellationToken ct)
+    {
+        var (_, canSeeAllLeads) = GetCurrentUserLeadScope();
+        if (!canSeeAllLeads)
+            return Forbid();
+
+        var grouped = await _db.Leads
+            .Where(l => l.TenantId == TenantId)
+            .GroupBy(l => l.AssignedToUserId)
+            .Select(g => new { AssignedToUserId = g.Key, LeadCount = g.Count() })
+            .ToListAsync(ct);
+
+        var userIds = grouped.Where(x => x.AssignedToUserId.HasValue).Select(x => x.AssignedToUserId!.Value).Distinct().ToList();
+        var userMap = await _db.Users.AsNoTracking()
+            .Where(u => userIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.FirstName, u.LastName })
+            .ToListAsync(ct);
+        var nameByUserId = userMap.ToDictionary(u => u.Id, u => $"{u.FirstName} {u.LastName}".Trim());
+
+        var result = grouped.Select(g =>
+        {
+            var name = g.AssignedToUserId.HasValue && nameByUserId.TryGetValue(g.AssignedToUserId.Value, out var n)
+                ? n
+                : null;
+            return new LeadAssignmentSummaryDto
+            {
+                AssignedToUserId = g.AssignedToUserId?.ToString("D"),
+                AssignedToUserName = name ?? (g.AssignedToUserId == null ? "Unassigned" : "Unknown"),
+                LeadCount = g.LeadCount
+            };
+        }).OrderByDescending(x => x.LeadCount).ToList();
+
+        return ApiResponse<List<LeadAssignmentSummaryDto>>.Ok(result);
+    }
+
+    public sealed class LeadAssignmentSummaryDto
+    {
+        public string? AssignedToUserId { get; init; }
+        public required string AssignedToUserName { get; init; }
+        public required int LeadCount { get; init; }
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<LeadDto>>> GetLeadById([FromRoute] Guid id, CancellationToken ct)
     {
-        var lead = await _db.Leads.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
+        var lead = await _db.Leads.AsNoTracking()
+            .Include(l => l.AssignedToUser)
+            .FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
+
+        var (currentUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
+        if (!canSeeAllLeads && (!currentUserId.HasValue || lead.AssignedToUserId != currentUserId.Value))
+            return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
+
         return ApiResponse<LeadDto>.Ok(ToDto(lead));
     }
 
@@ -153,7 +232,8 @@ public sealed class LeadsController : TenantControllerBase
             LeadSource = request.LeadSource,
             Notes = request.Notes?.Trim(),
             Status = LeadStatus.New,
-            CreatedBy = createdBy
+            CreatedBy = createdBy,
+            AssignedToUserId = request.AssignedToUserId
         };
 
         _db.Leads.Add(lead);
@@ -167,6 +247,10 @@ public sealed class LeadsController : TenantControllerBase
     {
         var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
+
+        var (currentUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
+        if (!canSeeAllLeads && (!currentUserId.HasValue || lead.AssignedToUserId != currentUserId.Value))
+            return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
 
         var oldStatus = lead.Status;
         var oldNotes = lead.Notes?.Trim() ?? string.Empty;
@@ -225,6 +309,11 @@ public sealed class LeadsController : TenantControllerBase
     {
         var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<object>.Fail("Lead not found"));
+
+        var (currentUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
+        if (!canSeeAllLeads && (!currentUserId.HasValue || lead.AssignedToUserId != currentUserId.Value))
+            return NotFound(ApiResponse<object>.Fail("Lead not found"));
+
         _db.Leads.Remove(lead);
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
@@ -235,6 +324,10 @@ public sealed class LeadsController : TenantControllerBase
     {
         var lead = await _db.Leads.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<List<LeadFollowUpDto>>.Fail("Lead not found"));
+
+        var (currentUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
+        if (!canSeeAllLeads && (!currentUserId.HasValue || lead.AssignedToUserId != currentUserId.Value))
+            return NotFound(ApiResponse<List<LeadFollowUpDto>>.Fail("Lead not found"));
 
         var list = await _db.LeadFollowUps.AsNoTracking()
             .Where(f => f.LeadId == id)
@@ -260,6 +353,10 @@ public sealed class LeadsController : TenantControllerBase
     {
         var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<LeadFollowUpDto>.Fail("Lead not found"));
+
+        var (currentUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
+        if (!canSeeAllLeads && (!currentUserId.HasValue || lead.AssignedToUserId != currentUserId.Value))
+            return NotFound(ApiResponse<LeadFollowUpDto>.Fail("Lead not found"));
 
         var createdBy = User.FindFirstValue(ClaimTypes.Email) ?? User.Identity?.Name ?? "system";
 
@@ -303,6 +400,9 @@ public sealed class LeadsController : TenantControllerBase
             Notes = l.Notes,
             TenantId = l.TenantId.ToString("D"),
             AssignedToUserId = l.AssignedToUserId?.ToString("D"),
+            AssignedToUserName = l.AssignedToUser != null
+                ? $"{l.AssignedToUser.FirstName} {l.AssignedToUser.LastName}".Trim()
+                : (string?)null,
             CreatedAt = l.CreatedAt,
             UpdatedAt = l.UpdatedAt,
             CreatedBy = l.CreatedBy

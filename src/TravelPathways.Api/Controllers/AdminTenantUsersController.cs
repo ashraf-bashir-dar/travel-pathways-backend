@@ -31,6 +31,7 @@ public sealed class AdminTenantUsersController : ControllerBase
         public required string LastName { get; init; }
         public required string TenantId { get; init; }
         public required UserRole Role { get; init; }
+        public UserDepartment? Department { get; init; }
         public List<AppModuleKey>? AllowedModules { get; init; }
         public required bool IsActive { get; init; }
         public required DateTime CreatedAt { get; init; }
@@ -42,6 +43,7 @@ public sealed class AdminTenantUsersController : ControllerBase
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public UserRole Role { get; set; } = UserRole.Admin;
+        public UserDepartment? Department { get; set; }
         public string Password { get; set; } = string.Empty;
         public bool IsActive { get; set; } = true;
         public List<AppModuleKey>? AllowedModules { get; set; }
@@ -53,6 +55,7 @@ public sealed class AdminTenantUsersController : ControllerBase
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public UserRole Role { get; set; } = UserRole.Agent;
+        public UserDepartment? Department { get; set; }
         public string? Password { get; set; }
         public bool IsActive { get; set; } = true;
         public List<AppModuleKey>? AllowedModules { get; set; }
@@ -108,6 +111,7 @@ public sealed class AdminTenantUsersController : ControllerBase
             FirstName = request.FirstName.Trim(),
             LastName = request.LastName.Trim(),
             Role = request.Role,
+            Department = request.Department,
             IsActive = request.IsActive,
             AllowedModules = request.AllowedModules?.ToList() ?? [],
             PasswordHash = PasswordHasher.Hash(request.Password)
@@ -149,6 +153,7 @@ public sealed class AdminTenantUsersController : ControllerBase
         user.FirstName = request.FirstName.Trim();
         user.LastName = request.LastName.Trim();
         user.Role = request.Role;
+        user.Department = request.Department;
         user.IsActive = request.IsActive;
         user.AllowedModules = request.AllowedModules?.ToList() ?? user.AllowedModules ?? [];
 
@@ -181,6 +186,7 @@ public sealed class AdminTenantUsersController : ControllerBase
             LastName = u.LastName,
             TenantId = u.TenantId?.ToString("D") ?? string.Empty,
             Role = u.Role,
+            Department = u.Department,
             AllowedModules = u.AllowedModules?.ToList(),
             IsActive = u.IsActive,
             CreatedAt = u.CreatedAt

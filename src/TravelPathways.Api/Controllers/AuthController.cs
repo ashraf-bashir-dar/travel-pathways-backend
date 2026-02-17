@@ -42,6 +42,7 @@ public sealed class AuthController : ControllerBase
         public required string LastName { get; init; }
         public required string TenantId { get; init; }
         public required UserRole Role { get; init; }
+        public UserDepartment? Department { get; init; }
         public List<AppModuleKey>? AllowedModules { get; init; }
         public required bool IsActive { get; init; }
         public required DateTime CreatedAt { get; init; }
@@ -209,6 +210,7 @@ public sealed class AuthController : ControllerBase
                 LastName = user.LastName,
                 TenantId = user.TenantId?.ToString("D") ?? string.Empty,
                 Role = user.Role,
+                Department = user.Department,
                 AllowedModules = user.AllowedModules?.ToList() ?? [],
                 IsActive = user.IsActive,
                 CreatedAt = user.CreatedAt

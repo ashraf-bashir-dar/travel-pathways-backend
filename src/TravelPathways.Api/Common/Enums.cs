@@ -8,6 +8,15 @@ public enum UserRole
     Viewer = 3
 }
 
+/// <summary>Department / user type for labeling (Sales, HR, Accounts). Does not change permissions; use Role and AllowedModules.</summary>
+public enum UserDepartment
+{
+    General = 0,
+    Sales = 1,
+    HR = 2,
+    Accounts = 3
+}
+
 public enum AppModuleKey
 {
     Dashboard = 0,

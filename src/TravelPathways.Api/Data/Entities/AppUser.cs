@@ -13,6 +13,8 @@ public sealed class AppUser : EntityBase
     public string LastName { get; set; } = string.Empty;
 
     public UserRole Role { get; set; } = UserRole.Agent;
+    /// <summary>Department/user type (Sales, HR, Accounts) for display and default module suggestions.</summary>
+    public UserDepartment? Department { get; set; }
     public bool IsActive { get; set; } = true;
 
     /// <summary>Modules this user can access. Empty = all enabled for tenant.</summary>

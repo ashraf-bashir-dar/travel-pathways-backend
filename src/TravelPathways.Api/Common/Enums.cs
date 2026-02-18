@@ -25,7 +25,16 @@ public enum AppModuleKey
     Hotels = 3,
     Houseboats = 4,
     Transport = 5,
-    Master = 6
+    Master = 6,
+    Users = 7,
+    Accounts = 8
+}
+
+/// <summary>Payment direction: received from client or made to vendor.</summary>
+public enum PaymentType
+{
+    Received = 0,
+    Made = 1
 }
 
 public enum TenantDocumentType

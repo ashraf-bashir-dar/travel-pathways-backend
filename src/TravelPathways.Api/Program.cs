@@ -11,6 +11,7 @@ using TravelPathways.Api.Data;
 using TravelPathways.Api.Data.Entities;
 using TravelPathways.Api.MultiTenancy;
 using TravelPathways.Api.Storage;
+using TravelPathways.Api.Swagger;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,35 +19,41 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers()
     .AddJsonOptions(o =>
     {
-      o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-      o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-      o.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+        o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        o.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
 
 /* -------------------- Swagger -------------------- */
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-  c.SwaggerDoc("v1", new OpenApiInfo
-  {
-    Title = "TravelPathways API",
-    Version = "v1"
-  });
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "TravelPathways API",
+        Version = "v1"
+    });
 
-  c.CustomSchemaIds(type => type.FullName?.Replace("+", "."));
-  c.ResolveConflictingActions(apiDescriptions => apiDescriptions.First());
+    // Schema ID must be non-null and unique (null can cause 500 when generating swagger.json)
+    c.CustomSchemaIds(type => type.FullName?.Replace("+", ".") ?? type.Name);
+    c.ResolveConflictingActions(apiDescriptions => apiDescriptions.First());
 
-  c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-  {
-    Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
-    Name = "Authorization",
-    In = ParameterLocation.Header,
-    Type = SecuritySchemeType.Http,
-    Scheme = "bearer",
-    BearerFormat = "JWT"
-  });
+    // Fix file upload endpoints so Swagger document generation does not fail with 500
+    c.OperationFilter<FileUploadOperationFilter>();
+    c.MapType<IFormFile>(() => new OpenApiSchema { Type = "string", Format = "binary", Description = "File upload" });
+    c.MapType<Stream>(() => new OpenApiSchema { Type = "string", Format = "binary" });
 
-  c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
             new OpenApiSecurityScheme
@@ -73,15 +80,15 @@ var allowedOrigins = parsed.Length > 0
 
 builder.Services.AddCors(options =>
 {
-  options.AddPolicy("frontend", policy =>
-  {
-    policy
-        .WithOrigins(allowedOrigins)
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        .AllowCredentials()
-        .WithExposedHeaders("Content-Disposition"); // so frontend can read PDF download filename
-  });
+    options.AddPolicy("frontend", policy =>
+    {
+        policy
+          .WithOrigins(allowedOrigins)
+          .AllowAnyHeader()
+          .AllowAnyMethod()
+          .AllowCredentials()
+          .WithExposedHeaders("Content-Disposition"); // so frontend can read PDF download filename
+    });
 });
 
 
@@ -98,12 +105,12 @@ builder.Services.AddScoped<TravelPathways.Api.Services.IEmailService,
 /* -------------------- Database -------------------- */
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-  options.UseSqlServer(
-    builder.Configuration.GetConnectionString("DefaultConnection"),
-    sql => sql.EnableRetryOnFailure(
-      maxRetryCount: 5,
-      maxRetryDelay: TimeSpan.FromSeconds(30),
-      errorNumbersToAdd: null));
+    options.UseSqlServer(
+      builder.Configuration.GetConnectionString("DefaultConnection"),
+      sql => sql.EnableRetryOnFailure(
+        maxRetryCount: 5,
+        maxRetryDelay: TimeSpan.FromSeconds(30),
+        errorNumbersToAdd: null));
 });
 
 /* -------------------- JWT Authentication -------------------- */
@@ -116,75 +123,81 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-      options.TokenValidationParameters = new TokenValidationParameters
-      {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateIssuerSigningKey = true,
-        ValidateLifetime = true,
-        ValidIssuer = jwt.Issuer,
-        ValidAudience = jwt.Audience,
-        IssuerSigningKey = new SymmetricSecurityKey(
-              Encoding.UTF8.GetBytes(jwt.SigningKey)
-          ),
-        ClockSkew = TimeSpan.FromMinutes(2)
-      };
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateIssuerSigningKey = true,
+            ValidateLifetime = true,
+            ValidIssuer = jwt.Issuer,
+            ValidAudience = jwt.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwt.SigningKey)
+            ),
+            ClockSkew = TimeSpan.FromMinutes(2)
+        };
     });
 
+builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, SuperAdminAuthorizationHandler>();
 builder.Services.AddAuthorization(options =>
 {
-  options.AddPolicy("SuperAdminOnly",
-      policy => policy.RequireRole(UserRole.SuperAdmin.ToString()));
+    options.AddPolicy("SuperAdminOnly",
+        policy => policy.Requirements.Add(new SuperAdminRequirement()));
+    options.AddPolicy("TenantAdminOnly",
+        policy => policy.RequireRole(UserRole.Admin.ToString()));
 });
 
 var app = builder.Build();
 
+if (app.Environment.IsDevelopment())
+    app.UseDeveloperExceptionPage();
+
 /* -------------------- Forwarded headers (so Request.Scheme/Host are correct behind Azure proxy for PDF image URLs) -------------------- */
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
-  ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
-  KnownNetworks = { },
-  KnownProxies = { }
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
+    KnownNetworks = { },
+    KnownProxies = { }
 });
 
 /* -------------------- CORS: handle preflight and add headers to all responses -------------------- */
 const string allowedOriginStatic = "https://wonderful-grass-09269371e.1.azurestaticapps.net";
 app.Use(async (context, next) =>
 {
-  var origin = context.Request.Headers["Origin"].FirstOrDefault() ?? "";
-  var originAllowed = !string.IsNullOrEmpty(origin) && (
-    allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase) ||
-    string.Equals(origin, allowedOriginStatic, StringComparison.OrdinalIgnoreCase));
+    var origin = context.Request.Headers["Origin"].FirstOrDefault() ?? "";
+    var originAllowed = !string.IsNullOrEmpty(origin) && (
+      allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase) ||
+      string.Equals(origin, allowedOriginStatic, StringComparison.OrdinalIgnoreCase));
 
-  if (context.Request.Method == "OPTIONS")
-  {
+    if (context.Request.Method == "OPTIONS")
+    {
+        if (originAllowed)
+        {
+            context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+            context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS";
+            context.Response.Headers["Access-Control-Allow-Headers"] = context.Request.Headers["Access-Control-Request-Headers"].FirstOrDefault() ?? "Content-Type, Authorization, X-Tenant-Id";
+            context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+            context.Response.Headers["Access-Control-Max-Age"] = "86400";
+            context.Response.StatusCode = StatusCodes.Status204NoContent;
+            return;
+        }
+    }
+
     if (originAllowed)
     {
-      context.Response.Headers["Access-Control-Allow-Origin"] = origin;
-      context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS";
-      context.Response.Headers["Access-Control-Allow-Headers"] = context.Request.Headers["Access-Control-Request-Headers"].FirstOrDefault() ?? "Content-Type, Authorization, X-Tenant-Id";
-      context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
-      context.Response.Headers["Access-Control-Max-Age"] = "86400";
-      context.Response.StatusCode = StatusCodes.Status204NoContent;
-      return;
+        context.Response.OnStarting(() =>
+        {
+            if (!context.Response.Headers.ContainsKey("Access-Control-Allow-Origin"))
+            {
+                context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+                context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+                context.Response.Headers["Access-Control-Expose-Headers"] = "Content-Disposition";
+            }
+            return Task.CompletedTask;
+        });
     }
-  }
 
-  if (originAllowed)
-  {
-    context.Response.OnStarting(() =>
-    {
-      if (!context.Response.Headers.ContainsKey("Access-Control-Allow-Origin"))
-      {
-        context.Response.Headers["Access-Control-Allow-Origin"] = origin;
-        context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
-        context.Response.Headers["Access-Control-Expose-Headers"] = "Content-Disposition";
-      }
-      return Task.CompletedTask;
-    });
-  }
-
-  await next();
+    await next();
 });
 
 app.UseCors("frontend");
@@ -192,120 +205,124 @@ app.UseCors("frontend");
 /* -------------------- DB Migration & Seeding -------------------- */
 using (var scope = app.Services.CreateScope())
 {
-  var logger = scope.ServiceProvider
-      .GetRequiredService<ILoggerFactory>()
-      .CreateLogger("Startup");
+    var logger = scope.ServiceProvider
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("Startup");
 
-  try
-  {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
-
-    await EnsureLeadFollowUpsTableAsync(db, logger);
-
-    var superEmail = app.Configuration["SuperAdmin:Email"] ?? "super@travelpathways.local";
-    var superPassword = app.Configuration["SuperAdmin:Password"] ?? "Super@123";
-
-    var existing = await db.Users.FirstOrDefaultAsync(u => u.Email == superEmail);
-    if (existing == null)
+    try
     {
-      db.Users.Add(new AppUser
-      {
-        TenantId = null,
-        Email = superEmail,
-        FirstName = "Super",
-        LastName = "Admin",
-        Role = UserRole.SuperAdmin,
-        IsActive = true,
-        PasswordHash = PasswordHasher.Hash(superPassword)
-      });
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.MigrateAsync();
 
-      await db.SaveChangesAsync();
+        await EnsureLeadFollowUpsTableAsync(db, logger);
+
+        var superAdminEnabled = app.Configuration.GetValue<bool>("SuperAdmin:Enabled", true);
+        if (superAdminEnabled)
+        {
+            var superEmail = app.Configuration["SuperAdmin:Email"] ?? "super@travelpathways.local";
+            var superPassword = app.Configuration["SuperAdmin:Password"] ?? "Super@123";
+
+            var existing = await db.Users.FirstOrDefaultAsync(u => u.Email == superEmail);
+            if (existing == null)
+            {
+                db.Users.Add(new AppUser
+                {
+                    TenantId = null,
+                    Email = superEmail,
+                    FirstName = "Super",
+                    LastName = "Admin",
+                    Role = UserRole.SuperAdmin,
+                    IsActive = true,
+                    PasswordHash = PasswordHasher.Hash(superPassword)
+                });
+
+                await db.SaveChangesAsync();
+            }
+        }
+
+        if (!await db.Tenants.AnyAsync())
+        {
+            db.Tenants.Add(new Tenant
+            {
+                Name = "Default Agency",
+                Code = "DEFAULT",
+                Email = "admin@default.local",
+                Phone = "0000000000",
+                Address = "Default Address",
+                ContactPerson = "Admin",
+                EnabledModules = Enum.GetValues<AppModuleKey>().ToList(),
+                IsActive = true
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        await SeedStateCity.SeedAsync(db);
+        await SeedAreas.SeedAsync(db);
     }
-
-    if (!await db.Tenants.AnyAsync())
+    catch (Exception ex)
     {
-      db.Tenants.Add(new Tenant
-      {
-        Name = "Default Agency",
-        Code = "DEFAULT",
-        Email = "admin@default.local",
-        Phone = "0000000000",
-        Address = "Default Address",
-        ContactPerson = "Admin",
-        EnabledModules = Enum.GetValues<AppModuleKey>().ToList(),
-        IsActive = true
-      });
-
-      await db.SaveChangesAsync();
+        logger.LogError(ex, "Database migration/seed failed.");
     }
-
-    await SeedStateCity.SeedAsync(db);
-    await SeedAreas.SeedAsync(db);
-  }
-  catch (Exception ex)
-  {
-    logger.LogError(ex, "Database migration/seed failed.");
-  }
 }
 
 /* -------------------- Swagger Middleware -------------------- */
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-  c.SwaggerEndpoint("/swagger/v1/swagger.json", "TravelPathways API v1");
-  c.RoutePrefix = "swagger";
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "TravelPathways API v1");
+    c.RoutePrefix = "swagger";
 });
 
 /* -------------------- HTTPS (Production Only) -------------------- */
 if (!app.Environment.IsDevelopment())
 {
-  app.UseHttpsRedirection();
+    app.UseHttpsRedirection();
 }
 
 /* -------------------- Static Files & Uploads -------------------- */
 var customUploadsPath = app.Configuration["Uploads:Path"]?.Trim() ?? app.Configuration["Uploads__Path"]?.Trim();
 if (!string.IsNullOrEmpty(customUploadsPath))
 {
-  var provider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(customUploadsPath);
-  app.UseStaticFiles(new StaticFileOptions { FileProvider = provider, RequestPath = "/uploads" });
+    var provider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(customUploadsPath);
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = provider, RequestPath = "/uploads" });
 }
 else
 {
-  var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads");
-  if (!Directory.Exists(uploadsPath)) Directory.CreateDirectory(uploadsPath);
+    var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads");
+    if (!Directory.Exists(uploadsPath)) Directory.CreateDirectory(uploadsPath);
 }
 
 /* -------------------- Global exception handler (returns JSON so frontend gets CORS + body) -------------------- */
 app.UseExceptionHandler(a => a.Run(async context =>
 {
-  var ex = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
-  context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-  context.Response.ContentType = "application/json";
+    var ex = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+    context.Response.ContentType = "application/json";
 
-  // Get the real error message (unwrap DB/SQL exceptions)
-  string detailMessage = GetExceptionDetailMessage(ex);
+    // Get the real error message (unwrap DB/SQL exceptions)
+    string detailMessage = GetExceptionDetailMessage(ex);
 
-  // Always log the full error on the server so you can see it in Azure Log stream / App Insights
-  var logger = context.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("ExceptionHandler");
-  if (ex != null)
-    logger?.LogError(ex, "Unhandled exception: {Detail}", detailMessage);
-  else
-    logger?.LogError("Unhandled exception (no exception object). Detail: {Detail}", detailMessage);
+    // Always log the full error on the server so you can see it in Azure Log stream / App Insights
+    var logger = context.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("ExceptionHandler");
+    if (ex != null)
+        logger?.LogError(ex, "Unhandled exception: {Detail}", detailMessage);
+    else
+        logger?.LogError("Unhandled exception (no exception object). Detail: {Detail}", detailMessage);
 
-  // In Development, or when IncludeExceptionDetailsInResponse is true, return the actual message to the client
-  bool includeDetails = app.Environment.IsDevelopment()
-    || string.Equals(app.Configuration["IncludeExceptionDetailsInResponse"], "true", StringComparison.OrdinalIgnoreCase);
-  string message = includeDetails && !string.IsNullOrEmpty(detailMessage) ? detailMessage : "An error occurred.";
-  await context.Response.WriteAsJsonAsync(new { message });
+    // In Development, or when IncludeExceptionDetailsInResponse is true, return the actual message to the client
+    bool includeDetails = app.Environment.IsDevelopment()
+      || string.Equals(app.Configuration["IncludeExceptionDetailsInResponse"], "true", StringComparison.OrdinalIgnoreCase);
+    string message = includeDetails && !string.IsNullOrEmpty(detailMessage) ? detailMessage : "An error occurred.";
+    await context.Response.WriteAsJsonAsync(new { message });
 }));
 
 static string GetExceptionDetailMessage(Exception? ex)
 {
-  if (ex == null) return "";
-  if (ex is DbUpdateException dbEx && dbEx.InnerException != null)
-    return dbEx.InnerException.Message;
-  return ex.Message;
+    if (ex == null) return "";
+    if (ex is DbUpdateException dbEx && dbEx.InnerException != null)
+        return dbEx.InnerException.Message;
+    return ex.Message;
 }
 
 /* -------------------- Middleware Order (CRITICAL) -------------------- */
@@ -319,10 +336,10 @@ app.MapControllers();
 /* -------------------- Root URL (avoid 404 on base URL) -------------------- */
 app.MapGet("/", () => Results.Ok(new
 {
-  name = "TravelPathways API",
-  status = "running",
-  docs = "swagger",
-  swaggerUrl = "/swagger"
+    name = "TravelPathways API",
+    status = "running",
+    docs = "swagger",
+    swaggerUrl = "/swagger"
 }));
 
 app.Run();
@@ -330,9 +347,9 @@ app.Run();
 /* -------------------- Helpers -------------------- */
 static async Task EnsureLeadFollowUpsTableAsync(AppDbContext db, ILogger logger)
 {
-  try
-  {
-    const string sql = """
+    try
+    {
+        const string sql = """
         IF OBJECT_ID(N'dbo.LeadFollowUps', N'U') IS NULL
         BEGIN
             CREATE TABLE [dbo].[LeadFollowUps] (
@@ -353,10 +370,10 @@ static async Task EnsureLeadFollowUpsTableAsync(AppDbContext db, ILogger logger)
         END
         """;
 
-    await db.Database.ExecuteSqlRawAsync(sql);
-  }
-  catch (Exception ex)
-  {
-    logger.LogWarning(ex, "Could not ensure LeadFollowUps table.");
-  }
+        await db.Database.ExecuteSqlRawAsync(sql);
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Could not ensure LeadFollowUps table.");
+    }
 }

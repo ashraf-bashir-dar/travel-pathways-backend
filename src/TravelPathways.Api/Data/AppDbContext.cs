@@ -39,6 +39,8 @@ public sealed class AppDbContext : DbContext
     public DbSet<City> Cities => Set<City>();
     public DbSet<Area> Areas => Set<Area>();
 
+    public DbSet<Payment> Payments => Set<Payment>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -260,6 +262,13 @@ public sealed class AppDbContext : DbContext
             .HasForeignKey(h => h.AreaId)
             .IsRequired(false);
 
+        modelBuilder.Entity<Payment>()
+            .Property(p => p.PaymentType)
+            .HasConversion<string>();
+        modelBuilder.Entity<Payment>()
+            .Property(p => p.Amount)
+            .HasColumnType("decimal(18,2)");
+
         // ---------- Multi-tenancy query filters ----------
         ConfigureTenantFilters(modelBuilder);
     }
@@ -277,6 +286,7 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<TourPackage>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
         modelBuilder.Entity<DayItinerary>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
         modelBuilder.Entity<ItineraryTemplate>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
+        modelBuilder.Entity<Payment>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
     }
 
     public override int SaveChanges()

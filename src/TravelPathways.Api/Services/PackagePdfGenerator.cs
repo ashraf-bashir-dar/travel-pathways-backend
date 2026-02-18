@@ -72,6 +72,7 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
         sb.Append(".day-circle{width:36px;height:36px;background:#6699ff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.9rem;}");
         sb.Append(".day-bar-title{font-weight:700;}");
         sb.Append(".day-para{margin:0.5rem 0 0;padding:0.85rem 0.6rem;min-height:4rem;line-height:1.6;font-size:10pt;}");
+        sb.Append(".day-extra{margin:0.35rem 0 0;padding:0 0.6rem;font-size:9pt;color:#475569;}");
         sb.Append("/* Accommodation */");
         sb.Append(".acc-card{page-break-inside:avoid;margin-bottom:1.5rem;}");
         sb.Append(".acc-banner{background:#3366cc;color:#fff;text-align:center;padding:0.4rem;font-weight:700;font-size:0.95rem;}");
@@ -141,6 +142,8 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
         if (!string.IsNullOrWhiteSpace(m.PickUpLocation)) sb.Append("<div class=\"info-row\"><div class=\"info-tab\"></div><div class=\"info-cell\">Pick Up Location</div><div class=\"info-cell val\">").Append(H(m.PickUpLocation)).Append("</div><div class=\"info-tab-r\"></div></div>");
         if (!string.IsNullOrWhiteSpace(m.DropLocation)) sb.Append("<div class=\"info-row\"><div class=\"info-tab\"></div><div class=\"info-cell\">Drop Location</div><div class=\"info-cell val\">").Append(H(m.DropLocation)).Append("</div><div class=\"info-tab-r\"></div></div>");
         sb.Append("<div class=\"info-row\"><div class=\"info-tab\"></div><div class=\"info-cell\">No. of Rooms</div><div class=\"info-cell val\">").Append(m.FirstDayRooms.ToString().PadLeft(2, '0')).Append("</div><div class=\"info-tab-r\"></div></div>");
+        sb.Append("<div class=\"info-row\"><div class=\"info-tab\"></div><div class=\"info-cell\">Number of Extra beds</div><div class=\"info-cell val\">").Append(m.TotalExtraBeds.ToString()).Append("</div><div class=\"info-tab-r\"></div></div>");
+        sb.Append("<div class=\"info-row\"><div class=\"info-tab\"></div><div class=\"info-cell\">Number of CNB</div><div class=\"info-cell val\">").Append(m.TotalCnbCount.ToString()).Append("</div><div class=\"info-tab-r\"></div></div>");
         sb.Append("<div class=\"info-row\"><div class=\"info-tab\"></div><div class=\"info-cell\">Meal Plan</div><div class=\"info-cell val\">").Append(H(m.MealPlanLabel)).Append("</div><div class=\"info-tab-r\"></div></div>");
         sb.Append("</div>");
         sb.Append("<div class=\"page-1-section\">");
@@ -159,7 +162,15 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
         {
             sb.Append("<div class=\"day-block\">");
             sb.Append("<div class=\"day-bar\"><span class=\"day-circle\">").Append(d.DayNumber.ToString().PadLeft(2, '0')).Append("</span><span class=\"day-bar-title\">Day ").Append(d.DayNumber.ToString().PadLeft(2, '0')).Append(": ").Append(H(d.Title)).Append("</span></div>");
-            sb.Append("<p class=\"day-para\">").Append(H(d.Description)).Append("</p></div>");
+            sb.Append("<p class=\"day-para\">").Append(H(d.Description)).Append("</p>");
+            if (d.ExtraBedCount > 0 || d.CnbCount > 0)
+            {
+                var parts = new List<string>();
+                if (d.ExtraBedCount > 0) parts.Add("Extra beds: " + d.ExtraBedCount);
+                if (d.CnbCount > 0) parts.Add("CNB: " + d.CnbCount);
+                sb.Append("<p class=\"day-extra\">").Append(H(string.Join(" | ", parts))).Append("</p>");
+            }
+            sb.Append("</div>");
         }
 
         // —— Accommodation (HOTEL / Houseboat per property) ——

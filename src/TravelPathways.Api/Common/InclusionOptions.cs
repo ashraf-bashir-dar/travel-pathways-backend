@@ -5,17 +5,17 @@ public static class InclusionOptions
 {
     public static readonly IReadOnlyList<(string Id, string Label)> All = new[]
     {
-        ("shikara_1hr", "01 hour Shikara Ride; Complementary"),
-        ("toll_tax_driver", "Toll tax diesel parking and driver allowances"),
-        ("gondola_phase1", "Gondola tickets for phase 1"),
-        ("gondola_phase2", "Gondola tickets for phase 2"),
-        ("mugal_gardens", "Entry tickets of Srinagar Mughal Gardens"),
-        ("air_train_coolie", "Air / Train Fare Coolie / Porter Charges / Camera charges"),
-        ("donations_temples", "Donations at Temples"),
-        ("extended_stay", "Extended stay or travelling due to any reason"),
-        ("meals_not_specified", "Any meals other than those specified in Tour Cost"),
-        ("personal_expenses", "Expenses of personal nature such as tips, telephone calls, laundry, liquor etc."),
-        ("union_cabs_pony", "Union Cabs in Gulmarg, Sonmarg, Pahalgam and Pony rides"),
+        ("shikara_1hr", "1-hour Shikara ride (complimentary)"),
+        ("toll_tax_driver", "Toll tax, diesel, parking and driver allowances"),
+        ("gondola_phase1", "Gondola tickets (Phase 1)"),
+        ("gondola_phase2", "Gondola tickets (Phase 2)"),
+        ("mugal_gardens", "Entry tickets for Srinagar Mughal Gardens"),
+        ("air_train_coolie", "Air or train fare, coolie/porter charges and camera charges"),
+        ("donations_temples", "Donations at temples"),
+        ("extended_stay", "Extended stay or travel due to any reason"),
+        ("meals_not_specified", "Any meals not specified in the tour cost"),
+        ("personal_expenses", "Personal expenses (e.g. tips, telephone, laundry, liquor)"),
+        ("union_cabs_pony", "Local cabs in Gulmarg, Sonmarg, Pahalgam and pony rides"),
         ("health_insurance", "Health insurance")
     };
 

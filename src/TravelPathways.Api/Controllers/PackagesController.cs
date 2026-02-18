@@ -535,7 +535,14 @@ public sealed class PackagesController : TenantControllerBase
             if (d.Activities?.Count > 0) descParts.Add(string.Join(". ", d.Activities));
             if (!string.IsNullOrWhiteSpace(d.Notes)) descParts.Add(d.Notes.Trim());
             var description = descParts.Count > 0 ? string.Join(" ", descParts) : "–";
-            return new DayItem { DayNumber = d.DayNumber, Title = title, Description = description };
+            return new DayItem
+            {
+                DayNumber = d.DayNumber,
+                Title = title,
+                Description = description,
+                ExtraBedCount = d.ExtraBedCount ?? 0,
+                CnbCount = d.CnbCount ?? 0
+            };
         }).ToList();
 
         var seenHotels = new Dictionary<Guid, (Hotel Hotel, string MealPlan, int Nights)>();
@@ -566,12 +573,12 @@ public sealed class PackagesController : TenantControllerBase
         var firstDay = days.FirstOrDefault();
         string Fmt(decimal v) => v.ToString("N0", CultureInfo.GetCultureInfo("en-IN"));
         string FmtDate(DateTime dt) => dt.ToString("d MMM yyyy", CultureInfo.GetCultureInfo("en-IN"));
-        // PDF amounts always include Shikara (700 × ceil(adults/4)) so Total and Final show the full package amount
+        // Include Shikara (700 × ceil(adults/4)) in PDF totals so PDF matches packages list Final amount
         var shikaraCharge = GetShikaraCharge(pkg.NumberOfAdults);
         var totalWithShikara = pkg.TotalAmount + shikaraCharge;
         var finalAmount = Math.Max(0, totalWithShikara - pkg.Discount);
         var balanceWithShikara = Math.Max(0, finalAmount - pkg.AdvanceAmount);
-        var chargeablePax = pkg.NumberOfAdults + pkg.NumberOfChildren; // use NumberOfChildrenAbove6 when available
+        var chargeablePax = pkg.NumberOfAdults + pkg.NumberOfChildren;
         var perPerson = chargeablePax > 0 ? finalAmount / chargeablePax : finalAmount;
 
         var clientAddress = string.Join(", ", new[] { pkg.ClientCity, pkg.ClientState }.Where(s => !string.IsNullOrWhiteSpace(s))).Trim();
@@ -594,6 +601,8 @@ public sealed class PackagesController : TenantControllerBase
             NumberOfChildren = pkg.NumberOfChildren,
             MealPlanLabel = firstDay is not null ? MealPlanLabel(firstDay.MealPlan) : "–",
             FirstDayRooms = firstDay?.NumberOfRooms ?? 1,
+            TotalExtraBeds = days.Sum(d => d.ExtraBedCount ?? 0),
+            TotalCnbCount = days.Sum(d => d.CnbCount ?? 0),
             TotalAmount = "Rs. " + Fmt(totalWithShikara),
             Discount = pkg.Discount > 0 ? "Rs. " + Fmt(pkg.Discount) : "–",
             FinalAmount = "Rs. " + Fmt(finalAmount),

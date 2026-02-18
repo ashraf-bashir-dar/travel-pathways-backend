@@ -101,8 +101,8 @@ public sealed class AdminTenantUsersController : ControllerBase
             }
         }
 
-        var exists = await _db.Users.AnyAsync(u => u.Email == request.Email, ct);
-        if (exists) return BadRequest(ApiResponse<TenantUserDto>.Fail("Email already exists."));
+        var exists = await _db.Users.AnyAsync(u => u.Email == request.Email.Trim(), ct);
+        if (exists) return BadRequest(ApiResponse<TenantUserDto>.Fail("A user with this email already exists."));
 
         var user = new AppUser
         {
@@ -149,7 +149,11 @@ public sealed class AdminTenantUsersController : ControllerBase
         var user = await _db.Users.FirstOrDefaultAsync(u => u.TenantId == tenantId && u.Id == userId, ct);
         if (user is null) return NotFound(ApiResponse<TenantUserDto>.Fail("User not found"));
 
-        user.Email = request.Email.Trim();
+        var newEmail = request.Email.Trim();
+        if (newEmail != user.Email && await _db.Users.AnyAsync(u => u.Email == newEmail, ct))
+            return BadRequest(ApiResponse<TenantUserDto>.Fail("A user with this email already exists."));
+
+        user.Email = newEmail;
         user.FirstName = request.FirstName.Trim();
         user.LastName = request.LastName.Trim();
         user.Role = request.Role;

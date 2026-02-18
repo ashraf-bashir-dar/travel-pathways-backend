@@ -70,163 +70,26 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "Name": {
-                    "type": "string"
-                  },
-                  "Code": {
-                    "type": "string"
-                  },
-                  "ContactPerson": {
-                    "type": "string"
-                  },
-                  "Email": {
-                    "type": "string"
-                  },
-                  "Phone": {
-                    "type": "string"
-                  },
-                  "Address": {
-                    "type": "string"
-                  },
-                  "EnabledModules": {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/TravelPathways.Api.Common.AppModuleKey"
-                    }
-                  },
                   "LogoFile": {
                     "type": "string",
+                    "description": "File to upload",
                     "format": "binary"
                   },
                   "RegistrationPdf": {
                     "type": "string",
+                    "description": "File to upload",
                     "format": "binary"
                   },
                   "PanPdf": {
                     "type": "string",
+                    "description": "File to upload",
                     "format": "binary"
                   },
                   "GstPdf": {
                     "type": "string",
+                    "description": "File to upload",
                     "format": "binary"
                   }
-                }
-              },
-              "encoding": {
-                "Name": {
-                  "style": "form"
-                },
-                "Code": {
-                  "style": "form"
-                },
-                "ContactPerson": {
-                  "style": "form"
-                },
-                "Email": {
-                  "style": "form"
-                },
-                "Phone": {
-                  "style": "form"
-                },
-                "Address": {
-                  "style": "form"
-                },
-                "EnabledModules": {
-                  "style": "form"
-                },
-                "LogoFile": {
-                  "style": "form"
-                },
-                "RegistrationPdf": {
-                  "style": "form"
-                },
-                "PanPdf": {
-                  "style": "form"
-                },
-                "GstPdf": {
-                  "style": "form"
-                }
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "Name": {
-                    "type": "string"
-                  },
-                  "Code": {
-                    "type": "string"
-                  },
-                  "ContactPerson": {
-                    "type": "string"
-                  },
-                  "Email": {
-                    "type": "string"
-                  },
-                  "Phone": {
-                    "type": "string"
-                  },
-                  "Address": {
-                    "type": "string"
-                  },
-                  "EnabledModules": {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/TravelPathways.Api.Common.AppModuleKey"
-                    }
-                  },
-                  "LogoFile": {
-                    "type": "string",
-                    "format": "binary"
-                  },
-                  "RegistrationPdf": {
-                    "type": "string",
-                    "format": "binary"
-                  },
-                  "PanPdf": {
-                    "type": "string",
-                    "format": "binary"
-                  },
-                  "GstPdf": {
-                    "type": "string",
-                    "format": "binary"
-                  }
-                }
-              },
-              "encoding": {
-                "Name": {
-                  "style": "form"
-                },
-                "Code": {
-                  "style": "form"
-                },
-                "ContactPerson": {
-                  "style": "form"
-                },
-                "Email": {
-                  "style": "form"
-                },
-                "Phone": {
-                  "style": "form"
-                },
-                "Address": {
-                  "style": "form"
-                },
-                "EnabledModules": {
-                  "style": "form"
-                },
-                "LogoFile": {
-                  "style": "form"
-                },
-                "RegistrationPdf": {
-                  "style": "form"
-                },
-                "PanPdf": {
-                  "style": "form"
-                },
-                "GstPdf": {
-                  "style": "form"
                 }
               }
             }
@@ -316,265 +179,26 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "IsActive": {
-                    "type": "boolean"
-                  },
-                  "DefaultUserId": {
-                    "type": "string"
-                  },
-                  "PlanId": {
-                    "type": "string"
-                  },
-                  "BillingCycle": {
-                    "$ref": "#/components/schemas/TravelPathways.Api.Common.BillingCycle"
-                  },
-                  "SeatsPurchased": {
-                    "type": "integer",
-                    "format": "int32"
-                  },
-                  "SubscriptionStatus": {
-                    "$ref": "#/components/schemas/TravelPathways.Api.Common.SubscriptionStatus"
-                  },
-                  "SubscriptionStartUtc": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "SubscriptionEndUtc": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "Name": {
-                    "type": "string"
-                  },
-                  "Code": {
-                    "type": "string"
-                  },
-                  "ContactPerson": {
-                    "type": "string"
-                  },
-                  "Email": {
-                    "type": "string"
-                  },
-                  "Phone": {
-                    "type": "string"
-                  },
-                  "Address": {
-                    "type": "string"
-                  },
-                  "EnabledModules": {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/TravelPathways.Api.Common.AppModuleKey"
-                    }
-                  },
                   "LogoFile": {
                     "type": "string",
+                    "description": "File to upload",
                     "format": "binary"
                   },
                   "RegistrationPdf": {
                     "type": "string",
+                    "description": "File to upload",
                     "format": "binary"
                   },
                   "PanPdf": {
                     "type": "string",
+                    "description": "File to upload",
                     "format": "binary"
                   },
                   "GstPdf": {
                     "type": "string",
+                    "description": "File to upload",
                     "format": "binary"
                   }
-                }
-              },
-              "encoding": {
-                "IsActive": {
-                  "style": "form"
-                },
-                "DefaultUserId": {
-                  "style": "form"
-                },
-                "PlanId": {
-                  "style": "form"
-                },
-                "BillingCycle": {
-                  "style": "form"
-                },
-                "SeatsPurchased": {
-                  "style": "form"
-                },
-                "SubscriptionStatus": {
-                  "style": "form"
-                },
-                "SubscriptionStartUtc": {
-                  "style": "form"
-                },
-                "SubscriptionEndUtc": {
-                  "style": "form"
-                },
-                "Name": {
-                  "style": "form"
-                },
-                "Code": {
-                  "style": "form"
-                },
-                "ContactPerson": {
-                  "style": "form"
-                },
-                "Email": {
-                  "style": "form"
-                },
-                "Phone": {
-                  "style": "form"
-                },
-                "Address": {
-                  "style": "form"
-                },
-                "EnabledModules": {
-                  "style": "form"
-                },
-                "LogoFile": {
-                  "style": "form"
-                },
-                "RegistrationPdf": {
-                  "style": "form"
-                },
-                "PanPdf": {
-                  "style": "form"
-                },
-                "GstPdf": {
-                  "style": "form"
-                }
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "IsActive": {
-                    "type": "boolean"
-                  },
-                  "DefaultUserId": {
-                    "type": "string"
-                  },
-                  "PlanId": {
-                    "type": "string"
-                  },
-                  "BillingCycle": {
-                    "$ref": "#/components/schemas/TravelPathways.Api.Common.BillingCycle"
-                  },
-                  "SeatsPurchased": {
-                    "type": "integer",
-                    "format": "int32"
-                  },
-                  "SubscriptionStatus": {
-                    "$ref": "#/components/schemas/TravelPathways.Api.Common.SubscriptionStatus"
-                  },
-                  "SubscriptionStartUtc": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "SubscriptionEndUtc": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "Name": {
-                    "type": "string"
-                  },
-                  "Code": {
-                    "type": "string"
-                  },
-                  "ContactPerson": {
-                    "type": "string"
-                  },
-                  "Email": {
-                    "type": "string"
-                  },
-                  "Phone": {
-                    "type": "string"
-                  },
-                  "Address": {
-                    "type": "string"
-                  },
-                  "EnabledModules": {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/TravelPathways.Api.Common.AppModuleKey"
-                    }
-                  },
-                  "LogoFile": {
-                    "type": "string",
-                    "format": "binary"
-                  },
-                  "RegistrationPdf": {
-                    "type": "string",
-                    "format": "binary"
-                  },
-                  "PanPdf": {
-                    "type": "string",
-                    "format": "binary"
-                  },
-                  "GstPdf": {
-                    "type": "string",
-                    "format": "binary"
-                  }
-                }
-              },
-              "encoding": {
-                "IsActive": {
-                  "style": "form"
-                },
-                "DefaultUserId": {
-                  "style": "form"
-                },
-                "PlanId": {
-                  "style": "form"
-                },
-                "BillingCycle": {
-                  "style": "form"
-                },
-                "SeatsPurchased": {
-                  "style": "form"
-                },
-                "SubscriptionStatus": {
-                  "style": "form"
-                },
-                "SubscriptionStartUtc": {
-                  "style": "form"
-                },
-                "SubscriptionEndUtc": {
-                  "style": "form"
-                },
-                "Name": {
-                  "style": "form"
-                },
-                "Code": {
-                  "style": "form"
-                },
-                "ContactPerson": {
-                  "style": "form"
-                },
-                "Email": {
-                  "style": "form"
-                },
-                "Phone": {
-                  "style": "form"
-                },
-                "Address": {
-                  "style": "form"
-                },
-                "EnabledModules": {
-                  "style": "form"
-                },
-                "LogoFile": {
-                  "style": "form"
-                },
-                "RegistrationPdf": {
-                  "style": "form"
-                },
-                "PanPdf": {
-                  "style": "form"
-                },
-                "GstPdf": {
-                  "style": "form"
                 }
               }
             }
@@ -1255,17 +879,10 @@
                 "type": "object",
                 "properties": {
                   "files": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "binary"
-                    }
+                    "type": "string",
+                    "description": "File to upload",
+                    "format": "binary"
                   }
-                }
-              },
-              "encoding": {
-                "files": {
-                  "style": "form"
                 }
               }
             }
@@ -1634,6 +1251,30 @@
             "schema": {
               "$ref": "#/components/schemas/TravelPathways.Api.Common.LeadSource"
             }
+          },
+          {
+            "name": "assignedToUserId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "assignedFrom",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "assignedTo",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
           }
         ],
         "responses": {
@@ -1699,6 +1340,35 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.LeadsController.LeadDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leads/assignment-summary": {
+      "get": {
+        "tags": [
+          "Leads"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.LeadsController.LeadAssignmentSummaryDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.LeadsController.LeadAssignmentSummaryDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.LeadsController.LeadAssignmentSummaryDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
                 }
               }
             }
@@ -2429,6 +2099,339 @@
         }
       }
     },
+    "/api/payments": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "name": "paymentType",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Common.PaymentType"
+            }
+          },
+          {
+            "name": "leadId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "hotelId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "transportCompanyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "dateFrom",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "dateTo",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "pageNumber",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Common.PaginatedResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Common.PaginatedResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Common.PaginatedResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.PaymentsController.CreatePaymentRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.PaymentsController.CreatePaymentRequestDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.PaymentsController.CreatePaymentRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/{id}": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.PaymentsController.UpdatePaymentRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.PaymentsController.UpdatePaymentRequestDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.PaymentsController.UpdatePaymentRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/{id}/screenshot": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "description": "File to upload",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/plans": {
       "get": {
         "tags": [
@@ -2607,6 +2610,216 @@
         "parameters": [
           {
             "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenant/users": {
+      "get": {
+        "tags": [
+          "TenantUsers"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "TenantUsers"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantUsersController.CreateTenantUserRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantUsersController.CreateTenantUserRequestDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantUsersController.CreateTenantUserRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenant/users/{userId}": {
+      "get": {
+        "tags": [
+          "TenantUsers"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "TenantUsers"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantUsersController.UpdateTenantUserRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantUsersController.UpdateTenantUserRequestDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantUsersController.UpdateTenantUserRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "TenantUsers"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
             "in": "path",
             "required": true,
             "schema": {
@@ -3465,6 +3678,33 @@
         },
         "additionalProperties": false
       },
+      "TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.LeadsController.LeadAssignmentSummaryDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Controllers.LeadsController.LeadAssignmentSummaryDto"
+            },
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.LeadsController.LeadFollowUpDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]": {
         "type": "object",
         "properties": {
@@ -3529,6 +3769,33 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/TravelPathways.Api.Controllers.PlansController.PlanDto"
+            },
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto"
             },
             "nullable": true
           },
@@ -3673,6 +3940,29 @@
           },
           "data": {
             "$ref": "#/components/schemas/TravelPathways.Api.Common.PaginatedResponse`1[[TravelPathways.Api.Controllers.PackagesController.PackageDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Common.PaginatedResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.PaginatedResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
           },
           "message": {
             "type": "string",
@@ -3895,6 +4185,29 @@
         },
         "additionalProperties": false
       },
+      "TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Controllers.PaymentsController.PaymentDto"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.PlansController.PlanDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
         "type": "object",
         "properties": {
@@ -3903,6 +4216,29 @@
           },
           "data": {
             "$ref": "#/components/schemas/TravelPathways.Api.Controllers.PlansController.PlanDto"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto"
           },
           "message": {
             "type": "string",
@@ -3995,7 +4331,9 @@
           "Hotels",
           "Houseboats",
           "Transport",
-          "Master"
+          "Master",
+          "Users",
+          "Accounts"
         ],
         "type": "string"
       },
@@ -4209,6 +4547,42 @@
         },
         "additionalProperties": false
       },
+      "TravelPathways.Api.Common.PaginatedResponse`1[[TravelPathways.Api.Controllers.PaymentsController.PaymentDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
+        "required": [
+          "items",
+          "pageNumber",
+          "pageSize",
+          "totalCount",
+          "totalPages"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Controllers.PaymentsController.PaymentDto"
+            },
+            "nullable": true
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "TravelPathways.Api.Common.PaginatedResponse`1[[TravelPathways.Api.Controllers.TransportCompaniesController.TransportCompanyDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
         "required": [
           "items",
@@ -4281,6 +4655,13 @@
         },
         "additionalProperties": false
       },
+      "TravelPathways.Api.Common.PaymentType": {
+        "enum": [
+          "Received",
+          "Made"
+        ],
+        "type": "string"
+      },
       "TravelPathways.Api.Common.RateType": {
         "enum": [
           "PerDay",
@@ -4306,6 +4687,15 @@
           "PAN",
           "GST",
           "Other"
+        ],
+        "type": "string"
+      },
+      "TravelPathways.Api.Common.UserDepartment": {
+        "enum": [
+          "General",
+          "Sales",
+          "HR",
+          "Accounts"
         ],
         "type": "string"
       },
@@ -4347,6 +4737,9 @@
           },
           "role": {
             "$ref": "#/components/schemas/TravelPathways.Api.Common.UserRole"
+          },
+          "department": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.UserDepartment"
           },
           "password": {
             "type": "string",
@@ -4401,6 +4794,9 @@
           "role": {
             "$ref": "#/components/schemas/TravelPathways.Api.Common.UserRole"
           },
+          "department": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.UserDepartment"
+          },
           "allowedModules": {
             "type": "array",
             "items": {
@@ -4435,6 +4831,9 @@
           },
           "role": {
             "$ref": "#/components/schemas/TravelPathways.Api.Common.UserRole"
+          },
+          "department": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.UserDepartment"
           },
           "password": {
             "type": "string",
@@ -4792,6 +5191,9 @@
           },
           "role": {
             "$ref": "#/components/schemas/TravelPathways.Api.Common.UserRole"
+          },
+          "department": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.UserDepartment"
           },
           "allowedModules": {
             "type": "array",
@@ -5260,6 +5662,33 @@
           "notes": {
             "type": "string",
             "nullable": true
+          },
+          "assignedToUserId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.LeadsController.LeadAssignmentSummaryDto": {
+        "required": [
+          "assignedToUserName",
+          "leadCount"
+        ],
+        "type": "object",
+        "properties": {
+          "assignedToUserId": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignedToUserName": {
+            "type": "string",
+            "nullable": true
+          },
+          "leadCount": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -5322,6 +5751,10 @@
             "nullable": true
           },
           "assignedToUserId": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignedToUserName": {
             "type": "string",
             "nullable": true
           },
@@ -5996,6 +6429,186 @@
         },
         "additionalProperties": false
       },
+      "TravelPathways.Api.Controllers.PaymentsController.CreatePaymentRequestDto": {
+        "type": "object",
+        "properties": {
+          "paymentType": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.PaymentType"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "paymentDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reference": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "leadId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "packageId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "hotelId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "transportCompanyId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.PaymentsController.PaymentDto": {
+        "required": [
+          "amount",
+          "createdAt",
+          "id",
+          "paymentDate",
+          "paymentType",
+          "tenantId",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "paymentType": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.PaymentType"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "paymentDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reference": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "leadId": {
+            "type": "string",
+            "nullable": true
+          },
+          "clientName": {
+            "type": "string",
+            "nullable": true
+          },
+          "packageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "packageName": {
+            "type": "string",
+            "nullable": true
+          },
+          "hotelId": {
+            "type": "string",
+            "nullable": true
+          },
+          "hotelOrHouseboatName": {
+            "type": "string",
+            "nullable": true
+          },
+          "isHouseboat": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "transportCompanyId": {
+            "type": "string",
+            "nullable": true
+          },
+          "transportCompanyName": {
+            "type": "string",
+            "nullable": true
+          },
+          "screenshotUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "tenantId": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.PaymentsController.UpdatePaymentRequestDto": {
+        "type": "object",
+        "properties": {
+          "paymentType": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.PaymentType"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "paymentDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reference": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "leadId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "packageId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "hotelId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "transportCompanyId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "TravelPathways.Api.Controllers.PlansController.CreatePlanRequestDto": {
         "type": "object",
         "properties": {
@@ -6121,6 +6734,138 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/TravelPathways.Api.Controllers.PlansController.PlanPriceItemDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.TenantUsersController.CreateTenantUserRequestDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.UserRole"
+          },
+          "department": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.UserDepartment"
+          },
+          "password": {
+            "type": "string",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "allowedModules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Common.AppModuleKey"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto": {
+        "required": [
+          "createdAt",
+          "email",
+          "firstName",
+          "id",
+          "isActive",
+          "lastName",
+          "role",
+          "tenantId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "tenantId": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.UserRole"
+          },
+          "department": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.UserDepartment"
+          },
+          "allowedModules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Common.AppModuleKey"
+            },
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.TenantUsersController.UpdateTenantUserRequestDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.UserRole"
+          },
+          "department": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.UserDepartment"
+          },
+          "password": {
+            "type": "string",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "allowedModules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Common.AppModuleKey"
             },
             "nullable": true
           }

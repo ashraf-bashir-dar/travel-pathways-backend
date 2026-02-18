@@ -17,6 +17,10 @@ public sealed class PackagePdfModel
     public int NumberOfChildren { get; init; }
     public string MealPlanLabel { get; init; } = "–";
     public int FirstDayRooms { get; init; } = 1;
+    /// <summary>Total extra beds across all days. Shown in Package information when > 0.</summary>
+    public int TotalExtraBeds { get; init; }
+    /// <summary>Total CNB (Child No Bed) across all days. Shown in Package information when > 0.</summary>
+    public int TotalCnbCount { get; init; }
     public required string TotalAmount { get; init; }
     public required string Discount { get; init; }
     public required string FinalAmount { get; init; }
@@ -43,6 +47,10 @@ public sealed class DayItem
     public int DayNumber { get; init; }
     public string Title { get; init; } = "";
     public string Description { get; init; } = "";
+    /// <summary>Extra beds for this day. Shown in PDF when > 0.</summary>
+    public int ExtraBedCount { get; init; }
+    /// <summary>CNB (Child No Bed) for this day. Shown in PDF when > 0.</summary>
+    public int CnbCount { get; init; }
 }
 
 public sealed class HotelItem

@@ -143,12 +143,19 @@ public sealed class AdminTenantsController : ControllerBase
         var exists = await _db.Tenants.AnyAsync(t => t.Code == request.Code, ct);
         if (exists) return BadRequest(ApiResponse<TenantDto>.Fail("Tenant code already exists."));
 
+        var tenantEmail = request.Email?.Trim();
+        if (!string.IsNullOrWhiteSpace(tenantEmail))
+        {
+            var emailExists = await _db.Tenants.AnyAsync(t => t.Email == tenantEmail, ct);
+            if (emailExists) return BadRequest(ApiResponse<TenantDto>.Fail("A tenant with this email already exists. Use a different email."));
+        }
+
         var tenant = new Tenant
         {
             Name = request.Name.Trim(),
             Code = request.Code.Trim(),
             ContactPerson = request.ContactPerson.Trim(),
-            Email = request.Email?.Trim() ?? string.Empty,
+            Email = tenantEmail ?? string.Empty,
             Phone = request.Phone.Trim(),
             Address = request.Address.Trim(),
             EnabledModules = request.EnabledModules?.ToList() ?? []
@@ -169,10 +176,24 @@ public sealed class AdminTenantsController : ControllerBase
         var tenant = await _db.Tenants.Include(t => t.Documents).FirstOrDefaultAsync(t => t.Id == id, ct);
         if (tenant is null) return NotFound(ApiResponse<TenantDto>.Fail("Tenant not found"));
 
+        var newCode = request.Code.Trim();
+        if (tenant.Code != newCode)
+        {
+            if (await _db.Tenants.AnyAsync(t => t.Code == newCode && t.Id != id, ct))
+                return BadRequest(ApiResponse<TenantDto>.Fail("Tenant code already exists."));
+        }
+
+        var newEmail = request.Email?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(newEmail) && tenant.Email != newEmail)
+        {
+            if (await _db.Tenants.AnyAsync(t => t.Email == newEmail && t.Id != id, ct))
+                return BadRequest(ApiResponse<TenantDto>.Fail("A tenant with this email already exists. Use a different email."));
+        }
+
         tenant.Name = request.Name.Trim();
-        tenant.Code = request.Code.Trim();
+        tenant.Code = newCode;
         tenant.ContactPerson = request.ContactPerson.Trim();
-        tenant.Email = request.Email?.Trim() ?? string.Empty;
+        tenant.Email = newEmail;
         tenant.Phone = request.Phone.Trim();
         tenant.Address = request.Address.Trim();
         tenant.IsActive = request.IsActive;

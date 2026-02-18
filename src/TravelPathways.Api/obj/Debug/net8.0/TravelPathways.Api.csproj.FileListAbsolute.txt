@@ -299,3 +299,4 @@ C:\Users\Lenovo\source\repos\travel-pathways\backend\src\TravelPathways.Api\obj\
 C:\Users\Lenovo\source\repos\travel-pathways\backend\src\TravelPathways.Api\obj\Debug\net8.0\ref\TravelPathways.Api.dll
 C:\Users\Lenovo\source\repos\travel-pathways\backend\src\TravelPathways.Api\bin\Debug\net8.0\PuppeteerSharp.dll
 C:\Users\Lenovo\source\repos\travel-pathways\backend\src\TravelPathways.Api\bin\Debug\net8.0\WebDriverBiDi.dll
+C:\Users\Lenovo\source\repos\travel-pathways\backend\src\TravelPathways.Api\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt

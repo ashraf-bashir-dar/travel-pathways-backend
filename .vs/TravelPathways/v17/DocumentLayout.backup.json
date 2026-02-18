@@ -3,6 +3,14 @@
   "WorkspaceRootPath": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -13,14 +21,6 @@
     {
       "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
-      "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
-      "RelativeMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|solutionrelative:src\\travelpathways.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{0A8E0B69-0B39-4E5E-A91F-162334274A14}|src\\TravelPathways.Api\\TravelPathways.Api.csproj|c:\\users\\lenovo\\source\\repos\\travel-pathways\\backend\\src\\travelpathways.api\\services\\packagepdfgenerator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -54,7 +54,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 6,
+          "SelectedChildIndex": 8,
           "Children": [
             {
               "$type": "Bookmark",
@@ -75,18 +75,6 @@
             {
               "$type": "Document",
               "DocumentIndex": 1,
-              "Title": "AdminTenantUsersController.cs",
-              "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Controllers\\AdminTenantUsersController.cs",
-              "RelativeDocumentMoniker": "src\\TravelPathways.Api\\Controllers\\AdminTenantUsersController.cs",
-              "ToolTip": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Controllers\\AdminTenantUsersController.cs",
-              "RelativeToolTip": "src\\TravelPathways.Api\\Controllers\\AdminTenantUsersController.cs",
-              "ViewState": "AgIAABsAAAAAAAAAAAAYwAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-17T11:52:19.99Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
               "Title": "appsettings.Development.json",
               "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\appsettings.Development.json",
               "RelativeDocumentMoniker": "src\\TravelPathways.Api\\appsettings.Development.json",
@@ -94,17 +82,18 @@
               "RelativeToolTip": "src\\TravelPathways.Api\\appsettings.Development.json",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAAAnAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2026-02-17T07:04:22.39Z"
+              "WhenOpened": "2026-02-17T07:04:22.39Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 2,
               "Title": "Program.cs",
               "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Program.cs",
               "RelativeDocumentMoniker": "src\\TravelPathways.Api\\Program.cs",
               "ToolTip": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Program.cs",
               "RelativeToolTip": "src\\TravelPathways.Api\\Program.cs",
-              "ViewState": "AgIAANUAAAAAAAAAAAAkwOUAAAArAAAAAAAAAA==",
+              "ViewState": "AgIAAN0AAAAAAAAAAAAuwOkAAAAvAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-02-16T16:49:48.328Z",
               "EditorCaption": ""
@@ -135,7 +124,32 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 0,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\appsettings.json",
+              "RelativeDocumentMoniker": "src\\TravelPathways.Api\\appsettings.json",
+              "ToolTip": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\appsettings.json",
+              "RelativeToolTip": "src\\TravelPathways.Api\\appsettings.json",
+              "ViewState": "AgIAAAgAAAAAAAAAAAAkwA0AAAAqAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-02-12T17:04:14.657Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "AdminTenantUsersController.cs",
+              "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Controllers\\AdminTenantUsersController.cs",
+              "RelativeDocumentMoniker": "src\\TravelPathways.Api\\Controllers\\AdminTenantUsersController.cs",
+              "ToolTip": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Controllers\\AdminTenantUsersController.cs",
+              "RelativeToolTip": "src\\TravelPathways.Api\\Controllers\\AdminTenantUsersController.cs",
+              "ViewState": "AgIAABsAAAAAAAAAAAAYwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-17T11:52:19.99Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
               "Title": "AuthController.cs",
               "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\Controllers\\AuthController.cs",
               "RelativeDocumentMoniker": "src\\TravelPathways.Api\\Controllers\\AuthController.cs",
@@ -143,7 +157,8 @@
               "RelativeToolTip": "src\\TravelPathways.Api\\Controllers\\AuthController.cs",
               "ViewState": "AgIAAFEAAAAAAAAAAAAhwFkAAAAFAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-12T07:14:18.914Z"
+              "WhenOpened": "2026-02-12T07:14:18.914Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -155,19 +170,8 @@
               "RelativeToolTip": "src\\TravelPathways.Api\\Controllers\\HotelsController.cs",
               "ViewState": "AgIAAGsAAAAAAAAAAIAwwHUAAAA0AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-12T17:39:07.477Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "appsettings.json",
-              "DocumentMoniker": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\appsettings.json",
-              "RelativeDocumentMoniker": "src\\TravelPathways.Api\\appsettings.json",
-              "ToolTip": "C:\\Users\\Lenovo\\source\\repos\\travel-pathways\\backend\\src\\TravelPathways.Api\\appsettings.json",
-              "RelativeToolTip": "src\\TravelPathways.Api\\appsettings.json",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAgAAABGAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2026-02-12T17:04:14.657Z"
+              "WhenOpened": "2026-02-12T17:39:07.477Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",

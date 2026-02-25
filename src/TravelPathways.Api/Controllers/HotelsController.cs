@@ -288,7 +288,8 @@ public sealed class HotelsController : TenantControllerBase
     {
         var hotel = await _db.Hotels.FirstOrDefaultAsync(h => h.Id == id && h.TenantId == TenantId, ct);
         if (hotel is null) return NotFound(ApiResponse<object>.Fail("Hotel not found"));
-        _db.Hotels.Remove(hotel);
+        hotel.IsDeleted = true;
+        hotel.DeletedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
     }

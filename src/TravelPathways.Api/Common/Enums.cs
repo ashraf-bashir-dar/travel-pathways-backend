@@ -27,7 +27,8 @@ public enum AppModuleKey
     Transport = 5,
     Master = 6,
     Users = 7,
-    Accounts = 8
+    Accounts = 8,
+    Pricing = 9
 }
 
 /// <summary>Payment direction: received from client or made to vendor.</summary>

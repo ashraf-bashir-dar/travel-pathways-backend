@@ -20,7 +20,13 @@ public sealed class AppUser : EntityBase
     /// <summary>Modules this user can access. Empty = all enabled for tenant.</summary>
     public List<AppModuleKey> AllowedModules { get; set; } = [];
 
+    /// <summary>If true, user can see the Cost Bifurcation section on the package form. Set by Tenant Admin when editing users.</summary>
+    public bool CanViewCostBifurcation { get; set; }
+
     // Stored as PBKDF2 hash string (see PasswordHasher)
     public string PasswordHash { get; set; } = string.Empty;
+
+    /// <summary>Encrypted password for admin view. Null if never set or encryption unavailable.</summary>
+    public string? PasswordEncrypted { get; set; }
 }
 

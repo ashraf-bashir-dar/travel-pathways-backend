@@ -23,11 +23,14 @@ public sealed class TenantUsersController : ControllerBase
     private readonly TenantContext _tenant;
     private readonly IEmailService _emailService;
 
-    public TenantUsersController(AppDbContext db, TenantContext tenant, IEmailService emailService)
+    private readonly IPasswordEncryption _passwordEncryption;
+
+    public TenantUsersController(AppDbContext db, TenantContext tenant, IEmailService emailService, IPasswordEncryption passwordEncryption)
     {
         _db = db;
         _tenant = tenant;
         _emailService = emailService;
+        _passwordEncryption = passwordEncryption;
     }
 
     public sealed class TenantUserDto
@@ -42,6 +45,7 @@ public sealed class TenantUsersController : ControllerBase
         public List<AppModuleKey>? AllowedModules { get; init; }
         public required bool IsActive { get; init; }
         public required DateTime CreatedAt { get; init; }
+        public bool CanViewCostBifurcation { get; init; }
     }
 
     public sealed class CreateTenantUserRequestDto
@@ -54,6 +58,7 @@ public sealed class TenantUsersController : ControllerBase
         public string Password { get; set; } = string.Empty;
         public bool IsActive { get; set; } = true;
         public List<AppModuleKey>? AllowedModules { get; set; }
+        public bool CanViewCostBifurcation { get; set; }
     }
 
     public sealed class UpdateTenantUserRequestDto
@@ -66,6 +71,7 @@ public sealed class TenantUsersController : ControllerBase
         public string? Password { get; set; }
         public bool IsActive { get; set; } = true;
         public List<AppModuleKey>? AllowedModules { get; set; }
+        public bool CanViewCostBifurcation { get; set; }
     }
 
     /// <summary>
@@ -189,7 +195,9 @@ public sealed class TenantUsersController : ControllerBase
             Department = request.Department,
             IsActive = request.IsActive,
             AllowedModules = request.AllowedModules?.ToList() ?? [],
-            PasswordHash = PasswordHasher.Hash(request.Password)
+            CanViewCostBifurcation = request.CanViewCostBifurcation,
+            PasswordHash = PasswordHasher.Hash(request.Password),
+            PasswordEncrypted = _passwordEncryption.Encrypt(request.Password)
         };
         _db.Users.Add(user);
         await _db.SaveChangesAsync(ct);
@@ -204,6 +212,24 @@ public sealed class TenantUsersController : ControllerBase
         var response = ApiResponse<TenantUserDto>.Ok(ToDto(user));
         if (!emailSent) response = ApiResponse<TenantUserDto>.Ok(ToDto(user), "User created. Could not send welcome email; share login details manually.");
         return CreatedAtAction(nameof(GetUserById), new { userId = user.Id }, response);
+    }
+
+    /// <summary>Get the user's stored password (reversible). Tenant Admin only.</summary>
+    [HttpGet("{userId:guid}/password")]
+    [Authorize(Policy = "TenantAdminOnly")]
+    public async Task<ActionResult<ApiResponse<PasswordResponseDto>>> GetUserPassword([FromRoute] Guid userId, CancellationToken ct)
+    {
+        if (!_tenant.TenantId.HasValue) return BadRequest(ApiResponse<PasswordResponseDto>.Fail("Tenant context is missing."));
+        var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.TenantId == _tenant.TenantId && u.Id == userId, ct);
+        if (user is null) return NotFound(ApiResponse<PasswordResponseDto>.Fail("User not found."));
+        var password = _passwordEncryption.Decrypt(user.PasswordEncrypted);
+        if (password is null) return NotFound(ApiResponse<PasswordResponseDto>.Fail("Password is not available for this user. Edit the user and set a new password to store it for viewing."));
+        return ApiResponse<PasswordResponseDto>.Ok(new PasswordResponseDto { Password = password });
+    }
+
+    public sealed class PasswordResponseDto
+    {
+        public required string Password { get; init; }
     }
 
     /// <summary>
@@ -230,8 +256,12 @@ public sealed class TenantUsersController : ControllerBase
         user.Department = request.Department;
         user.IsActive = request.IsActive;
         user.AllowedModules = request.AllowedModules?.ToList() ?? user.AllowedModules ?? [];
+        user.CanViewCostBifurcation = request.CanViewCostBifurcation;
         if (!string.IsNullOrWhiteSpace(request.Password))
+        {
             user.PasswordHash = PasswordHasher.Hash(request.Password);
+            user.PasswordEncrypted = _passwordEncryption.Encrypt(request.Password);
+        }
         await _db.SaveChangesAsync(ct);
         return ApiResponse<TenantUserDto>.Ok(ToDto(user));
     }
@@ -244,9 +274,13 @@ public sealed class TenantUsersController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> DeleteUser([FromRoute] Guid userId, CancellationToken ct)
     {
         if (!_tenant.TenantId.HasValue) return BadRequest(ApiResponse<object>.Fail("Tenant context is missing."));
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.TenantId == _tenant.TenantId && u.Id == userId, ct);
+        var user = await _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.TenantId == _tenant.TenantId && u.Id == userId, ct);
         if (user is null) return NotFound(ApiResponse<object>.Fail("User not found."));
-        _db.Users.Remove(user);
+        if (user.IsDeleted) return Ok(ApiResponse<object>.Ok(new { }));
+
+        user.IsDeleted = true;
+        user.DeletedAtUtc = DateTime.UtcNow;
+        user.IsActive = false;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
     }
@@ -263,6 +297,7 @@ public sealed class TenantUsersController : ControllerBase
             Department = u.Department,
             AllowedModules = u.AllowedModules?.ToList(),
             IsActive = u.IsActive,
-            CreatedAt = u.CreatedAt
+            CreatedAt = u.CreatedAt,
+            CanViewCostBifurcation = u.CanViewCostBifurcation
         };
 }

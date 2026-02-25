@@ -314,7 +314,8 @@ public sealed class LeadsController : TenantControllerBase
         if (!canSeeAllLeads && (!currentUserId.HasValue || lead.AssignedToUserId != currentUserId.Value))
             return NotFound(ApiResponse<object>.Fail("Lead not found"));
 
-        _db.Leads.Remove(lead);
+        lead.IsDeleted = true;
+        lead.DeletedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
     }

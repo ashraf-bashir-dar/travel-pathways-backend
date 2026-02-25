@@ -213,7 +213,8 @@ public sealed class PaymentsController : TenantControllerBase
         if (payment == null)
             return NotFound(ApiResponse<object>.Fail("Payment not found."));
 
-        _db.Payments.Remove(payment);
+        payment.IsDeleted = true;
+        payment.DeletedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
     }

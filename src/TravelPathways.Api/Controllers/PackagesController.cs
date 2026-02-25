@@ -39,6 +39,18 @@ public sealed class PackagesController : TenantControllerBase
         return Math.Max(1, days);
     }
 
+    /// <summary>Returns (current user email for CreatedBy match, can see all packages in tenant). Only Admin sees all; others see only their own packages.</summary>
+    private (string? CurrentUserEmail, bool CanSeeAllPackages) GetCurrentUserPackageScope()
+    {
+        var role = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
+        var isAdmin = string.Equals(role, UserRole.Admin.ToString(), StringComparison.OrdinalIgnoreCase);
+        if (isAdmin)
+            return (null, true);
+
+        var email = User.FindFirstValue(ClaimTypes.Email);
+        return (string.IsNullOrWhiteSpace(email) ? null : email.Trim(), false);
+    }
+
     public sealed class DayItineraryDto
     {
         public required string Id { get; init; }
@@ -161,10 +173,15 @@ public sealed class PackagesController : TenantControllerBase
         pageNumber = Math.Max(1, pageNumber);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
+        var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+
         var query = _db.Packages.AsNoTracking()
             .Include(p => p.DayWiseItinerary)
             .Include(p => p.Vehicle)
             .Where(p => p.TenantId == TenantId);
+
+        if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail))
+            query = query.Where(p => p.CreatedBy == currentUserEmail);
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
@@ -205,6 +222,8 @@ public sealed class PackagesController : TenantControllerBase
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<PackageDto>>> GetPackageById([FromRoute] Guid id, CancellationToken ct)
     {
+        var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+
         var pkg = await _db.Packages.AsNoTracking()
             .Include(p => p.DayWiseItinerary)
             .ThenInclude(d => d.Hotel)
@@ -214,19 +233,25 @@ public sealed class PackagesController : TenantControllerBase
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
 
         if (pkg is null) return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
+        if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail) && pkg.CreatedBy != currentUserEmail)
+            return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
         return ApiResponse<PackageDto>.Ok(ToDto(pkg));
     }
 
     [HttpGet("by-lead/{leadId:guid}")]
     public async Task<ActionResult<ApiResponse<List<PackageDto>>>> GetByLead([FromRoute] Guid leadId, CancellationToken ct)
     {
-        var pkgs = await _db.Packages.AsNoTracking()
+        var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+
+        var query = _db.Packages.AsNoTracking()
             .Include(p => p.DayWiseItinerary)
             .Include(p => p.Vehicle)
-            .Where(p => p.TenantId == TenantId && p.LeadId == leadId)
-            .OrderByDescending(p => p.CreatedAt)
-            .ToListAsync(ct);
+            .Where(p => p.TenantId == TenantId && p.LeadId == leadId);
 
+        if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail))
+            query = query.Where(p => p.CreatedBy == currentUserEmail);
+
+        var pkgs = await query.OrderByDescending(p => p.CreatedAt).ToListAsync(ct);
         return ApiResponse<List<PackageDto>>.Ok(pkgs.Select(ToDto).ToList());
     }
 
@@ -237,6 +262,8 @@ public sealed class PackagesController : TenantControllerBase
     [ProducesResponseType(500)]
     public async Task<IActionResult> GetPackagePdf([FromRoute] Guid id, CancellationToken ct)
     {
+        var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+
         var pkg = await _db.Packages.AsNoTracking()
             .Include(p => p.DayWiseItinerary!)
             .ThenInclude(d => d.Hotel)
@@ -245,10 +272,15 @@ public sealed class PackagesController : TenantControllerBase
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
 
         if (pkg is null) return NotFound();
+        if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail) && pkg.CreatedBy != currentUserEmail)
+            return NotFound();
 
         Tenant? tenant = null;
         if (pkg.TenantId != Guid.Empty)
-            tenant = await _db.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == pkg.TenantId, ct);
+            tenant = await _db.Tenants.AsNoTracking()
+                .Include(t => t.BankAccounts)
+                .Include(t => t.QrCodes)
+                .FirstOrDefaultAsync(t => t.Id == pkg.TenantId, ct);
 
         try
         {
@@ -361,8 +393,12 @@ public sealed class PackagesController : TenantControllerBase
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<PackageDto>>> UpdatePackage([FromRoute] Guid id, [FromBody] UpdatePackageRequestDto request, CancellationToken ct)
     {
+        var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+
         var pkg = await _db.Packages.Include(p => p.DayWiseItinerary).FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
         if (pkg is null) return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
+        if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail) && pkg.CreatedBy != currentUserEmail)
+            return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
 
         var leadOk = await _db.Leads.AnyAsync(l => l.Id == request.LeadId && l.TenantId == TenantId, ct);
         if (!leadOk) return BadRequest(ApiResponse<PackageDto>.Fail("Lead not found"));
@@ -452,9 +488,14 @@ public sealed class PackagesController : TenantControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> DeletePackage([FromRoute] Guid id, CancellationToken ct)
     {
+        var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+
         var pkg = await _db.Packages.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
         if (pkg is null) return NotFound(ApiResponse<object>.Fail("Package not found"));
-        _db.Packages.Remove(pkg);
+        if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail) && pkg.CreatedBy != currentUserEmail)
+            return NotFound(ApiResponse<object>.Fail("Package not found"));
+        pkg.IsDeleted = true;
+        pkg.DeletedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
     }
@@ -617,8 +658,24 @@ public sealed class PackagesController : TenantControllerBase
             AgencyName = tenant?.Name?.Trim(),
             AgencyPhone = tenant?.Phone?.Trim(),
             AgencyEmail = tenant?.Email?.Trim(),
+            AgencyLogoUrl = tenant?.LogoUrl != null ? ToAbsolute(tenant.LogoUrl) : null,
             ManagingDirectorName = tenant?.ContactPerson?.Trim(),
-            GeneratedDate = FmtDate(DateTime.UtcNow)
+            GeneratedDate = FmtDate(DateTime.UtcNow),
+            BankAccounts = (tenant?.BankAccounts ?? [])
+                .OrderBy(b => b.DisplayOrder)
+                .ThenBy(b => b.CreatedAt)
+                .Select(b => new BankAccountItem
+                {
+                    AccountHolderName = b.AccountHolderName,
+                    BankName = b.BankName,
+                    AccountNumber = b.AccountNumber,
+                    IFSC = b.IFSC,
+                    Branch = b.Branch
+                }).ToList(),
+            QrCodes = (tenant?.QrCodes ?? [])
+                .OrderBy(q => q.DisplayOrder)
+                .ThenBy(q => q.CreatedAt)
+                .Select(q => new QrCodeItem { Label = q.Label, ImageUrl = q.ImageUrl }).ToList()
         };
     }
 
@@ -706,8 +763,15 @@ public sealed class PackagesController : TenantControllerBase
             AgencyName = model.AgencyName,
             AgencyPhone = model.AgencyPhone,
             AgencyEmail = model.AgencyEmail,
+            AgencyLogoUrl = ToDataUrl(model.AgencyLogoUrl) ?? model.AgencyLogoUrl,
             ManagingDirectorName = model.ManagingDirectorName,
-            GeneratedDate = model.GeneratedDate
+            GeneratedDate = model.GeneratedDate,
+            BankAccounts = model.BankAccounts,
+            QrCodes = (model.QrCodes ?? []).Select(q => new QrCodeItem
+            {
+                Label = q.Label,
+                ImageUrl = ToDataUrl(q.ImageUrl) ?? q.ImageUrl
+            }).ToList()
         };
     }
 

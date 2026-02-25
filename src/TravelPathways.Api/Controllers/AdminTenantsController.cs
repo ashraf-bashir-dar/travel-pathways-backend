@@ -206,6 +206,18 @@ public sealed class AdminTenantsController : ControllerBase
         tenant.SubscriptionStartUtc = request.SubscriptionStartUtc;
         tenant.SubscriptionEndUtc = request.SubscriptionEndUtc;
 
+        // When tenant is deactivated, deactivate all its users
+        if (!request.IsActive)
+        {
+            var usersToDeactivate = await _db.Users.IgnoreQueryFilters()
+                .Where(u => u.TenantId == id && u.IsActive)
+                .ToListAsync(ct);
+            foreach (var u in usersToDeactivate)
+            {
+                u.IsActive = false;
+            }
+        }
+
         await _db.SaveChangesAsync(ct);
         await UpsertTenantDocumentsAsync(tenant, request, ct);
 
@@ -216,10 +228,21 @@ public sealed class AdminTenantsController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteTenant([FromRoute] Guid id, CancellationToken ct)
     {
-        var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == id, ct);
+        var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == id, ct);
         if (tenant is null) return NotFound(ApiResponse<object>.Fail("Tenant not found"));
+        if (tenant.IsDeleted) return Ok(ApiResponse<object>.Ok(new { })); // already soft-deleted
 
-        _db.Tenants.Remove(tenant);
+        tenant.IsDeleted = true;
+        tenant.DeletedAtUtc = DateTime.UtcNow;
+        tenant.IsActive = false;
+
+        // Deactivate all users of this tenant
+        var users = await _db.Users.IgnoreQueryFilters().Where(u => u.TenantId == id).ToListAsync(ct);
+        foreach (var u in users)
+        {
+            u.IsActive = false;
+        }
+
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
     }

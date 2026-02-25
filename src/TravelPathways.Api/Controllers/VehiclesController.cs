@@ -166,7 +166,8 @@ public sealed class VehiclesController : TenantControllerBase
     {
         var vehicle = await _db.Vehicles.FirstOrDefaultAsync(v => v.Id == id && v.TenantId == TenantId, ct);
         if (vehicle is null) return NotFound(ApiResponse<object>.Fail("Vehicle not found"));
-        _db.Vehicles.Remove(vehicle);
+        vehicle.IsDeleted = true;
+        vehicle.DeletedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
     }

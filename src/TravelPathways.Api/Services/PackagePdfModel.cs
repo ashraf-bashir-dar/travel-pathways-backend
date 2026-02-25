@@ -37,9 +37,30 @@ public sealed class PackagePdfModel
     public string? AgencyName { get; init; }
     public string? AgencyPhone { get; init; }
     public string? AgencyEmail { get; init; }
+    /// <summary>Tenant/agency logo URL (absolute or data URL for PDF).</summary>
+    public string? AgencyLogoUrl { get; init; }
     /// <summary>Managing director name (from tenant Contact Person).</summary>
     public string? ManagingDirectorName { get; init; }
     public string GeneratedDate { get; init; } = "";
+    /// <summary>Bank accounts to show for payment (from tenant).</summary>
+    public List<BankAccountItem> BankAccounts { get; init; } = [];
+    /// <summary>QR codes to show (label + image URL).</summary>
+    public List<QrCodeItem> QrCodes { get; init; } = [];
+}
+
+public sealed class BankAccountItem
+{
+    public string AccountHolderName { get; init; } = "";
+    public string BankName { get; init; } = "";
+    public string AccountNumber { get; init; } = "";
+    public string IFSC { get; init; } = "";
+    public string? Branch { get; init; }
+}
+
+public sealed class QrCodeItem
+{
+    public string Label { get; init; } = "";
+    public string ImageUrl { get; init; } = "";
 }
 
 public sealed class DayItem

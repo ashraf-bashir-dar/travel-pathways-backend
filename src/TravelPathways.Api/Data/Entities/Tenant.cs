@@ -20,6 +20,8 @@ public sealed class Tenant : EntityBase
     public bool IsActive { get; set; } = true;
 
     public List<TenantDocument> Documents { get; set; } = [];
+    public List<TenantBankAccount> BankAccounts { get; set; } = [];
+    public List<TenantQrCode> QrCodes { get; set; } = [];
 
     // --- Subscription (seat-based, INR) ---
     /// <summary>User who can still log in when subscription is expired (e.g. to renew).</summary>

@@ -58,6 +58,8 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
         sb.Append("/* Page 1: cover + details */");
         sb.Append(".page-1{padding:0;min-height:100vh;}");
         sb.Append(".cover-block{text-align:center;padding:1.25rem 0 1.5rem;border-bottom:2px solid #3366cc;margin-bottom:1.25rem;}");
+        sb.Append(".cover-logo{margin:0 0 0.5rem;}");
+        sb.Append(".cover-logo img{max-height:56px;max-width:200px;object-fit:contain;}");
         sb.Append(".cover-title{font-size:1.1rem;font-weight:700;color:#3366cc;letter-spacing:0.02em;margin:0 0 0.25rem;}");
         sb.Append(".cover-by{font-size:0.95rem;color:#475569;margin:0 0 0.6rem;font-style:italic;}");
         sb.Append(".cover-package{font-size:1.35rem;font-weight:700;color:#1e293b;margin:0 0 0.4rem;line-height:1.3;}");
@@ -108,6 +110,17 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
         sb.Append(".agency-row:last-child .agency-cell{border-bottom:none;}");
         sb.Append(".agency-row.info-header .agency-cell{background:#3366cc;color:#fff;font-weight:600;}");
         sb.Append(".agency-row:not(.info-header) .agency-cell{background:#e5e7eb;}");
+        sb.Append("/* Bank details & QR */");
+        sb.Append(".bank-grid{margin-top:0.5rem;border:1px solid #d1d5db;border-radius:6px;overflow:hidden;}");
+        sb.Append(".bank-row{display:flex;}");
+        sb.Append(".bank-cell{flex:1;padding:0.45rem 0.65rem;font-size:0.9rem;border-bottom:1px solid #e5e7eb;}");
+        sb.Append(".bank-row:last-child .bank-cell{border-bottom:none;}");
+        sb.Append(".bank-row.info-header .bank-cell{background:#3366cc;color:#fff;font-weight:600;}");
+        sb.Append(".bank-row:not(.info-header) .bank-cell{background:#e5e7eb;}");
+        sb.Append(".qr-section{display:flex;flex-wrap:wrap;gap:1rem;margin-top:0.75rem;}");
+        sb.Append(".qr-item{text-align:center;}");
+        sb.Append(".qr-item img{width:120px;height:120px;object-fit:contain;}");
+        sb.Append(".qr-item .qr-label{font-size:0.9rem;font-weight:600;margin-top:0.35rem;}");
         sb.Append("@media print{.acc-card,.day-block{page-break-inside:avoid;}}");
         sb.Append("</style></head><body>");
 
@@ -115,6 +128,11 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
         var showClientPhone = !string.IsNullOrEmpty(m.ClientPhone) && !IsAllZeros(m.ClientPhone);
         sb.Append("<div class=\"page-1\">");
         sb.Append("<div class=\"cover-block\">");
+        if (!string.IsNullOrWhiteSpace(m.AgencyLogoUrl))
+        {
+            var logoSrc = m.AgencyLogoUrl.IndexOf('"') >= 0 ? m.AgencyLogoUrl.Replace("\"", "&quot;") : m.AgencyLogoUrl;
+            sb.Append("<p class=\"cover-logo\"><img src=\"").Append(logoSrc).Append("\" alt=\"\" /></p>");
+        }
         sb.Append("<p class=\"cover-title\">Kashmir Tour Package Proposal</p>");
         if (!string.IsNullOrWhiteSpace(m.AgencyName))
             sb.Append("<p class=\"cover-by\">Presented by ").Append(H(m.AgencyName.Trim())).Append("</p>");
@@ -236,6 +254,35 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             sb.Append("<div class=\"agency-grid\">");
             sb.Append("<div class=\"agency-row info-header\"><div class=\"agency-cell\">Managing Director</div><div class=\"agency-cell\">Travel Agency</div><div class=\"agency-cell\">Contact</div><div class=\"agency-cell\">Email</div></div>");
             sb.Append("<div class=\"agency-row\"><div class=\"agency-cell\">").Append(H(mdName)).Append("</div><div class=\"agency-cell\">").Append(H(m.AgencyName ?? "–")).Append("</div><div class=\"agency-cell\">").Append(H(m.AgencyPhone ?? "–")).Append("</div><div class=\"agency-cell\">").Append(H(m.AgencyEmail ?? "–")).Append("</div></div>");
+            sb.Append("</div>");
+        }
+
+        // —— Bank Details ——
+        var bankAccounts = m.BankAccounts ?? [];
+        if (bankAccounts.Count > 0)
+        {
+            sb.Append("<h2 class=\"section-head\">Bank Details</h2>");
+            sb.Append("<div class=\"bank-grid\">");
+            sb.Append("<div class=\"bank-row info-header\"><div class=\"bank-cell\">Account Holder</div><div class=\"bank-cell\">Bank Name</div><div class=\"bank-cell\">Account Number</div><div class=\"bank-cell\">IFSC</div><div class=\"bank-cell\">Branch</div></div>");
+            foreach (var b in bankAccounts)
+            {
+                sb.Append("<div class=\"bank-row\"><div class=\"bank-cell\">").Append(H(b.AccountHolderName)).Append("</div><div class=\"bank-cell\">").Append(H(b.BankName)).Append("</div><div class=\"bank-cell\">").Append(H(b.AccountNumber)).Append("</div><div class=\"bank-cell\">").Append(H(b.IFSC)).Append("</div><div class=\"bank-cell\">").Append(H(b.Branch ?? "–")).Append("</div></div>");
+            }
+            sb.Append("</div>");
+        }
+
+        // —— Payment QR Codes ——
+        var qrCodes = m.QrCodes ?? [];
+        if (qrCodes.Count > 0)
+        {
+            sb.Append("<h2 class=\"section-head\">Payment (Scan QR)</h2>");
+            sb.Append("<div class=\"qr-section\">");
+            foreach (var q in qrCodes)
+            {
+                if (string.IsNullOrEmpty(q.ImageUrl)) continue;
+                var safeSrc = q.ImageUrl.IndexOf('"') >= 0 ? q.ImageUrl.Replace("\"", "&quot;") : q.ImageUrl;
+                sb.Append("<div class=\"qr-item\"><img src=\"").Append(safeSrc).Append("\" alt=\"\"/><div class=\"qr-label\">").Append(H(q.Label)).Append("</div></div>");
+            }
             sb.Append("</div>");
         }
 

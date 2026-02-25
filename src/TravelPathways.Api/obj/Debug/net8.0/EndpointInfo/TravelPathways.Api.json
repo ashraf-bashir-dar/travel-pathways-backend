@@ -525,6 +525,55 @@
         }
       }
     },
+    "/api/admin/tenants/{tenantId}/users/{userId}/password": {
+      "get": {
+        "tags": [
+          "AdminTenantUsers"
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.AdminTenantUsersController.PasswordResponseDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.AdminTenantUsersController.PasswordResponseDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.AdminTenantUsersController.PasswordResponseDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/login": {
       "post": {
         "tags": [
@@ -2642,6 +2691,423 @@
         }
       }
     },
+    "/api/tenant/bank-accounts": {
+      "get": {
+        "tags": [
+          "TenantBankAccounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "TenantBankAccounts"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantBankAccountsController.CreateBankAccountRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantBankAccountsController.CreateBankAccountRequestDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantBankAccountsController.CreateBankAccountRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenant/bank-accounts/{id}": {
+      "get": {
+        "tags": [
+          "TenantBankAccounts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "TenantBankAccounts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantBankAccountsController.UpdateBankAccountRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantBankAccountsController.UpdateBankAccountRequestDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantBankAccountsController.UpdateBankAccountRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "TenantBankAccounts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenant/qr-codes": {
+      "get": {
+        "tags": [
+          "TenantQrCodes"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "TenantQrCodes"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "description": "File to upload",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenant/qr-codes/{id}": {
+      "get": {
+        "tags": [
+          "TenantQrCodes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "TenantQrCodes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantQrCodesController.UpdateQrCodeRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantQrCodesController.UpdateQrCodeRequestDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantQrCodesController.UpdateQrCodeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "TenantQrCodes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenant/users": {
       "get": {
         "tags": [
@@ -2845,6 +3311,46 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenant/users/{userId}/password": {
+      "get": {
+        "tags": [
+          "TenantUsers"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.PasswordResponseDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.PasswordResponseDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.PasswordResponseDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
                 }
               }
             }
@@ -3082,6 +3588,43 @@
       }
     },
     "/api/vehicle-pricing": {
+      "get": {
+        "tags": [
+          "VehiclePricing"
+        ],
+        "parameters": [
+          {
+            "name": "vehicleId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.VehiclePricingController.VehiclePricingListDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.VehiclePricingController.VehiclePricingListDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.VehiclePricingController.VehiclePricingListDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "VehiclePricing"
@@ -3786,6 +4329,60 @@
         },
         "additionalProperties": false
       },
+      "TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto"
+            },
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto"
+            },
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]": {
         "type": "object",
         "properties": {
@@ -3796,6 +4393,33 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto"
+            },
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.VehiclePricingController.VehiclePricingListDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Controllers.VehiclePricingController.VehiclePricingListDto"
             },
             "nullable": true
           },
@@ -4024,6 +4648,29 @@
         },
         "additionalProperties": false
       },
+      "TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.AdminTenantUsersController.PasswordResponseDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Controllers.AdminTenantUsersController.PasswordResponseDto"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.AdminTenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
         "type": "object",
         "properties": {
@@ -4231,6 +4878,75 @@
         },
         "additionalProperties": false
       },
+      "TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.PasswordResponseDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Controllers.TenantUsersController.PasswordResponseDto"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantUsersController.TenantUserDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
         "type": "object",
         "properties": {
@@ -4333,7 +5049,8 @@
           "Transport",
           "Master",
           "Users",
-          "Accounts"
+          "Accounts",
+          "Pricing"
         ],
         "type": "string"
       },
@@ -4754,6 +5471,22 @@
               "$ref": "#/components/schemas/TravelPathways.Api.Common.AppModuleKey"
             },
             "nullable": true
+          },
+          "canViewCostBifurcation": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.AdminTenantUsersController.PasswordResponseDto": {
+        "required": [
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -4810,6 +5543,9 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "canViewCostBifurcation": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -4848,6 +5584,9 @@
               "$ref": "#/components/schemas/TravelPathways.Api.Common.AppModuleKey"
             },
             "nullable": true
+          },
+          "canViewCostBifurcation": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -5208,6 +5947,9 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "canViewCostBifurcation": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -6740,6 +7482,153 @@
         },
         "additionalProperties": false
       },
+      "TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto": {
+        "required": [
+          "accountHolderName",
+          "accountNumber",
+          "bankName",
+          "id",
+          "ifsc"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "accountHolderName": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankName": {
+            "type": "string",
+            "nullable": true
+          },
+          "accountNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "ifsc": {
+            "type": "string",
+            "nullable": true
+          },
+          "branch": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayOrder": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.TenantBankAccountsController.CreateBankAccountRequestDto": {
+        "type": "object",
+        "properties": {
+          "accountHolderName": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankName": {
+            "type": "string",
+            "nullable": true
+          },
+          "accountNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "ifsc": {
+            "type": "string",
+            "nullable": true
+          },
+          "branch": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayOrder": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.TenantBankAccountsController.UpdateBankAccountRequestDto": {
+        "type": "object",
+        "properties": {
+          "accountHolderName": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankName": {
+            "type": "string",
+            "nullable": true
+          },
+          "accountNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "ifsc": {
+            "type": "string",
+            "nullable": true
+          },
+          "branch": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayOrder": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.TenantQrCodesController.QrCodeDto": {
+        "required": [
+          "fileName",
+          "id",
+          "imageUrl",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "fileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayOrder": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.TenantQrCodesController.UpdateQrCodeRequestDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayOrder": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "TravelPathways.Api.Controllers.TenantUsersController.CreateTenantUserRequestDto": {
         "type": "object",
         "properties": {
@@ -6773,6 +7662,22 @@
             "items": {
               "$ref": "#/components/schemas/TravelPathways.Api.Common.AppModuleKey"
             },
+            "nullable": true
+          },
+          "canViewCostBifurcation": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.TenantUsersController.PasswordResponseDto": {
+        "required": [
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
             "nullable": true
           }
         },
@@ -6830,6 +7735,9 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "canViewCostBifurcation": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -6868,6 +7776,9 @@
               "$ref": "#/components/schemas/TravelPathways.Api.Common.AppModuleKey"
             },
             "nullable": true
+          },
+          "canViewCostBifurcation": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -7111,6 +8022,70 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.VehiclePricingController.VehiclePricingListDto": {
+        "required": [
+          "costPrice",
+          "dropLocation",
+          "fromDate",
+          "id",
+          "pickupLocation",
+          "sellingPrice",
+          "transportCompanyName",
+          "vehicleId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleModel": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "vehicleType": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.VehicleType"
+          },
+          "transportCompanyName": {
+            "type": "string",
+            "nullable": true
+          },
+          "pickupLocation": {
+            "type": "string",
+            "nullable": true
+          },
+          "dropLocation": {
+            "type": "string",
+            "nullable": true
+          },
+          "costPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "sellingPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "fromDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "toDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           }
         },
         "additionalProperties": false

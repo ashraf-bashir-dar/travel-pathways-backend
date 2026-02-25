@@ -142,7 +142,8 @@ public sealed class PlansController : ControllerBase
         var inUse = await _db.Tenants.AnyAsync(t => t.PlanId == id, ct);
         if (inUse) return BadRequest(ApiResponse<object>.Fail("Plan is in use by one or more tenants. Change their plan first."));
 
-        _db.Plans.Remove(plan);
+        plan.IsDeleted = true;
+        plan.DeletedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
     }

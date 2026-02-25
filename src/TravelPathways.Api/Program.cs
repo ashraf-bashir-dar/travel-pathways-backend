@@ -20,6 +20,7 @@ builder.Services.AddControllers()
     .AddJsonOptions(o =>
     {
         o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         o.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
@@ -101,6 +102,8 @@ builder.Services.AddHostedService<TravelPathways.Api.Services.ChromiumBrowserHos
 builder.Services.AddScoped<TravelPathways.Api.Services.IPackagePdfGenerator, TravelPathways.Api.Services.PackagePdfGenerator>();
 builder.Services.AddScoped<TravelPathways.Api.Services.IEmailService,
                           TravelPathways.Api.Services.EmailService>();
+builder.Services.AddSingleton<TravelPathways.Api.Services.IPasswordEncryption,
+                              TravelPathways.Api.Services.PasswordEncryptionService>();
 
 /* -------------------- Database -------------------- */
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -225,6 +228,7 @@ using (var scope = app.Services.CreateScope())
             var existing = await db.Users.FirstOrDefaultAsync(u => u.Email == superEmail);
             if (existing == null)
             {
+                var passwordEncryption = scope.ServiceProvider.GetRequiredService<TravelPathways.Api.Services.IPasswordEncryption>();
                 db.Users.Add(new AppUser
                 {
                     TenantId = null,
@@ -233,7 +237,8 @@ using (var scope = app.Services.CreateScope())
                     LastName = "Admin",
                     Role = UserRole.SuperAdmin,
                     IsActive = true,
-                    PasswordHash = PasswordHasher.Hash(superPassword)
+                    PasswordHash = PasswordHasher.Hash(superPassword),
+                    PasswordEncrypted = passwordEncryption.Encrypt(superPassword)
                 });
 
                 await db.SaveChangesAsync();
@@ -282,16 +287,12 @@ if (!app.Environment.IsDevelopment())
 
 /* -------------------- Static Files & Uploads -------------------- */
 var customUploadsPath = app.Configuration["Uploads:Path"]?.Trim() ?? app.Configuration["Uploads__Path"]?.Trim();
-if (!string.IsNullOrEmpty(customUploadsPath))
-{
-    var provider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(customUploadsPath);
-    app.UseStaticFiles(new StaticFileOptions { FileProvider = provider, RequestPath = "/uploads" });
-}
-else
-{
-    var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads");
-    if (!Directory.Exists(uploadsPath)) Directory.CreateDirectory(uploadsPath);
-}
+var uploadsPath = !string.IsNullOrEmpty(customUploadsPath)
+    ? customUploadsPath
+    : Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads");
+if (!Directory.Exists(uploadsPath)) Directory.CreateDirectory(uploadsPath);
+var uploadsProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath);
+app.UseStaticFiles(new StaticFileOptions { FileProvider = uploadsProvider, RequestPath = "/uploads" });
 
 /* -------------------- Global exception handler (returns JSON so frontend gets CORS + body) -------------------- */
 app.UseExceptionHandler(a => a.Run(async context =>

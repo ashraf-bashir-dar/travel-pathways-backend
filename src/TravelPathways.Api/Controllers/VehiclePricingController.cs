@@ -76,6 +76,58 @@ public sealed class VehiclePricingController : TenantControllerBase
         public required DateTime UpdatedAt { get; init; }
     }
 
+    /// <summary>DTO for listing all vehicle pricing in the tenant (e.g. Pricing module).</summary>
+    public sealed class VehiclePricingListDto
+    {
+        public required string Id { get; init; }
+        public required string VehicleId { get; init; }
+        public string? VehicleModel { get; init; }
+        public string? VehicleNumber { get; init; }
+        public VehicleType VehicleType { get; init; }
+        public required string TransportCompanyName { get; init; }
+        public required string PickupLocation { get; init; }
+        public required string DropLocation { get; init; }
+        public required decimal CostPrice { get; init; }
+        public required decimal SellingPrice { get; init; }
+        public required DateTime FromDate { get; init; }
+        public DateTime? ToDate { get; init; }
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<List<VehiclePricingListDto>>>> GetAll([FromQuery] Guid? vehicleId, CancellationToken ct = default)
+    {
+        var query = _db.VehiclePricing.AsNoTracking()
+            .Where(p => p.TenantId == TenantId);
+        if (vehicleId.HasValue)
+            query = query.Where(p => p.VehicleId == vehicleId.Value);
+
+        var list = await query
+            .Include(p => p.Vehicle)
+            .ThenInclude(v => v!.TransportCompany)
+            .OrderBy(p => p.Vehicle!.TransportCompany!.Name)
+            .ThenBy(p => p.Vehicle!.VehicleModel ?? p.Vehicle!.VehicleNumber ?? "")
+            .ThenBy(p => p.PickupLocation)
+            .ThenBy(p => p.DropLocation)
+            .Select(p => new VehiclePricingListDto
+            {
+                Id = p.Id.ToString(),
+                VehicleId = p.VehicleId.ToString(),
+                VehicleModel = p.Vehicle!.VehicleModel,
+                VehicleNumber = p.Vehicle.VehicleNumber,
+                VehicleType = p.Vehicle.VehicleType,
+                TransportCompanyName = p.Vehicle.TransportCompany!.Name,
+                PickupLocation = p.PickupLocation,
+                DropLocation = p.DropLocation,
+                CostPrice = p.CostPrice,
+                SellingPrice = p.SellingPrice,
+                FromDate = p.FromDate,
+                ToDate = p.ToDate
+            })
+            .ToListAsync(ct);
+
+        return ApiResponse<List<VehiclePricingListDto>>.Ok(list);
+    }
+
     [HttpPost]
     public async Task<ActionResult<ApiResponse<VehiclePricingDto>>> Create([FromBody] CreateVehiclePricingRequestDto request, CancellationToken ct)
     {
@@ -137,7 +189,8 @@ public sealed class VehiclePricingController : TenantControllerBase
     {
         var pricing = await _db.VehiclePricing.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
         if (pricing is null) return NotFound(ApiResponse<object>.Fail("Pricing not found"));
-        _db.VehiclePricing.Remove(pricing);
+        pricing.IsDeleted = true;
+        pricing.DeletedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
     }

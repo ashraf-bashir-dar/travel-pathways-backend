@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TravelPathways.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8bfcf903ad1a53d4672769b00ee6030580795199")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5f2d2091f4201114b33f40b92a796510392f8f71")]
 [assembly: System.Reflection.AssemblyProductAttribute("TravelPathways.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TravelPathways.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

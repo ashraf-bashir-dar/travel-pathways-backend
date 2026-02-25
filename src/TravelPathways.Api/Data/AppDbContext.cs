@@ -17,6 +17,8 @@ public sealed class AppDbContext : DbContext
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<TenantDocument> TenantDocuments => Set<TenantDocument>();
+    public DbSet<TenantBankAccount> TenantBankAccounts => Set<TenantBankAccount>();
+    public DbSet<TenantQrCode> TenantQrCodes => Set<TenantQrCode>();
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<Plan> Plans => Set<Plan>();
     public DbSet<PlanPrice> PlanPrices => Set<PlanPrice>();
@@ -246,6 +248,17 @@ public sealed class AppDbContext : DbContext
             .Property(d => d.Type)
             .HasConversion<string>();
 
+        modelBuilder.Entity<Tenant>()
+            .HasMany(t => t.BankAccounts)
+            .WithOne(b => b.Tenant)
+            .HasForeignKey(b => b.TenantId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Tenant>()
+            .HasMany(t => t.QrCodes)
+            .WithOne(q => q.Tenant)
+            .HasForeignKey(q => q.TenantId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         modelBuilder.Entity<State>()
             .HasMany(s => s.Cities)
             .WithOne(c => c.State)
@@ -269,24 +282,31 @@ public sealed class AppDbContext : DbContext
             .Property(p => p.Amount)
             .HasColumnType("decimal(18,2)");
 
-        // ---------- Multi-tenancy query filters ----------
+        // ---------- Multi-tenancy and soft-delete query filters ----------
         ConfigureTenantFilters(modelBuilder);
     }
 
     private void ConfigureTenantFilters(ModelBuilder modelBuilder)
     {
         // Note: EF will parameterize these values per DbContext instance.
-        modelBuilder.Entity<Lead>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
+        // Soft delete: exclude IsDeleted everywhere.
+        modelBuilder.Entity<Tenant>().HasQueryFilter(t => !t.IsDeleted);
+        modelBuilder.Entity<AppUser>().HasQueryFilter(e => e.TenantId == _tenant.TenantId && !e.IsDeleted);
+        modelBuilder.Entity<Lead>().HasQueryFilter(e => !e.IsDeleted && (_tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId));
         modelBuilder.Entity<LeadFollowUp>().HasQueryFilter(f => _tenant.IsSuperAdmin || Set<Lead>().Any(l => l.Id == f.LeadId));
-        modelBuilder.Entity<Hotel>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
-        modelBuilder.Entity<AccommodationRate>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
-        modelBuilder.Entity<TransportCompany>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
-        modelBuilder.Entity<Vehicle>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
-        modelBuilder.Entity<VehiclePricing>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
-        modelBuilder.Entity<TourPackage>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
-        modelBuilder.Entity<DayItinerary>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
-        modelBuilder.Entity<ItineraryTemplate>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
-        modelBuilder.Entity<Payment>().HasQueryFilter(e => _tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId);
+        modelBuilder.Entity<Hotel>().HasQueryFilter(e => !e.IsDeleted && (_tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId));
+        modelBuilder.Entity<AccommodationRate>().HasQueryFilter(e => !e.IsDeleted && (_tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId));
+        modelBuilder.Entity<TransportCompany>().HasQueryFilter(e => !e.IsDeleted && (_tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId));
+        modelBuilder.Entity<Vehicle>().HasQueryFilter(e => !e.IsDeleted && (_tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId));
+        modelBuilder.Entity<VehiclePricing>().HasQueryFilter(e => !e.IsDeleted && (_tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId));
+        modelBuilder.Entity<TourPackage>().HasQueryFilter(e => !e.IsDeleted && (_tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId));
+        modelBuilder.Entity<DayItinerary>().HasQueryFilter(e => !e.IsDeleted && (_tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId));
+        modelBuilder.Entity<ItineraryTemplate>().HasQueryFilter(e => !e.IsDeleted && (_tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId));
+        modelBuilder.Entity<Payment>().HasQueryFilter(e => !e.IsDeleted && (_tenant.IsSuperAdmin || e.TenantId == _tenant.TenantId));
+        modelBuilder.Entity<TenantDocument>().HasQueryFilter(d => !d.IsDeleted && (_tenant.IsSuperAdmin || d.TenantId == _tenant.TenantId));
+        modelBuilder.Entity<TenantQrCode>().HasQueryFilter(q => !q.IsDeleted && (_tenant.IsSuperAdmin || q.TenantId == _tenant.TenantId));
+        modelBuilder.Entity<TenantBankAccount>().HasQueryFilter(b => !b.IsDeleted && (_tenant.IsSuperAdmin || b.TenantId == _tenant.TenantId));
+        modelBuilder.Entity<Plan>().HasQueryFilter(p => !p.IsDeleted);
     }
 
     public override int SaveChanges()

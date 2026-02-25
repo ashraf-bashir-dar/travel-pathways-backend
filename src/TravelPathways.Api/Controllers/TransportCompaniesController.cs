@@ -190,7 +190,8 @@ public sealed class TransportCompaniesController : TenantControllerBase
     {
         var company = await _db.TransportCompanies.FirstOrDefaultAsync(c => c.Id == id && c.TenantId == TenantId, ct);
         if (company is null) return NotFound(ApiResponse<object>.Fail("Transport company not found"));
-        _db.TransportCompanies.Remove(company);
+        company.IsDeleted = true;
+        company.DeletedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
     }

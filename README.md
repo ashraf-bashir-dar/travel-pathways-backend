@@ -71,3 +71,18 @@ Use `POST /api/auth/login` in Swagger to get a JWT.
 - Tenant users have `tenantId` claim in JWT.
 - Super Admin can optionally pass `X-Tenant-Id` header to scope reads.
 
+### Production deployment checklist
+
+Before selling or hosting for multiple tenants, set these in environment variables or a secure config (e.g. Azure Key Vault, User Secrets); **do not** rely on defaults in `appsettings.json`.
+
+| Setting | Purpose | Risk if default |
+|--------|---------|------------------|
+| **Jwt:SigningKey** | JWT token signing. Must be a long, random secret (e.g. 32+ chars). | Token forgery; full account takeover. |
+| **Encryption:PasswordKey** | AES key for reversible password storage (admin “view password”). Use a base64-encoded 32-byte value. | If empty, a key is derived from other config; use a dedicated secret in production. |
+| **SuperAdmin:Password** | Initial Super Admin password (seed only). Change after first login. | Weak or default password gives platform-wide access. |
+| **ConnectionStrings:DefaultConnection** | Database connection. | Use strong credentials and restrict network access. |
+
+- **CORS**: Set `Cors:AllowedOrigins` to your frontend origin(s) only (no `*` in production if using credentials).
+- **IncludeExceptionDetailsInResponse**: Keep `false` in production so stack traces are not sent to clients.
+- Run `dotnet ef database update` against the production database and ensure migrations are applied.
+

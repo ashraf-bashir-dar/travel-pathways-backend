@@ -16,11 +16,13 @@ public sealed class AdminTenantUsersController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IEmailService _emailService;
+    private readonly IPasswordEncryption _passwordEncryption;
 
-    public AdminTenantUsersController(AppDbContext db, IEmailService emailService)
+    public AdminTenantUsersController(AppDbContext db, IEmailService emailService, IPasswordEncryption passwordEncryption)
     {
         _db = db;
         _emailService = emailService;
+        _passwordEncryption = passwordEncryption;
     }
 
     public sealed class TenantUserDto
@@ -35,6 +37,7 @@ public sealed class AdminTenantUsersController : ControllerBase
         public List<AppModuleKey>? AllowedModules { get; init; }
         public required bool IsActive { get; init; }
         public required DateTime CreatedAt { get; init; }
+        public bool CanViewCostBifurcation { get; init; }
     }
 
     public sealed class CreateTenantUserRequestDto
@@ -47,6 +50,7 @@ public sealed class AdminTenantUsersController : ControllerBase
         public string Password { get; set; } = string.Empty;
         public bool IsActive { get; set; } = true;
         public List<AppModuleKey>? AllowedModules { get; set; }
+        public bool CanViewCostBifurcation { get; set; }
     }
 
     public sealed class UpdateTenantUserRequestDto
@@ -59,6 +63,7 @@ public sealed class AdminTenantUsersController : ControllerBase
         public string? Password { get; set; }
         public bool IsActive { get; set; } = true;
         public List<AppModuleKey>? AllowedModules { get; set; }
+        public bool CanViewCostBifurcation { get; set; }
     }
 
     [HttpGet]
@@ -78,6 +83,22 @@ public sealed class AdminTenantUsersController : ControllerBase
         var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.TenantId == tenantId && u.Id == userId, ct);
         if (user is null) return NotFound(ApiResponse<TenantUserDto>.Fail("User not found"));
         return ApiResponse<TenantUserDto>.Ok(ToDto(user));
+    }
+
+    /// <summary>Get the user's stored password (reversible). Super Admin only.</summary>
+    [HttpGet("{userId:guid}/password")]
+    public async Task<ActionResult<ApiResponse<PasswordResponseDto>>> GetUserPassword([FromRoute] Guid tenantId, [FromRoute] Guid userId, CancellationToken ct)
+    {
+        var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.TenantId == tenantId && u.Id == userId, ct);
+        if (user is null) return NotFound(ApiResponse<PasswordResponseDto>.Fail("User not found"));
+        var password = _passwordEncryption.Decrypt(user.PasswordEncrypted);
+        if (password is null) return NotFound(ApiResponse<PasswordResponseDto>.Fail("Password is not available for this user. Edit the user and set a new password to store it for viewing."));
+        return ApiResponse<PasswordResponseDto>.Ok(new PasswordResponseDto { Password = password });
+    }
+
+    public sealed class PasswordResponseDto
+    {
+        public required string Password { get; init; }
     }
 
     [HttpPost]
@@ -114,7 +135,9 @@ public sealed class AdminTenantUsersController : ControllerBase
             Department = request.Department,
             IsActive = request.IsActive,
             AllowedModules = request.AllowedModules?.ToList() ?? [],
-            PasswordHash = PasswordHasher.Hash(request.Password)
+            CanViewCostBifurcation = request.CanViewCostBifurcation,
+            PasswordHash = PasswordHasher.Hash(request.Password),
+            PasswordEncrypted = _passwordEncryption.Encrypt(request.Password)
         };
 
         _db.Users.Add(user);
@@ -160,10 +183,12 @@ public sealed class AdminTenantUsersController : ControllerBase
         user.Department = request.Department;
         user.IsActive = request.IsActive;
         user.AllowedModules = request.AllowedModules?.ToList() ?? user.AllowedModules ?? [];
+        user.CanViewCostBifurcation = request.CanViewCostBifurcation;
 
         if (!string.IsNullOrWhiteSpace(request.Password))
         {
             user.PasswordHash = PasswordHasher.Hash(request.Password);
+            user.PasswordEncrypted = _passwordEncryption.Encrypt(request.Password);
         }
 
         await _db.SaveChangesAsync(ct);
@@ -173,10 +198,13 @@ public sealed class AdminTenantUsersController : ControllerBase
     [HttpDelete("{userId:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteUser([FromRoute] Guid tenantId, [FromRoute] Guid userId, CancellationToken ct)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.TenantId == tenantId && u.Id == userId, ct);
+        var user = await _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.TenantId == tenantId && u.Id == userId, ct);
         if (user is null) return NotFound(ApiResponse<object>.Fail("User not found"));
+        if (user.IsDeleted) return Ok(ApiResponse<object>.Ok(new { }));
 
-        _db.Users.Remove(user);
+        user.IsDeleted = true;
+        user.DeletedAtUtc = DateTime.UtcNow;
+        user.IsActive = false;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
     }
@@ -193,7 +221,8 @@ public sealed class AdminTenantUsersController : ControllerBase
             Department = u.Department,
             AllowedModules = u.AllowedModules?.ToList(),
             IsActive = u.IsActive,
-            CreatedAt = u.CreatedAt
+            CreatedAt = u.CreatedAt,
+            CanViewCostBifurcation = u.CanViewCostBifurcation
         };
 }
 

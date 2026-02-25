@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using TravelPathways.Api.Auth;
 using TravelPathways.Api.Common;
 using TravelPathways.Api.Data;
+using TravelPathways.Api.Services;
 using SubscriptionStatus = TravelPathways.Api.Common.SubscriptionStatus;
 
 namespace TravelPathways.Api.Controllers;
@@ -16,12 +17,14 @@ public sealed class AuthController : ControllerBase
     private readonly AppDbContext _db;
     private readonly TokenService _tokens;
     private readonly ILogger<AuthController> _logger;
+    private readonly IPasswordEncryption _passwordEncryption;
 
-    public AuthController(AppDbContext db, TokenService tokens, ILogger<AuthController> logger)
+    public AuthController(AppDbContext db, TokenService tokens, ILogger<AuthController> logger, IPasswordEncryption passwordEncryption)
     {
         _db = db;
         _tokens = tokens;
         _logger = logger;
+        _passwordEncryption = passwordEncryption;
     }
 
     public sealed class LoginRequestDto
@@ -46,6 +49,7 @@ public sealed class AuthController : ControllerBase
         public List<AppModuleKey>? AllowedModules { get; init; }
         public required bool IsActive { get; init; }
         public required DateTime CreatedAt { get; init; }
+        public bool CanViewCostBifurcation { get; init; }
     }
 
     public sealed class TenantDocumentDto
@@ -94,27 +98,31 @@ public sealed class AuthController : ControllerBase
         }
 
         var email = request.Email.Trim();
+        Guid? requestedTenantId = null;
+        if (!string.IsNullOrWhiteSpace(request.TenantId) && Guid.TryParse(request.TenantId.Trim(), out var parsedTid))
+            requestedTenantId = parsedTid;
 
         try
         {
-            // Find user by email. Email is unique in DB.
-            var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == email, ct);
+            // Find user by email (and optionally by tenant when tenant ID is provided). Super Admin has no tenant so allow them when tenantId is in URL.
+            var user = requestedTenantId.HasValue
+                ? await _db.Users.AsNoTracking().IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(u => !u.IsDeleted && u.Email == email && (u.TenantId == requestedTenantId || u.Role == UserRole.SuperAdmin), ct)
+                : await _db.Users.AsNoTracking().IgnoreQueryFilters().FirstOrDefaultAsync(u => !u.IsDeleted && u.Email == email, ct);
+
             if (user is null || !user.IsActive || !PasswordHasher.Verify(request.Password, user.PasswordHash))
             {
-                return Unauthorized(new { message = "Invalid credentials." });
+                var msg = requestedTenantId.HasValue
+                    ? "Invalid credentials, or this account is not for the selected tenant. Use an email and password for a user of this tenant."
+                    : "Invalid credentials.";
+                return Unauthorized(new { message = msg });
             }
 
             // Tenant checks for tenant users
             Data.Entities.Tenant? tenant = null;
             if (user.Role != UserRole.SuperAdmin)
             {
-                // Optional: validate explicit tenantId if provided
-                if (!string.IsNullOrWhiteSpace(request.TenantId) &&
-                    Guid.TryParse(request.TenantId, out var reqTid) &&
-                    user.TenantId != reqTid)
-                {
-                    return Unauthorized(new { message = "Invalid credentials." });
-                }
+                // When tenantId was provided we already found the user in that tenant; no extra check needed
 
                 // Optional: validate tenantCode if provided
                 if (!string.IsNullOrWhiteSpace(request.TenantCode))
@@ -149,21 +157,15 @@ public sealed class AuthController : ControllerBase
 
             var token = _tokens.CreateToken(user);
 
-            // For Super Admin, tenant is null; use first tenant from Tenants table so UI shows agency name
-            if (tenant is null)
-            {
-                tenant = await _db.Tenants.AsNoTracking()
-                    .Include(t => t.Documents)
-                    .OrderBy(t => t.Name)
-                    .FirstOrDefaultAsync(ct);
-            }
+            // For Super Admin, do NOT load any agency/tenant record here.
+            // Super Admin should only see an agency name when they explicitly scope context via X-Tenant-Id.
 
             var tenantDto = tenant is null
                 ? new TenantDto
                 {
                     Id = string.Empty,
-                    Name = "Travel Pathways",
-                    Code = "SUPER",
+                    Name = "Platform",
+                    Code = "PLATFORM",
                     Email = string.Empty,
                     Phone = string.Empty,
                     Address = string.Empty,
@@ -213,7 +215,8 @@ public sealed class AuthController : ControllerBase
                 Department = user.Department,
                 AllowedModules = user.AllowedModules?.ToList() ?? [],
                 IsActive = user.IsActive,
-                CreatedAt = user.CreatedAt
+                CreatedAt = user.CreatedAt,
+                CanViewCostBifurcation = user.CanViewCostBifurcation
             };
 
             return Ok(new LoginResponseDto { Token = token, User = userDto, Tenant = tenantDto });
@@ -250,6 +253,7 @@ public sealed class AuthController : ControllerBase
             return BadRequest(new { message = "Current password is incorrect." });
 
         user.PasswordHash = PasswordHasher.Hash(request.NewPassword);
+        user.PasswordEncrypted = _passwordEncryption.Encrypt(request.NewPassword);
         await _db.SaveChangesAsync(ct);
 
         return Ok(new { message = "Password changed successfully." });

@@ -114,7 +114,8 @@ public sealed class ItineraryTemplatesController : TenantControllerBase
 
         if (entity is null) return NotFound(ApiResponse<object>.Fail("Template not found"));
 
-        _db.ItineraryTemplates.Remove(entity);
+        entity.IsDeleted = true;
+        entity.DeletedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
     }

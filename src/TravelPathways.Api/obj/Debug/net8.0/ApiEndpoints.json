@@ -585,6 +585,37 @@
     ]
   },
   {
+    "ContainingType": "TravelPathways.Api.Controllers.AdminTenantUsersController",
+    "Method": "GetUserPassword",
+    "RelativePath": "api/admin/tenants/{tenantId}/users/{userId}/password",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "tenantId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "userId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[TravelPathways.Api.Controllers.AdminTenantUsersController\u002BPasswordResponseDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
     "ContainingType": "TravelPathways.Api.Controllers.AuthController",
     "Method": "ChangePassword",
     "RelativePath": "api/auth/change-password",
@@ -1739,6 +1770,274 @@
     ]
   },
   {
+    "ContainingType": "TravelPathways.Api.Controllers.TenantBankAccountsController",
+    "Method": "GetBankAccounts",
+    "RelativePath": "api/tenant/bank-accounts",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[System.Collections.Generic.List\u00601[[TravelPathways.Api.Controllers.TenantBankAccountsController\u002BBankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.TenantBankAccountsController",
+    "Method": "CreateBankAccount",
+    "RelativePath": "api/tenant/bank-accounts",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "TravelPathways.Api.Controllers.TenantBankAccountsController\u002BCreateBankAccountRequestDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[TravelPathways.Api.Controllers.TenantBankAccountsController\u002BBankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.TenantBankAccountsController",
+    "Method": "GetBankAccount",
+    "RelativePath": "api/tenant/bank-accounts/{id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[TravelPathways.Api.Controllers.TenantBankAccountsController\u002BBankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.TenantBankAccountsController",
+    "Method": "UpdateBankAccount",
+    "RelativePath": "api/tenant/bank-accounts/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "request",
+        "Type": "TravelPathways.Api.Controllers.TenantBankAccountsController\u002BUpdateBankAccountRequestDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[TravelPathways.Api.Controllers.TenantBankAccountsController\u002BBankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.TenantBankAccountsController",
+    "Method": "DeleteBankAccount",
+    "RelativePath": "api/tenant/bank-accounts/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.TenantQrCodesController",
+    "Method": "GetQrCodes",
+    "RelativePath": "api/tenant/qr-codes",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[System.Collections.Generic.List\u00601[[TravelPathways.Api.Controllers.TenantQrCodesController\u002BQrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.TenantQrCodesController",
+    "Method": "CreateQrCode",
+    "RelativePath": "api/tenant/qr-codes",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "label",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "displayOrder",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "file",
+        "Type": "Microsoft.AspNetCore.Http.IFormFile",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[TravelPathways.Api.Controllers.TenantQrCodesController\u002BQrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.TenantQrCodesController",
+    "Method": "GetQrCode",
+    "RelativePath": "api/tenant/qr-codes/{id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[TravelPathways.Api.Controllers.TenantQrCodesController\u002BQrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.TenantQrCodesController",
+    "Method": "UpdateQrCode",
+    "RelativePath": "api/tenant/qr-codes/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "request",
+        "Type": "TravelPathways.Api.Controllers.TenantQrCodesController\u002BUpdateQrCodeRequestDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[TravelPathways.Api.Controllers.TenantQrCodesController\u002BQrCodeDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.TenantQrCodesController",
+    "Method": "DeleteQrCode",
+    "RelativePath": "api/tenant/qr-codes/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
     "ContainingType": "TravelPathways.Api.Controllers.TenantUsersController",
     "Method": "GetUsers",
     "RelativePath": "api/tenant/users",
@@ -1858,6 +2157,32 @@
     "ReturnTypes": [
       {
         "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.TenantUsersController",
+    "Method": "GetUserPassword",
+    "RelativePath": "api/tenant/users/{userId}/password",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[TravelPathways.Api.Controllers.TenantUsersController\u002BPasswordResponseDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
         "MediaTypes": [
           "text/plain",
           "application/json",
@@ -2140,6 +2465,32 @@
     "ReturnTypes": [
       {
         "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "TravelPathways.Api.Controllers.VehiclePricingController",
+    "Method": "GetAll",
+    "RelativePath": "api/vehicle-pricing",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "vehicleId",
+        "Type": "System.Nullable\u00601[[System.Guid, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "TravelPathways.Api.Common.ApiResponse\u00601[[System.Collections.Generic.List\u00601[[TravelPathways.Api.Controllers.VehiclePricingController\u002BVehiclePricingListDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "MediaTypes": [
           "text/plain",
           "application/json",

@@ -14,6 +14,13 @@ public sealed class Tenant : EntityBase
     // Optional: a URL/path to logo (served as static file)
     public string? LogoUrl { get; set; }
 
+    /// <summary>Per-tenant PDF preferences. Null = use system default (same PDF for everyone).</summary>
+    public string? PdfCoverTitle { get; set; }
+    public string? PdfPrimaryColor { get; set; }
+    public string? PdfSecondaryColor { get; set; }
+    public bool? PdfShowBankDetails { get; set; }
+    public bool? PdfShowQrCodes { get; set; }
+
     // Enabled modules for this tenant (stored as JSON string)
     public List<AppModuleKey> EnabledModules { get; set; } = [];
 

@@ -25,6 +25,21 @@ public sealed class TenantQrCodesController : ControllerBase
         _storage = storage;
     }
 
+    /// <summary>Ensure tenant has BankAndPayment module enabled. Null/empty EnabledModules = allow.</summary>
+    private async Task<ActionResult?> EnsureBankAndPaymentModuleAsync(CancellationToken ct)
+    {
+        if (_tenant.IsSuperAdmin) return null;
+        if (!_tenant.TenantId.HasValue) return BadRequest(ApiResponse<object>.Fail("Tenant context is missing."));
+        var enabled = await _db.Tenants.AsNoTracking()
+            .Where(t => t.Id == _tenant.TenantId.Value)
+            .Select(t => t.EnabledModules)
+            .FirstOrDefaultAsync(ct);
+        if (enabled == null || enabled.Count == 0) return null;
+        if (!enabled.Contains(AppModuleKey.BankAndPayment))
+            return StatusCode(403, ApiResponse<object>.Fail("Bank & Payment module is not enabled for this tenant."));
+        return null;
+    }
+
     public sealed class QrCodeDto
     {
         public required string Id { get; init; }
@@ -37,6 +52,8 @@ public sealed class TenantQrCodesController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ApiResponse<List<QrCodeDto>>>> GetQrCodes(CancellationToken ct)
     {
+        var check = await EnsureBankAndPaymentModuleAsync(ct);
+        if (check != null) return check;
         if (!_tenant.TenantId.HasValue)
             return BadRequest(ApiResponse<List<QrCodeDto>>.Fail("Tenant context is missing."));
         var list = await _db.TenantQrCodes.AsNoTracking()
@@ -50,6 +67,8 @@ public sealed class TenantQrCodesController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<QrCodeDto>>> GetQrCode([FromRoute] Guid id, CancellationToken ct)
     {
+        var check = await EnsureBankAndPaymentModuleAsync(ct);
+        if (check != null) return check;
         if (!_tenant.TenantId.HasValue)
             return BadRequest(ApiResponse<QrCodeDto>.Fail("Tenant context is missing."));
         var item = await _db.TenantQrCodes.AsNoTracking()
@@ -63,6 +82,8 @@ public sealed class TenantQrCodesController : ControllerBase
     [RequestSizeLimit(5_242_880)] // 5 MB
     public async Task<ActionResult<ApiResponse<QrCodeDto>>> CreateQrCode([FromForm] string label, [FromForm] int displayOrder, IFormFile? file, CancellationToken ct)
     {
+        var check = await EnsureBankAndPaymentModuleAsync(ct);
+        if (check != null) return check;
         if (!_tenant.TenantId.HasValue)
             return BadRequest(ApiResponse<QrCodeDto>.Fail("Tenant context is missing."));
         if (file == null || file.Length == 0)
@@ -89,6 +110,8 @@ public sealed class TenantQrCodesController : ControllerBase
     [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<QrCodeDto>>> UpdateQrCode([FromRoute] Guid id, [FromBody] UpdateQrCodeRequestDto request, CancellationToken ct)
     {
+        var check = await EnsureBankAndPaymentModuleAsync(ct);
+        if (check != null) return check;
         if (!_tenant.TenantId.HasValue)
             return BadRequest(ApiResponse<QrCodeDto>.Fail("Tenant context is missing."));
         var item = await _db.TenantQrCodes.FirstOrDefaultAsync(q => q.TenantId == _tenant.TenantId && q.Id == id, ct);
@@ -103,6 +126,8 @@ public sealed class TenantQrCodesController : ControllerBase
     [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteQrCode([FromRoute] Guid id, CancellationToken ct)
     {
+        var check = await EnsureBankAndPaymentModuleAsync(ct);
+        if (check != null) return check;
         if (!_tenant.TenantId.HasValue)
             return BadRequest(ApiResponse<object>.Fail("Tenant context is missing."));
         var item = await _db.TenantQrCodes.FirstOrDefaultAsync(q => q.TenantId == _tenant.TenantId && q.Id == id, ct);

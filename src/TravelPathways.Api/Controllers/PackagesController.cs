@@ -675,7 +675,12 @@ public sealed class PackagesController : TenantControllerBase
             QrCodes = (tenant?.QrCodes ?? [])
                 .OrderBy(q => q.DisplayOrder)
                 .ThenBy(q => q.CreatedAt)
-                .Select(q => new QrCodeItem { Label = q.Label, ImageUrl = q.ImageUrl }).ToList()
+                .Select(q => new QrCodeItem { Label = q.Label, ImageUrl = q.ImageUrl }).ToList(),
+            PrimaryColor = tenant?.PdfPrimaryColor?.Trim(),
+            SecondaryColor = tenant?.PdfSecondaryColor?.Trim(),
+            CoverTitle = tenant?.PdfCoverTitle?.Trim(),
+            ShowBankDetails = tenant?.PdfShowBankDetails,
+            ShowQrCodes = tenant?.PdfShowQrCodes
         };
     }
 
@@ -771,7 +776,12 @@ public sealed class PackagesController : TenantControllerBase
             {
                 Label = q.Label,
                 ImageUrl = ToDataUrl(q.ImageUrl) ?? q.ImageUrl
-            }).ToList()
+            }).ToList(),
+            PrimaryColor = model.PrimaryColor,
+            SecondaryColor = model.SecondaryColor,
+            CoverTitle = model.CoverTitle,
+            ShowBankDetails = model.ShowBankDetails,
+            ShowQrCodes = model.ShowQrCodes
         };
     }
 

@@ -147,6 +147,7 @@ public sealed class VehiclePricingController : TenantControllerBase
             DropLocation = request.DropLocation.Trim(),
             CostPrice = cost,
             SellingPrice = selling,
+            RateType = request.RateType,
             FromDate = from,
             ToDate = to
         };
@@ -177,6 +178,7 @@ public sealed class VehiclePricingController : TenantControllerBase
         pricing.DropLocation = request.DropLocation.Trim();
         pricing.CostPrice = cost;
         pricing.SellingPrice = selling;
+        pricing.RateType = request.RateType;
         pricing.FromDate = from;
         pricing.ToDate = to;
 
@@ -207,7 +209,7 @@ public sealed class VehiclePricingController : TenantControllerBase
             FromDate = p.FromDate,
             ToDate = p.ToDate,
             Rate = p.SellingPrice,
-            RateType = rateType,
+            RateType = rateType ?? p.RateType,
             EffectiveFrom = p.FromDate,
             EffectiveTo = p.ToDate,
             TenantId = p.TenantId.ToString("D"),

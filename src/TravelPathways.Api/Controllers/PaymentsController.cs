@@ -40,6 +40,12 @@ public sealed class PaymentsController : TenantControllerBase
         public bool? IsHouseboat { get; init; }
         public string? TransportCompanyId { get; init; }
         public string? TransportCompanyName { get; init; }
+        public PaymentPayeeCategory? PayeeCategory { get; init; }
+        public string? UserId { get; init; }
+        public string? UserName { get; init; }
+        /// <summary>When PayeeCategory is Employee: Salary, Incentive, or Bonus.</summary>
+        public EmployeePaymentType? EmployeePaymentKind { get; init; }
+        public string? PayeeDescription { get; init; }
         public string? ScreenshotUrl { get; init; }
         public required string TenantId { get; init; }
         public required DateTime CreatedAt { get; init; }
@@ -55,8 +61,13 @@ public sealed class PaymentsController : TenantControllerBase
         public string? Notes { get; set; }
         public Guid? LeadId { get; set; }
         public Guid? PackageId { get; set; }
+        public PaymentPayeeCategory? PayeeCategory { get; set; }
         public Guid? HotelId { get; set; }
         public Guid? TransportCompanyId { get; set; }
+        public Guid? UserId { get; set; }
+        /// <summary>When PayeeCategory is Employee: Salary, Incentive, or Bonus.</summary>
+        public EmployeePaymentType? EmployeePaymentKind { get; set; }
+        public string? PayeeDescription { get; set; }
     }
 
     public sealed class UpdatePaymentRequestDto : CreatePaymentRequestDto { }
@@ -64,9 +75,12 @@ public sealed class PaymentsController : TenantControllerBase
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PaginatedResponse<PaymentDto>>>> GetPayments(
         [FromQuery] PaymentType? paymentType = null,
+        [FromQuery] PaymentPayeeCategory? payeeCategory = null,
         [FromQuery] Guid? leadId = null,
         [FromQuery] Guid? hotelId = null,
         [FromQuery] Guid? transportCompanyId = null,
+        [FromQuery] Guid? userId = null,
+        [FromQuery] EmployeePaymentType? employeePaymentKind = null,
         [FromQuery] DateTime? dateFrom = null,
         [FromQuery] DateTime? dateTo = null,
         [FromQuery] int pageNumber = 1,
@@ -82,16 +96,23 @@ public sealed class PaymentsController : TenantControllerBase
             .Include(p => p.Package)
             .Include(p => p.Hotel)
             .Include(p => p.TransportCompany)
+            .Include(p => p.User)
             .Where(p => p.TenantId == TenantId);
 
         if (paymentType.HasValue)
             query = query.Where(p => p.PaymentType == paymentType.Value);
+        if (payeeCategory.HasValue)
+            query = query.Where(p => p.PayeeCategory == payeeCategory.Value);
         if (leadId.HasValue)
             query = query.Where(p => p.LeadId == leadId.Value);
         if (hotelId.HasValue)
             query = query.Where(p => p.HotelId == hotelId.Value);
         if (transportCompanyId.HasValue)
             query = query.Where(p => p.TransportCompanyId == transportCompanyId.Value);
+        if (userId.HasValue)
+            query = query.Where(p => p.UserId == userId.Value);
+        if (employeePaymentKind.HasValue)
+            query = query.Where(p => p.EmployeePaymentKind == employeePaymentKind.Value);
         if (dateFrom.HasValue)
             query = query.Where(p => p.PaymentDate.Date >= dateFrom.Value.Date);
         if (dateTo.HasValue)
@@ -127,6 +148,7 @@ public sealed class PaymentsController : TenantControllerBase
             .Include(p => p.Package)
             .Include(p => p.Hotel)
             .Include(p => p.TransportCompany)
+            .Include(p => p.User)
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
 
         if (payment == null)
@@ -138,7 +160,7 @@ public sealed class PaymentsController : TenantControllerBase
     [HttpPost]
     public async Task<ActionResult<ApiResponse<PaymentDto>>> CreatePayment([FromBody] CreatePaymentRequestDto dto, CancellationToken ct)
     {
-        var (valid, error) = ValidatePaymentDto(dto);
+        var (valid, error) = await ValidatePaymentDtoAsync(dto, ct);
         if (!valid)
             return BadRequest(ApiResponse<PaymentDto>.Fail(error!));
 
@@ -152,28 +174,24 @@ public sealed class PaymentsController : TenantControllerBase
             Notes = dto.Notes?.Trim(),
             LeadId = dto.LeadId,
             PackageId = dto.PackageId,
+            PayeeCategory = dto.PayeeCategory,
             HotelId = dto.HotelId,
-            TransportCompanyId = dto.TransportCompanyId
+            TransportCompanyId = dto.TransportCompanyId,
+            UserId = dto.UserId,
+            EmployeePaymentKind = dto.EmployeePaymentKind,
+            PayeeDescription = dto.PayeeDescription?.Trim()
         };
         _db.Payments.Add(payment);
         await _db.SaveChangesAsync(ct);
 
-        await _db.Entry(payment)
-            .Reference(p => p.Lead).LoadAsync(ct);
-        await _db.Entry(payment)
-            .Reference(p => p.Package).LoadAsync(ct);
-        await _db.Entry(payment)
-            .Reference(p => p.Hotel).LoadAsync(ct);
-        await _db.Entry(payment)
-            .Reference(p => p.TransportCompany).LoadAsync(ct);
-
+        await LoadPaymentNavigationsAsync(payment, ct);
         return ApiResponse<PaymentDto>.Ok(ToDto(payment));
     }
 
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<PaymentDto>>> UpdatePayment(Guid id, [FromBody] UpdatePaymentRequestDto dto, CancellationToken ct)
     {
-        var (valid, error) = ValidatePaymentDto(dto);
+        var (valid, error) = await ValidatePaymentDtoAsync(dto, ct);
         if (!valid)
             return BadRequest(ApiResponse<PaymentDto>.Fail(error!));
 
@@ -189,19 +207,15 @@ public sealed class PaymentsController : TenantControllerBase
         payment.Notes = dto.Notes?.Trim();
         payment.LeadId = dto.LeadId;
         payment.PackageId = dto.PackageId;
+        payment.PayeeCategory = dto.PayeeCategory;
         payment.HotelId = dto.HotelId;
         payment.TransportCompanyId = dto.TransportCompanyId;
+        payment.UserId = dto.UserId;
+        payment.EmployeePaymentKind = dto.EmployeePaymentKind;
+        payment.PayeeDescription = dto.PayeeDescription?.Trim();
         await _db.SaveChangesAsync(ct);
 
-        await _db.Entry(payment)
-            .Reference(p => p.Lead).LoadAsync(ct);
-        await _db.Entry(payment)
-            .Reference(p => p.Package).LoadAsync(ct);
-        await _db.Entry(payment)
-            .Reference(p => p.Hotel).LoadAsync(ct);
-        await _db.Entry(payment)
-            .Reference(p => p.TransportCompany).LoadAsync(ct);
-
+        await LoadPaymentNavigationsAsync(payment, ct);
         return ApiResponse<PaymentDto>.Ok(ToDto(payment));
     }
 
@@ -236,19 +250,20 @@ public sealed class PaymentsController : TenantControllerBase
         payment.ScreenshotUrl = url;
         await _db.SaveChangesAsync(ct);
 
-        await _db.Entry(payment)
-            .Reference(p => p.Lead).LoadAsync(ct);
-        await _db.Entry(payment)
-            .Reference(p => p.Package).LoadAsync(ct);
-        await _db.Entry(payment)
-            .Reference(p => p.Hotel).LoadAsync(ct);
-        await _db.Entry(payment)
-            .Reference(p => p.TransportCompany).LoadAsync(ct);
-
+        await LoadPaymentNavigationsAsync(payment, ct);
         return ApiResponse<PaymentDto>.Ok(ToDto(payment));
     }
 
-    private static (bool Valid, string? Error) ValidatePaymentDto(CreatePaymentRequestDto dto)
+    private async Task LoadPaymentNavigationsAsync(Payment payment, CancellationToken ct)
+    {
+        await _db.Entry(payment).Reference(p => p.Lead).LoadAsync(ct);
+        await _db.Entry(payment).Reference(p => p.Package).LoadAsync(ct);
+        await _db.Entry(payment).Reference(p => p.Hotel).LoadAsync(ct);
+        await _db.Entry(payment).Reference(p => p.TransportCompany).LoadAsync(ct);
+        await _db.Entry(payment).Reference(p => p.User).LoadAsync(ct);
+    }
+
+    private async Task<(bool Valid, string? Error)> ValidatePaymentDtoAsync(CreatePaymentRequestDto dto, CancellationToken ct)
     {
         if (dto.Amount <= 0)
             return (false, "Amount must be greater than zero.");
@@ -256,21 +271,59 @@ public sealed class PaymentsController : TenantControllerBase
         {
             if (!dto.LeadId.HasValue)
                 return (false, "Client (Lead) is required for payments received.");
+            return (true, null);
         }
-        else
+        if (!dto.PayeeCategory.HasValue)
+            return (false, "Payee category is required for payments made.");
+        switch (dto.PayeeCategory.Value)
         {
-            var hasHotel = dto.HotelId.HasValue;
-            var hasTransport = dto.TransportCompanyId.HasValue;
-            if (hasHotel && hasTransport)
-                return (false, "Specify either a hotel/houseboat or a transport company, not both.");
-            if (!hasHotel && !hasTransport)
-                return (false, "Either hotel/houseboat or transport company is required for payments made.");
+            case PaymentPayeeCategory.VendorHotel:
+            case PaymentPayeeCategory.VendorHouseboat:
+                if (!dto.HotelId.HasValue)
+                    return (false, "Hotel or houseboat is required.");
+                var isHouseboat = await _db.Hotels.AsNoTracking()
+                    .Where(h => h.Id == dto.HotelId.Value && h.TenantId == TenantId && !h.IsDeleted)
+                    .Select(h => h.IsHouseboat)
+                    .FirstOrDefaultAsync(ct);
+                if (dto.PayeeCategory == PaymentPayeeCategory.VendorHotel && isHouseboat)
+                    return (false, "Selected property is a houseboat. Please choose Vendor Houseboat.");
+                if (dto.PayeeCategory == PaymentPayeeCategory.VendorHouseboat && !isHouseboat)
+                    return (false, "Selected property is a hotel. Please choose Vendor Hotel.");
+                return (true, null);
+            case PaymentPayeeCategory.VendorTransport:
+                return !dto.TransportCompanyId.HasValue
+                    ? (false, "Transport company is required.")
+                    : (true, null);
+            case PaymentPayeeCategory.Employee:
+                if (!dto.UserId.HasValue)
+                    return (false, "Employee is required.");
+                var userExists = await _db.Users.AsNoTracking()
+                    .AnyAsync(u => u.Id == dto.UserId.Value && u.TenantId == TenantId && !u.IsDeleted, ct);
+                return !userExists ? (false, "Selected user is not valid for this tenant.") : (true, null);
+            case PaymentPayeeCategory.Driver:
+                if (!dto.TransportCompanyId.HasValue && string.IsNullOrWhiteSpace(dto.PayeeDescription))
+                    return (false, "Either transport company or payee description is required for driver payment.");
+                return (true, null);
+            case PaymentPayeeCategory.OfficeOther:
+                return string.IsNullOrWhiteSpace(dto.PayeeDescription)
+                    ? (false, "Payee description is required for office/other expenditure.")
+                    : (true, null);
+            default:
+                return (false, "Invalid payee category.");
         }
-        return (true, null);
     }
 
     private static PaymentDto ToDto(Payment p)
     {
+        var payeeCategory = p.PayeeCategory;
+        if (!payeeCategory.HasValue && p.PaymentType == PaymentType.Made)
+        {
+            if (p.HotelId.HasValue)
+                payeeCategory = p.Hotel?.IsHouseboat == true ? PaymentPayeeCategory.VendorHouseboat : PaymentPayeeCategory.VendorHotel;
+            else if (p.TransportCompanyId.HasValue)
+                payeeCategory = PaymentPayeeCategory.VendorTransport;
+        }
+        var userName = p.User == null ? null : $"{p.User.FirstName} {p.User.LastName}".Trim();
         return new PaymentDto
         {
             Id = p.Id.ToString(),
@@ -288,6 +341,11 @@ public sealed class PaymentsController : TenantControllerBase
             IsHouseboat = p.Hotel?.IsHouseboat,
             TransportCompanyId = p.TransportCompanyId?.ToString(),
             TransportCompanyName = p.TransportCompany?.Name,
+            PayeeCategory = payeeCategory,
+            UserId = p.UserId?.ToString(),
+            UserName = userName,
+            EmployeePaymentKind = p.EmployeePaymentKind,
+            PayeeDescription = p.PayeeDescription,
             ScreenshotUrl = p.ScreenshotUrl,
             TenantId = p.TenantId.ToString(),
             CreatedAt = p.CreatedAt,

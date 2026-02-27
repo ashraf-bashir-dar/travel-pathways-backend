@@ -87,6 +87,9 @@ namespace TravelPathways.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Address")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("AllowedModules")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -97,12 +100,27 @@ namespace TravelPathways.Api.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DateOfBirth")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Department")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Designation")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("EmergencyContactName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EmergencyContactPhone")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("FirstName")
                         .IsRequired()
@@ -110,6 +128,12 @@ namespace TravelPathways.Api.Data.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("JoinDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("LastName")
                         .IsRequired()
@@ -120,6 +144,12 @@ namespace TravelPathways.Api.Data.Migrations
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Phone")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProfilePhotoUrl")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Role")
@@ -677,6 +707,21 @@ namespace TravelPathways.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PdfCoverTitle")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PdfPrimaryColor")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PdfSecondaryColor")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool?>("PdfShowBankDetails")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("PdfShowQrCodes")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -1054,6 +1099,9 @@ namespace TravelPathways.Api.Data.Migrations
 
                     b.Property<string>("PickupLocation")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RateType")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("SellingPrice")

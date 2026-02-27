@@ -27,6 +27,19 @@ public sealed class Payment : TenantEntityBase
     public Guid? TransportCompanyId { get; set; }
     public TransportCompany? TransportCompany { get; set; }
 
+    /// <summary>For PaymentType.Made: which kind of payee. Null when Received.</summary>
+    public PaymentPayeeCategory? PayeeCategory { get; set; }
+
+    /// <summary>For PaymentType.Made + PayeeCategory.Employee: user (employee) paid.</summary>
+    public Guid? UserId { get; set; }
+    public AppUser? User { get; set; }
+
+    /// <summary>For PaymentType.Made + PayeeCategory.Employee: Salary, Incentive, or Bonus.</summary>
+    public EmployeePaymentType? EmployeePaymentKind { get; set; }
+
+    /// <summary>For PaymentType.Made + Driver/OfficeOther: free-text payee (e.g. driver name, "Office supplies").</summary>
+    public string? PayeeDescription { get; set; }
+
     /// <summary>Relative URL of uploaded screenshot, e.g. /uploads/tenants/.../payments/...</summary>
     public string? ScreenshotUrl { get; set; }
 }

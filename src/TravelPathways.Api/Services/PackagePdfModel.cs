@@ -46,6 +46,13 @@ public sealed class PackagePdfModel
     public List<BankAccountItem> BankAccounts { get; init; } = [];
     /// <summary>QR codes to show (label + image URL).</summary>
     public List<QrCodeItem> QrCodes { get; init; } = [];
+
+    /// <summary>Per-tenant PDF overrides. When null/empty, generator uses built-in default.</summary>
+    public string? PrimaryColor { get; init; }
+    public string? SecondaryColor { get; init; }
+    public string? CoverTitle { get; init; }
+    public bool? ShowBankDetails { get; init; }
+    public bool? ShowQrCodes { get; init; }
 }
 
 public sealed class BankAccountItem

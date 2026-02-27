@@ -50,34 +50,36 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
 
     private static string BuildHtml(PackagePdfModel m)
     {
+        var primary = SanitizeCssColor(m.PrimaryColor) ?? "#3366cc";
+        var secondary = SanitizeCssColor(m.SecondaryColor) ?? "#6699ff";
+        var coverTitle = string.IsNullOrWhiteSpace(m.CoverTitle) ? "Kashmir Tour Package Proposal" : m.CoverTitle.Trim();
+        var showBank = m.ShowBankDetails ?? true;
+        var showQr = m.ShowQrCodes ?? true;
+
         var sb = new StringBuilder();
         sb.Append("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
-        // No external fonts: avoids network latency/timeouts in Docker/Web App; use system fonts only
         sb.Append("<style>");
         sb.Append("*{box-sizing:border-box;} body{margin:0;font-family:Arial,Helvetica,sans-serif;font-size:10pt;line-height:1.5;color:#000;}");
-        sb.Append("/* Page 1: cover + details */");
         sb.Append(".page-1{padding:0;min-height:100vh;}");
-        sb.Append(".cover-block{text-align:center;padding:1.25rem 0 1.5rem;border-bottom:2px solid #3366cc;margin-bottom:1.25rem;}");
+        sb.Append(".cover-block{text-align:center;padding:1.25rem 0 1.5rem;border-bottom:2px solid ").Append(primary).Append(";margin-bottom:1.25rem;}");
         sb.Append(".cover-logo{margin:0 0 0.5rem;}");
         sb.Append(".cover-logo img{max-height:56px;max-width:200px;object-fit:contain;}");
-        sb.Append(".cover-title{font-size:1.1rem;font-weight:700;color:#3366cc;letter-spacing:0.02em;margin:0 0 0.25rem;}");
+        sb.Append(".cover-title{font-size:1.1rem;font-weight:700;color:").Append(primary).Append(";letter-spacing:0.02em;margin:0 0 0.25rem;}");
         sb.Append(".cover-by{font-size:0.95rem;color:#475569;margin:0 0 0.6rem;font-style:italic;}");
         sb.Append(".cover-package{font-size:1.35rem;font-weight:700;color:#1e293b;margin:0 0 0.4rem;line-height:1.3;}");
         sb.Append(".cover-meta{font-size:0.9rem;color:#64748b;margin:0 0 0.35rem;}");
         sb.Append(".cover-for{font-size:0.95rem;color:#334155;margin:0.5rem 0 0;}");
         sb.Append(".cover-date{font-size:0.8rem;color:#94a3b8;margin-top:0.5rem;}");
-        sb.Append("/* Itinerary */");
         sb.Append(".itin-title{font-size:1.15rem;font-weight:700;margin:1.5rem 0 1rem;text-align:center;}");
         sb.Append(".itin-title span{border-bottom:2px dashed #333;padding-bottom:2px;}");
         sb.Append(".day-block{page-break-inside:avoid;margin-bottom:1rem;}");
-        sb.Append(".day-bar{background:#3366cc;color:#fff;padding:0.5rem 1rem;display:flex;align-items:center;gap:0.6rem;}");
-        sb.Append(".day-circle{width:36px;height:36px;background:#6699ff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.9rem;}");
+        sb.Append(".day-bar{background:").Append(primary).Append(";color:#fff;padding:0.5rem 1rem;display:flex;align-items:center;gap:0.6rem;}");
+        sb.Append(".day-circle{width:36px;height:36px;background:").Append(secondary).Append(";border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.9rem;}");
         sb.Append(".day-bar-title{font-weight:700;}");
         sb.Append(".day-para{margin:0.5rem 0 0;padding:0.85rem 0.6rem;min-height:4rem;line-height:1.6;font-size:10pt;}");
         sb.Append(".day-extra{margin:0.35rem 0 0;padding:0 0.6rem;font-size:9pt;color:#475569;}");
-        sb.Append("/* Accommodation */");
         sb.Append(".acc-card{page-break-inside:avoid;margin-bottom:1.5rem;}");
-        sb.Append(".acc-banner{background:#3366cc;color:#fff;text-align:center;padding:0.4rem;font-weight:700;font-size:0.95rem;}");
+        sb.Append(".acc-banner{background:").Append(primary).Append(";color:#fff;text-align:center;padding:0.4rem;font-weight:700;font-size:0.95rem;}");
         sb.Append(".acc-name{font-size:1.2rem;font-weight:700;margin:0.5rem 0 0.25rem;}");
         sb.Append(".acc-loc{font-size:0.9rem;color:#333;}");
         sb.Append(".acc-meta{display:flex;align-items:center;gap:1rem;margin:0.5rem 0;flex-wrap:wrap;}");
@@ -85,37 +87,32 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
         sb.Append(".acc-services{font-size:0.85rem;margin:0.5rem 0;}");
         sb.Append(".acc-imgs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:0.75rem;}");
         sb.Append(".acc-imgs img{width:100%;height:220px;object-fit:cover;border-radius:8px;}");
-        sb.Append("/* Client Info & Night Stays */");
-        sb.Append(".section-head{font-size:1.05rem;font-weight:700;background:#3366cc;color:#fff;margin:1.25rem 0 0.5rem;padding:0.4rem 0.5rem;border:none;}");
+        sb.Append(".section-head{font-size:1.05rem;font-weight:700;background:").Append(primary).Append(";color:#fff;margin:1.25rem 0 0.5rem;padding:0.4rem 0.5rem;border:none;}");
         sb.Append(".info-row{display:flex;margin-bottom:4px;}");
-        sb.Append(".info-tab{width:10px;background:#3366cc;border-radius:6px 0 0 6px;flex-shrink:0;}");
-        sb.Append(".info-tab-r{width:10px;background:#3366cc;border-radius:0 6px 6px 0;flex-shrink:0;}");
+        sb.Append(".info-tab{width:10px;background:").Append(primary).Append(";border-radius:6px 0 0 6px;flex-shrink:0;}");
+        sb.Append(".info-tab-r{width:10px;background:").Append(primary).Append(";border-radius:0 6px 6px 0;flex-shrink:0;}");
         sb.Append(".info-cell{flex:1;background:#e5e7eb;padding:0.45rem 0.65rem;font-size:0.9rem;}");
         sb.Append(".info-cell.val{text-align:center;}");
-        sb.Append(".info-header .info-cell{background:#3366cc;color:#fff;font-weight:600;}");
-        sb.Append("/* Page 1: each section in its own row (full width) */");
+        sb.Append(".info-header .info-cell{background:").Append(primary).Append(";color:#fff;font-weight:600;}");
         sb.Append(".page-1-section{margin-bottom:1.25rem;}");
-        sb.Append("/* Inclusion / Excludes */");
-        sb.Append(".inc-bar{background:#3366cc;color:#fff;padding:0.5rem 0.75rem;font-weight:700;}");
+        sb.Append(".inc-bar{background:").Append(primary).Append(";color:#fff;padding:0.5rem 0.75rem;font-weight:700;}");
         sb.Append(".inclusion-section{margin-top:2rem;}");
         sb.Append(".inc-sub{font-size:0.9rem;margin:0.35rem 0 0;}");
         sb.Append(".inc-list{margin:0.5rem 0;padding-left:1.25rem;} .inc-list li{margin:0.2rem 0;list-style-type:square;}");
-        sb.Append(".exc-bar{background:#3366cc;color:#fff;padding:0.5rem 0.75rem;font-weight:700;}");
+        sb.Append(".exc-bar{background:").Append(primary).Append(";color:#fff;padding:0.5rem 0.75rem;font-weight:700;}");
         sb.Append(".exc-box{background:#e5e7eb;padding:0.75rem 1rem;border-radius:6px;margin-top:0;}");
         sb.Append(".exc-box .inc-list{margin:0.25rem 0;}");
-        sb.Append("/* Travel Agency Details (last page) */");
         sb.Append(".agency-grid{margin-top:0.5rem;border:1px solid #d1d5db;border-radius:6px;overflow:hidden;}");
         sb.Append(".agency-row{display:flex;}");
         sb.Append(".agency-cell{flex:1;padding:0.45rem 0.65rem;font-size:0.9rem;border-bottom:1px solid #e5e7eb;}");
         sb.Append(".agency-row:last-child .agency-cell{border-bottom:none;}");
-        sb.Append(".agency-row.info-header .agency-cell{background:#3366cc;color:#fff;font-weight:600;}");
+        sb.Append(".agency-row.info-header .agency-cell{background:").Append(primary).Append(";color:#fff;font-weight:600;}");
         sb.Append(".agency-row:not(.info-header) .agency-cell{background:#e5e7eb;}");
-        sb.Append("/* Bank details & QR */");
         sb.Append(".bank-grid{margin-top:0.5rem;border:1px solid #d1d5db;border-radius:6px;overflow:hidden;}");
         sb.Append(".bank-row{display:flex;}");
         sb.Append(".bank-cell{flex:1;padding:0.45rem 0.65rem;font-size:0.9rem;border-bottom:1px solid #e5e7eb;}");
         sb.Append(".bank-row:last-child .bank-cell{border-bottom:none;}");
-        sb.Append(".bank-row.info-header .bank-cell{background:#3366cc;color:#fff;font-weight:600;}");
+        sb.Append(".bank-row.info-header .bank-cell{background:").Append(primary).Append(";color:#fff;font-weight:600;}");
         sb.Append(".bank-row:not(.info-header) .bank-cell{background:#e5e7eb;}");
         sb.Append(".qr-section{display:flex;flex-wrap:wrap;gap:1rem;margin-top:0.75rem;}");
         sb.Append(".qr-item{text-align:center;}");
@@ -133,7 +130,7 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             var logoSrc = m.AgencyLogoUrl.IndexOf('"') >= 0 ? m.AgencyLogoUrl.Replace("\"", "&quot;") : m.AgencyLogoUrl;
             sb.Append("<p class=\"cover-logo\"><img src=\"").Append(logoSrc).Append("\" alt=\"\" /></p>");
         }
-        sb.Append("<p class=\"cover-title\">Kashmir Tour Package Proposal</p>");
+        sb.Append("<p class=\"cover-title\">").Append(H(coverTitle)).Append("</p>");
         if (!string.IsNullOrWhiteSpace(m.AgencyName))
             sb.Append("<p class=\"cover-by\">Presented by ").Append(H(m.AgencyName.Trim())).Append("</p>");
         sb.Append("<p class=\"cover-meta\">").Append(H(m.DaysLabel)).Append(" &bull; ").Append(H(m.StartDate)).Append(" – ").Append(H(m.EndDate)).Append("</p>");
@@ -257,9 +254,9 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             sb.Append("</div>");
         }
 
-        // —— Bank Details ——
-        var bankAccounts = m.BankAccounts ?? [];
-        if (bankAccounts.Count > 0)
+        // —— Bank Details (tenant can hide via PdfShowBankDetails) ——
+        var bankAccounts = (m.BankAccounts ?? []).ToList();
+        if (showBank && bankAccounts.Count > 0)
         {
             sb.Append("<h2 class=\"section-head\">Bank Details</h2>");
             sb.Append("<div class=\"bank-grid\">");
@@ -271,9 +268,9 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             sb.Append("</div>");
         }
 
-        // —— Payment QR Codes ——
-        var qrCodes = m.QrCodes ?? [];
-        if (qrCodes.Count > 0)
+        // —— Payment QR Codes (tenant can hide via PdfShowQrCodes) ——
+        var qrCodes = (m.QrCodes ?? []).ToList();
+        if (showQr && qrCodes.Count > 0)
         {
             sb.Append("<h2 class=\"section-head\">Payment (Scan QR)</h2>");
             sb.Append("<div class=\"qr-section\">");
@@ -306,5 +303,18 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
     {
         if (string.IsNullOrWhiteSpace(s)) return true;
         return s.Trim().All(c => c == '0' || char.IsWhiteSpace(c));
+    }
+
+    /// <summary>Allow only safe CSS color values (hex or rgb) to avoid injection.</summary>
+    private static string? SanitizeCssColor(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var v = value.Trim();
+        if (v.Length == 0) return null;
+        if (v[0] == '#' && v.Length >= 4 && v.Length <= 9 && v.Skip(1).All(c => char.IsAsciiHexDigit(c)))
+            return v;
+        if (v.StartsWith("rgb(", StringComparison.OrdinalIgnoreCase) && v.EndsWith(")"))
+            return v;
+        return null;
     }
 }

@@ -38,6 +38,14 @@ public sealed class AdminTenantUsersController : ControllerBase
         public required bool IsActive { get; init; }
         public required DateTime CreatedAt { get; init; }
         public bool CanViewCostBifurcation { get; init; }
+        public string? Phone { get; init; }
+        public DateTime? DateOfBirth { get; init; }
+        public DateTime? JoinDate { get; init; }
+        public string? Designation { get; init; }
+        public string? Address { get; init; }
+        public string? EmergencyContactName { get; init; }
+        public string? EmergencyContactPhone { get; init; }
+        public string? ProfilePhotoUrl { get; init; }
     }
 
     public sealed class CreateTenantUserRequestDto
@@ -51,6 +59,14 @@ public sealed class AdminTenantUsersController : ControllerBase
         public bool IsActive { get; set; } = true;
         public List<AppModuleKey>? AllowedModules { get; set; }
         public bool CanViewCostBifurcation { get; set; }
+        public string? Phone { get; set; }
+        public DateTime? DateOfBirth { get; set; }
+        public DateTime? JoinDate { get; set; }
+        public string? Designation { get; set; }
+        public string? Address { get; set; }
+        public string? EmergencyContactName { get; set; }
+        public string? EmergencyContactPhone { get; set; }
+        public string? ProfilePhotoUrl { get; set; }
     }
 
     public sealed class UpdateTenantUserRequestDto
@@ -64,6 +80,14 @@ public sealed class AdminTenantUsersController : ControllerBase
         public bool IsActive { get; set; } = true;
         public List<AppModuleKey>? AllowedModules { get; set; }
         public bool CanViewCostBifurcation { get; set; }
+        public string? Phone { get; set; }
+        public DateTime? DateOfBirth { get; set; }
+        public DateTime? JoinDate { get; set; }
+        public string? Designation { get; set; }
+        public string? Address { get; set; }
+        public string? EmergencyContactName { get; set; }
+        public string? EmergencyContactPhone { get; set; }
+        public string? ProfilePhotoUrl { get; set; }
     }
 
     [HttpGet]
@@ -137,7 +161,15 @@ public sealed class AdminTenantUsersController : ControllerBase
             AllowedModules = request.AllowedModules?.ToList() ?? [],
             CanViewCostBifurcation = request.CanViewCostBifurcation,
             PasswordHash = PasswordHasher.Hash(request.Password),
-            PasswordEncrypted = _passwordEncryption.Encrypt(request.Password)
+            PasswordEncrypted = _passwordEncryption.Encrypt(request.Password),
+            Phone = request.Phone?.Trim(),
+            DateOfBirth = request.DateOfBirth,
+            JoinDate = request.JoinDate,
+            Designation = request.Designation?.Trim(),
+            Address = request.Address?.Trim(),
+            EmergencyContactName = request.EmergencyContactName?.Trim(),
+            EmergencyContactPhone = request.EmergencyContactPhone?.Trim(),
+            ProfilePhotoUrl = request.ProfilePhotoUrl?.Trim()
         };
 
         _db.Users.Add(user);
@@ -184,6 +216,14 @@ public sealed class AdminTenantUsersController : ControllerBase
         user.IsActive = request.IsActive;
         user.AllowedModules = request.AllowedModules?.ToList() ?? user.AllowedModules ?? [];
         user.CanViewCostBifurcation = request.CanViewCostBifurcation;
+        user.Phone = request.Phone?.Trim();
+        user.DateOfBirth = request.DateOfBirth;
+        user.JoinDate = request.JoinDate;
+        user.Designation = request.Designation?.Trim();
+        user.Address = request.Address?.Trim();
+        user.EmergencyContactName = request.EmergencyContactName?.Trim();
+        user.EmergencyContactPhone = request.EmergencyContactPhone?.Trim();
+        user.ProfilePhotoUrl = request.ProfilePhotoUrl?.Trim();
 
         if (!string.IsNullOrWhiteSpace(request.Password))
         {
@@ -222,7 +262,15 @@ public sealed class AdminTenantUsersController : ControllerBase
             AllowedModules = u.AllowedModules?.ToList(),
             IsActive = u.IsActive,
             CreatedAt = u.CreatedAt,
-            CanViewCostBifurcation = u.CanViewCostBifurcation
+            CanViewCostBifurcation = u.CanViewCostBifurcation,
+            Phone = u.Phone,
+            DateOfBirth = u.DateOfBirth,
+            JoinDate = u.JoinDate,
+            Designation = u.Designation,
+            Address = u.Address,
+            EmergencyContactName = u.EmergencyContactName,
+            EmergencyContactPhone = u.EmergencyContactPhone,
+            ProfilePhotoUrl = u.ProfilePhotoUrl
         };
 }
 

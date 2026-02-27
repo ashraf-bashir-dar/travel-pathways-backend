@@ -28,14 +28,51 @@ public enum AppModuleKey
     Master = 6,
     Users = 7,
     Accounts = 8,
-    Pricing = 9
+    Pricing = 9,
+    /// <summary>Deprecated: use EmployeeManagement. Kept for backward compatibility in tenant/user EnabledModules.</summary>
+    EmployeeMonitoring = 10,
+    /// <summary>Vendor payables reports (hotels, houseboats, transport). Super Admin can enable/disable per tenant.</summary>
+    Reports = 11,
+    /// <summary>Employee management: daily tasks, compensation, employee packages, attendance, salary, details. Super Admin can enable/disable per tenant.</summary>
+    EmployeeManagement = 12,
+    /// <summary>Vendor management: vendor summary, hotel/houseboat/transport payables, and everything related to vendors. Super Admin can enable/disable per tenant.</summary>
+    VendorManagement = 13,
+    /// <summary>Bank & Payment: bank accounts and QR codes for package PDFs. Default for every tenant; tenant admin assigns to users.</summary>
+    BankAndPayment = 14,
+    /// <summary>TimeSheet only: daily tasks (add what you did for the day). Can be assigned without full Employee Management.</summary>
+    TimeSheet = 15
 }
 
-/// <summary>Payment direction: received from client or made to vendor.</summary>
+/// <summary>Payment direction: received from client or made to vendor/employee/other.</summary>
 public enum PaymentType
 {
     Received = 0,
     Made = 1
+}
+
+/// <summary>When PaymentType is Made: who was paid. Determines which FK or PayeeDescription is required.</summary>
+public enum PaymentPayeeCategory
+{
+    /// <summary>Hotel (not houseboat). Use HotelId.</summary>
+    VendorHotel = 0,
+    /// <summary>Houseboat. Use HotelId.</summary>
+    VendorHouseboat = 1,
+    /// <summary>Transport company. Use TransportCompanyId.</summary>
+    VendorTransport = 2,
+    /// <summary>Employee. Use UserId.</summary>
+    Employee = 3,
+    /// <summary>Driver (e.g. freelance). Use PayeeDescription or TransportCompanyId if on roster.</summary>
+    Driver = 4,
+    /// <summary>Office or other expenditure. Use PayeeDescription.</summary>
+    OfficeOther = 5
+}
+
+/// <summary>When PayeeCategory is Employee: kind of payment (salary, incentive, bonus).</summary>
+public enum EmployeePaymentType
+{
+    Salary = 0,
+    Incentive = 1,
+    Bonus = 2
 }
 
 public enum TenantDocumentType
@@ -145,5 +182,28 @@ public enum SubscriptionStatus
     PastDue = 1,
     Expired = 2,
     Cancelled = 3
+}
+
+/// <summary>Type of compensation paid to an employee.</summary>
+public enum CompensationType
+{
+    Salary = 0,
+    Incentive = 1,
+    Bonus = 2
+}
+
+/// <summary>Type of leave applied by an employee.</summary>
+public enum LeaveType
+{
+    CasualLeave = 0,
+    SickLeave = 1
+}
+
+/// <summary>Status of a leave request.</summary>
+public enum LeaveStatus
+{
+    Pending = 0,
+    Approved = 1,
+    Rejected = 2
 }
 

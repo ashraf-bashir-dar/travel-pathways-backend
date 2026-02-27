@@ -22,6 +22,21 @@ public sealed class TenantBankAccountsController : ControllerBase
         _tenant = tenant;
     }
 
+    /// <summary>Ensure tenant has BankAndPayment module enabled. Null/empty EnabledModules = allow.</summary>
+    private async Task<ActionResult?> EnsureBankAndPaymentModuleAsync(CancellationToken ct)
+    {
+        if (_tenant.IsSuperAdmin) return null;
+        if (!_tenant.TenantId.HasValue) return BadRequest(ApiResponse<object>.Fail("Tenant context is missing."));
+        var enabled = await _db.Tenants.AsNoTracking()
+            .Where(t => t.Id == _tenant.TenantId.Value)
+            .Select(t => t.EnabledModules)
+            .FirstOrDefaultAsync(ct);
+        if (enabled == null || enabled.Count == 0) return null;
+        if (!enabled.Contains(AppModuleKey.BankAndPayment))
+            return StatusCode(403, ApiResponse<object>.Fail("Bank & Payment module is not enabled for this tenant."));
+        return null;
+    }
+
     public sealed class BankAccountDto
     {
         public required string Id { get; init; }
@@ -56,6 +71,8 @@ public sealed class TenantBankAccountsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ApiResponse<List<BankAccountDto>>>> GetBankAccounts(CancellationToken ct)
     {
+        var check = await EnsureBankAndPaymentModuleAsync(ct);
+        if (check != null) return check;
         if (!_tenant.TenantId.HasValue)
             return BadRequest(ApiResponse<List<BankAccountDto>>.Fail("Tenant context is missing."));
         var list = await _db.TenantBankAccounts.AsNoTracking()
@@ -69,6 +86,8 @@ public sealed class TenantBankAccountsController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<BankAccountDto>>> GetBankAccount([FromRoute] Guid id, CancellationToken ct)
     {
+        var check = await EnsureBankAndPaymentModuleAsync(ct);
+        if (check != null) return check;
         if (!_tenant.TenantId.HasValue)
             return BadRequest(ApiResponse<BankAccountDto>.Fail("Tenant context is missing."));
         var item = await _db.TenantBankAccounts.AsNoTracking()
@@ -81,6 +100,8 @@ public sealed class TenantBankAccountsController : ControllerBase
     [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<BankAccountDto>>> CreateBankAccount([FromBody] CreateBankAccountRequestDto request, CancellationToken ct)
     {
+        var check = await EnsureBankAndPaymentModuleAsync(ct);
+        if (check != null) return check;
         if (!_tenant.TenantId.HasValue)
             return BadRequest(ApiResponse<BankAccountDto>.Fail("Tenant context is missing."));
         if (string.IsNullOrWhiteSpace(request.AccountHolderName) || string.IsNullOrWhiteSpace(request.BankName)
@@ -106,6 +127,8 @@ public sealed class TenantBankAccountsController : ControllerBase
     [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<BankAccountDto>>> UpdateBankAccount([FromRoute] Guid id, [FromBody] UpdateBankAccountRequestDto request, CancellationToken ct)
     {
+        var check = await EnsureBankAndPaymentModuleAsync(ct);
+        if (check != null) return check;
         if (!_tenant.TenantId.HasValue)
             return BadRequest(ApiResponse<BankAccountDto>.Fail("Tenant context is missing."));
         var item = await _db.TenantBankAccounts.FirstOrDefaultAsync(b => b.TenantId == _tenant.TenantId && b.Id == id, ct);
@@ -128,6 +151,8 @@ public sealed class TenantBankAccountsController : ControllerBase
     [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteBankAccount([FromRoute] Guid id, CancellationToken ct)
     {
+        var check = await EnsureBankAndPaymentModuleAsync(ct);
+        if (check != null) return check;
         if (!_tenant.TenantId.HasValue)
             return BadRequest(ApiResponse<object>.Fail("Tenant context is missing."));
         var item = await _db.TenantBankAccounts.FirstOrDefaultAsync(b => b.TenantId == _tenant.TenantId && b.Id == id, ct);

@@ -46,6 +46,9 @@ public sealed class VehiclePricing : TenantEntityBase
     public decimal CostPrice { get; set; }
     public decimal SellingPrice { get; set; }
 
+    /// <summary>How CostPrice is applied: PerDay = cost × days, PerTrip = flat per trip, etc. Null = assume PerDay.</summary>
+    public RateType? RateType { get; set; }
+
     public DateTime FromDate { get; set; }
     public DateTime? ToDate { get; set; }
 }

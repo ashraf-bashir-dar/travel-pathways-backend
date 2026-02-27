@@ -12,6 +12,23 @@ public sealed class AppUser : EntityBase
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
 
+    /// <summary>Employee/contact phone number.</summary>
+    public string? Phone { get; set; }
+    /// <summary>Date of birth (date only, stored as UTC midnight).</summary>
+    public DateTime? DateOfBirth { get; set; }
+    /// <summary>Date the employee joined the organization.</summary>
+    public DateTime? JoinDate { get; set; }
+    /// <summary>Job title or designation (e.g. "Senior Tour Manager", "Sales Executive").</summary>
+    public string? Designation { get; set; }
+    /// <summary>Residential or official address.</summary>
+    public string? Address { get; set; }
+    /// <summary>Emergency contact person name.</summary>
+    public string? EmergencyContactName { get; set; }
+    /// <summary>Emergency contact phone number.</summary>
+    public string? EmergencyContactPhone { get; set; }
+    /// <summary>Optional profile photo URL (e.g. from file upload).</summary>
+    public string? ProfilePhotoUrl { get; set; }
+
     public UserRole Role { get; set; } = UserRole.Agent;
     /// <summary>Department/user type (Sales, HR, Accounts) for display and default module suggestions.</summary>
     public UserDepartment? Department { get; set; }

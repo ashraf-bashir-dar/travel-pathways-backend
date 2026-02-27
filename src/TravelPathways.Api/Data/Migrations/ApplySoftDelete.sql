@@ -8,7 +8,8 @@ INSERT INTO @tables (Name) VALUES
  (N'Tenants'), (N'TenantDocuments'), (N'TenantBankAccounts'), (N'TenantQrCodes'),
  (N'Users'), (N'Plans'), (N'PlanPrices'), (N'Leads'), (N'LeadFollowUps'),
  (N'Hotels'), (N'AccommodationRates'), (N'TransportCompanies'), (N'Vehicles'), (N'VehiclePricing'),
- (N'Packages'), (N'DayItineraries'), (N'DestinationMaster'), (N'States'), (N'Cities'), (N'Areas'), (N'Payments');
+ (N'Packages'), (N'DayItineraries'), (N'DestinationMaster'), (N'States'), (N'Cities'), (N'Areas'), (N'Payments'),
+ (N'Tasks'), (N'EmployeeSalary');
 
 DECLARE @t sysname, @sql nvarchar(max);
 DECLARE c CURSOR FOR SELECT Name FROM @tables;
@@ -16,15 +17,19 @@ OPEN c;
 FETCH NEXT FROM c INTO @t;
 WHILE @@FETCH_STATUS = 0
 BEGIN
-  IF COL_LENGTH(@t, N'IsDeleted') IS NULL
+  -- Only alter tables that exist (skip if migration not applied yet)
+  IF OBJECT_ID('dbo.' + QUOTENAME(@t), 'U') IS NOT NULL
   BEGIN
-    SET @sql = N'ALTER TABLE [dbo].[' + @t + N'] ADD [IsDeleted] bit NOT NULL DEFAULT 0;';
-    EXEC sp_executesql @sql;
-  END
-  IF COL_LENGTH(@t, N'DeletedAtUtc') IS NULL
-  BEGIN
-    SET @sql = N'ALTER TABLE [dbo].[' + @t + N'] ADD [DeletedAtUtc] datetime2 NULL;';
-    EXEC sp_executesql @sql;
+    IF COL_LENGTH(@t, N'IsDeleted') IS NULL
+    BEGIN
+      SET @sql = N'ALTER TABLE [dbo].[' + @t + N'] ADD [IsDeleted] bit NOT NULL DEFAULT 0;';
+      EXEC sp_executesql @sql;
+    END
+    IF COL_LENGTH(@t, N'DeletedAtUtc') IS NULL
+    BEGIN
+      SET @sql = N'ALTER TABLE [dbo].[' + @t + N'] ADD [DeletedAtUtc] datetime2 NULL;';
+      EXEC sp_executesql @sql;
+    END
   END
   FETCH NEXT FROM c INTO @t;
 END

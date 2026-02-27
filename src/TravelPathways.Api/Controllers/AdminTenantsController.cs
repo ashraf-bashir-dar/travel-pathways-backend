@@ -39,6 +39,11 @@ public sealed class AdminTenantsController : ControllerBase
         public required string Address { get; init; }
         public string? ContactPerson { get; init; }
         public string? LogoUrl { get; init; }
+        public string? PdfCoverTitle { get; init; }
+        public string? PdfPrimaryColor { get; init; }
+        public string? PdfSecondaryColor { get; init; }
+        public bool? PdfShowBankDetails { get; init; }
+        public bool? PdfShowQrCodes { get; init; }
         public List<TenantDocumentDto>? Documents { get; init; }
         public List<AppModuleKey>? EnabledModules { get; init; }
         public required bool IsActive { get; init; }
@@ -72,6 +77,11 @@ public sealed class AdminTenantsController : ControllerBase
     public sealed class UpdateTenantRequestDto : CreateTenantRequestDto
     {
         public bool IsActive { get; set; } = true;
+        public string? PdfCoverTitle { get; set; }
+        public string? PdfPrimaryColor { get; set; }
+        public string? PdfSecondaryColor { get; set; }
+        public bool? PdfShowBankDetails { get; set; }
+        public bool? PdfShowQrCodes { get; set; }
         public string? DefaultUserId { get; set; }
         public string? PlanId { get; set; }
         public BillingCycle? BillingCycle { get; set; }
@@ -205,6 +215,11 @@ public sealed class AdminTenantsController : ControllerBase
         tenant.SubscriptionStatus = request.SubscriptionStatus;
         tenant.SubscriptionStartUtc = request.SubscriptionStartUtc;
         tenant.SubscriptionEndUtc = request.SubscriptionEndUtc;
+        tenant.PdfCoverTitle = string.IsNullOrWhiteSpace(request.PdfCoverTitle) ? null : request.PdfCoverTitle.Trim();
+        tenant.PdfPrimaryColor = string.IsNullOrWhiteSpace(request.PdfPrimaryColor) ? null : request.PdfPrimaryColor.Trim();
+        tenant.PdfSecondaryColor = string.IsNullOrWhiteSpace(request.PdfSecondaryColor) ? null : request.PdfSecondaryColor.Trim();
+        tenant.PdfShowBankDetails = request.PdfShowBankDetails;
+        tenant.PdfShowQrCodes = request.PdfShowQrCodes;
 
         // When tenant is deactivated, deactivate all its users
         if (!request.IsActive)
@@ -288,6 +303,11 @@ public sealed class AdminTenantsController : ControllerBase
             Address = t.Address,
             ContactPerson = t.ContactPerson,
             LogoUrl = t.LogoUrl,
+            PdfCoverTitle = t.PdfCoverTitle,
+            PdfPrimaryColor = t.PdfPrimaryColor,
+            PdfSecondaryColor = t.PdfSecondaryColor,
+            PdfShowBankDetails = t.PdfShowBankDetails,
+            PdfShowQrCodes = t.PdfShowQrCodes,
             Documents = t.Documents.Select(d => new TenantDocumentDto { Type = d.Type, FileName = d.FileName, Url = d.Url }).ToList(),
             EnabledModules = t.EnabledModules.ToList(),
             IsActive = t.IsActive,

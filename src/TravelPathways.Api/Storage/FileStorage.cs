@@ -94,6 +94,27 @@ public sealed class FileStorage
         return $"/uploads/tenants/{tenantId:D}/payments/{fileName}";
     }
 
+    /// <summary>Save a reservation payment screenshot. Multiple allowed per reservation. Returns relative URL.</summary>
+    public async Task<string> SaveReservationScreenshotAsync(Guid tenantId, Guid reservationId, IFormFile file, CancellationToken ct)
+    {
+        var uploadsRoot = _uploadsRoot;
+        var folder = Path.Combine(uploadsRoot, "tenants", tenantId.ToString("D"), "reservations", reservationId.ToString("D"));
+        Directory.CreateDirectory(folder);
+
+        var safeName = MakeSafeFileName(file.FileName);
+        var ext = Path.GetExtension(safeName);
+        if (string.IsNullOrEmpty(ext) || !IsImageExtension(ext)) ext = ".jpg";
+        var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}{ext}";
+        var fullPath = Path.Combine(folder, fileName);
+
+        await using (var stream = File.Create(fullPath))
+        {
+            await file.CopyToAsync(stream, ct);
+        }
+
+        return $"/uploads/tenants/{tenantId:D}/reservations/{reservationId:D}/{fileName}";
+    }
+
     private static bool IsImageExtension(string ext)
     {
         var e = ext.ToLowerInvariant();

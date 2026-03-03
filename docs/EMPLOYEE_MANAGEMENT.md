@@ -40,7 +40,7 @@ Everything below is gated by the **Employee Management** module (tenant must hav
 | **TimeSheet** | `/timesheet`, `api/employee-monitoring` | ✅ Implemented | Daily tasks: users add tasks; tenant admin views all (read-only). |
 | **Daily Tasks** (hub link) | `/employee-management/daily-tasks` | ✅ Implemented | Same as TimeSheet; alternate entry from hub. |
 | **Employee Compensation** | `/employee-management/compensation`, `api/tenant/compensation` | ✅ Implemented | Salary, incentive, bonus records per employee. |
-| **Employee Packages** | `/employee-management/packages`, `api/tenant/reports/confirmed-packages` | ✅ Implemented | Confirmed (Trip Confirmed) packages by employee. |
+| **Employee Packages** | `/employee-management/packages`, `api/tenant/reports/confirmed-packages` | ✅ Implemented | Confirmed packages by employee. |
 | **Employee Attendance** | `/employee-management/attendance` | 🔜 Placeholder | Attendance and leave – to be implemented in-app. |
 | **Employee Salary** | `/employee-management/salary` | 🔜 Placeholder | Salary structure and payroll – to be implemented in-app. |
 | **Employee Details** | `/employee-management/details` | 🔜 Placeholder | Profile and employment details – to be implemented in-app. |

@@ -5,7 +5,11 @@ public enum UserRole
     SuperAdmin = 0,
     Admin = 1,
     Agent = 2,
-    Viewer = 3
+    Viewer = 3,
+    /// <summary>Tenant user who handles reservations for confirmed packages (hotels, houseboats, transport, advance payments).</summary>
+    Reservation = 4,
+    /// <summary>Tenant user who manages transport bookings and vendors.</summary>
+    TransportManager = 5
 }
 
 /// <summary>Department / user type for labeling (Sales, HR, Accounts). Does not change permissions; use Role and AllowedModules.</summary>
@@ -40,7 +44,18 @@ public enum AppModuleKey
     /// <summary>Bank & Payment: bank accounts and QR codes for package PDFs. Default for every tenant; tenant admin assigns to users.</summary>
     BankAndPayment = 14,
     /// <summary>TimeSheet only: daily tasks (add what you did for the day). Can be assigned without full Employee Management.</summary>
-    TimeSheet = 15
+    TimeSheet = 15,
+    /// <summary>Reservations: assign confirmed packages to reservation manager, track pending/completed, upload advance payment screenshots.</summary>
+    Reservations = 16
+}
+
+/// <summary>Status of a reservation (package assigned to reservation manager).</summary>
+public enum ReservationStatus
+{
+    Pending = 0,
+    Completed = 1,
+    /// <summary>Assigned to reservation manager; bookings in progress.</summary>
+    InProcess = 2
 }
 
 /// <summary>Payment direction: received from client or made to vendor/employee/other.</summary>
@@ -101,8 +116,8 @@ public enum LeadStatus
     Matured = 0,
     NotInterested = 1,
     NoResponse = 2,
-    TripCancelled = 3,
-    TripConfirmed = 4,
+    Cancelled = 3,
+    Confirmed = 4,
     PackageSent = 5,
     Followup = 6,
     AlreadyBooked = 7,
@@ -115,8 +130,8 @@ public enum FollowUpStatus
     Matured = 0,
     NotInterested = 1,
     NoResponse = 2,
-    TripCancelled = 3,
-    TripConfirmed = 4,
+    Cancelled = 3,
+    Confirmed = 4,
     PackageSent = 5,
     Followup = 6,
     AlreadyBooked = 7,
@@ -157,8 +172,8 @@ public enum PackageStatus
     Matured = 0,
     NotInterested = 1,
     NoResponse = 2,
-    TripCancelled = 3,
-    TripConfirmed = 4,
+    Cancelled = 3,
+    Confirmed = 4,
     PackageSent = 5,
     Followup = 6,
     AlreadyBooked = 7,

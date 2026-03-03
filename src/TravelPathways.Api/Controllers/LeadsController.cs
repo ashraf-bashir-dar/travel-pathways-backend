@@ -41,6 +41,8 @@ public sealed class LeadsController : TenantControllerBase
         public required DateTime CreatedAt { get; init; }
         public required DateTime UpdatedAt { get; init; }
         public required string CreatedBy { get; init; }
+        /// <summary>True when any package for this lead has at least one reservation.</summary>
+        public bool HasReservation { get; set; }
     }
 
     public class CreateLeadRequestDto
@@ -212,7 +214,20 @@ public sealed class LeadsController : TenantControllerBase
         if (!canSeeAllLeads && (!currentUserId.HasValue || lead.AssignedToUserId != currentUserId.Value))
             return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
 
-        return ApiResponse<LeadDto>.Ok(ToDto(lead));
+        var hasReservationForLead = await _db.Reservations.AsNoTracking()
+            .Join(_db.Packages.AsNoTracking(),
+                r => r.PackageId,
+                p => p.Id,
+                (r, p) => new { r, p })
+            .AnyAsync(x =>
+                x.r.TenantId == TenantId &&
+                x.p.TenantId == TenantId &&
+                x.p.LeadId == id,
+                ct);
+
+        var dto = ToDto(lead);
+        dto.HasReservation = hasReservationForLead;
+        return ApiResponse<LeadDto>.Ok(dto);
     }
 
     [HttpPost]
@@ -251,6 +266,30 @@ public sealed class LeadsController : TenantControllerBase
         var (currentUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
         if (!canSeeAllLeads && (!currentUserId.HasValue || lead.AssignedToUserId != currentUserId.Value))
             return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
+
+        // Once any package for this lead has a reservation, Tour Manager should not edit lead/package details.
+        // Allow Admin/SuperAdmin (canSeeAllLeads) to override if needed.
+        if (!canSeeAllLeads)
+        {
+            var role = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
+            var isTourManager = string.Equals(role, UserRole.Agent.ToString(), StringComparison.OrdinalIgnoreCase);
+            if (isTourManager)
+            {
+                // Any reservation tied to any package for this lead in this tenant.
+                var hasReservationForLead = await _db.Reservations.AsNoTracking()
+                    .Join(_db.Packages.AsNoTracking(),
+                        r => r.PackageId,
+                        p => p.Id,
+                        (r, p) => new { r, p })
+                    .AnyAsync(x =>
+                        x.r.TenantId == TenantId &&
+                        x.p.TenantId == TenantId &&
+                        x.p.LeadId == id,
+                        ct);
+                if (hasReservationForLead)
+                    return BadRequest(ApiResponse<LeadDto>.Fail("This lead has a package that has been sent for reservation and cannot be edited."));
+            }
+        }
 
         var oldStatus = lead.Status;
         var oldNotes = lead.Notes?.Trim() ?? string.Empty;
@@ -406,7 +445,8 @@ public sealed class LeadsController : TenantControllerBase
                 : (string?)null,
             CreatedAt = l.CreatedAt,
             UpdatedAt = l.UpdatedAt,
-            CreatedBy = l.CreatedBy
+            CreatedBy = l.CreatedBy,
+            HasReservation = false
         };
 }
 

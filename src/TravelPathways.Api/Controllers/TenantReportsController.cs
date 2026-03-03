@@ -81,7 +81,7 @@ public sealed class TenantReportsController : ControllerBase
         public required List<ConfirmedPackageItemDto> Packages { get; init; }
     }
 
-    /// <summary>Get all confirmed (TripConfirmed) packages with employee resolution. Tenant Admin only. Requires EmployeeManagement module. Optional userId filter.</summary>
+    /// <summary>Get all confirmed packages with employee resolution. Tenant Admin only. Requires EmployeeManagement module. Optional userId filter.</summary>
     [HttpGet("confirmed-packages")]
     [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<ConfirmedPackagesReportDto>>> GetConfirmedPackages(
@@ -95,7 +95,7 @@ public sealed class TenantReportsController : ControllerBase
 
         var tenantId = _tenant.TenantId.Value;
         var query = _db.Packages.AsNoTracking()
-            .Where(p => p.TenantId == tenantId && p.Status == PackageStatus.TripConfirmed);
+            .Where(p => p.TenantId == tenantId && p.Status == PackageStatus.Confirmed);
 
         if (userId.HasValue)
         {
@@ -198,7 +198,7 @@ public sealed class TenantReportsController : ControllerBase
         var tenantId = _tenant.TenantId.Value;
 
         var hotelPayable = await _db.DayItineraries.AsNoTracking()
-            .Where(d => d.TenantId == tenantId && d.HotelId != null && d.Package != null && d.Package.Status == PackageStatus.TripConfirmed && !d.IsDeleted && !d.Package.IsDeleted)
+            .Where(d => d.TenantId == tenantId && d.HotelId != null && d.Package != null && d.Package.Status == PackageStatus.Confirmed && !d.IsDeleted && !d.Package.IsDeleted)
             .GroupBy(d => d.HotelId!.Value)
             .Select(g => new { HotelId = g.Key, Payable = g.Sum(d => d.HotelCost) })
             .ToListAsync(ct);
@@ -306,7 +306,7 @@ public sealed class TenantReportsController : ControllerBase
         if (hotel == null) return NotFound(ApiResponse<HotelPayablesDetailDto>.Fail("Hotel not found."));
 
         var breakdown = await _db.DayItineraries.AsNoTracking()
-            .Where(d => d.TenantId == tenantId && d.HotelId == hotelId && d.Package != null && d.Package.Status == PackageStatus.TripConfirmed && !d.IsDeleted && !d.Package.IsDeleted)
+            .Where(d => d.TenantId == tenantId && d.HotelId == hotelId && d.Package != null && d.Package.Status == PackageStatus.Confirmed && !d.IsDeleted && !d.Package.IsDeleted)
             .Select(d => new { d.PackageId, d.Package!.PackageName, d.Date, d.HotelCost })
             .ToListAsync(ct);
         var totalPayable = breakdown.Sum(x => x.HotelCost);
@@ -389,7 +389,7 @@ public sealed class TenantReportsController : ControllerBase
         if (company == null) return NotFound(ApiResponse<TransportPayablesDetailDto>.Fail("Transport company not found."));
 
         var packages = await _db.Packages.AsNoTracking()
-            .Where(p => p.TenantId == tenantId && p.Status == PackageStatus.TripConfirmed && p.VehicleId != null && !p.IsDeleted
+            .Where(p => p.TenantId == tenantId && p.Status == PackageStatus.Confirmed && p.VehicleId != null && !p.IsDeleted
                 && p.Vehicle!.TransportCompanyId == transportCompanyId)
             .Select(p => new { p.Id, p.PackageName, p.NumberOfDays, p.StartDate, p.VehicleId })
             .ToListAsync(ct);
@@ -463,7 +463,7 @@ public sealed class TenantReportsController : ControllerBase
     private static async Task<List<(Guid TransportCompanyId, decimal Amount)>> TransportPayableListAsync(AppDbContext db, Guid tenantId, CancellationToken ct)
     {
         var packages = await db.Packages.AsNoTracking()
-            .Where(p => p.TenantId == tenantId && p.Status == PackageStatus.TripConfirmed && p.VehicleId != null && !p.IsDeleted)
+            .Where(p => p.TenantId == tenantId && p.Status == PackageStatus.Confirmed && p.VehicleId != null && !p.IsDeleted)
             .Select(p => new { p.VehicleId, p.NumberOfDays, p.StartDate })
             .ToListAsync(ct);
         if (packages.Count == 0) return new List<(Guid, decimal)>();

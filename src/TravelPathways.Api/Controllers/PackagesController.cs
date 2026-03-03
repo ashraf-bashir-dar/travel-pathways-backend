@@ -108,6 +108,8 @@ public sealed class PackagesController : TenantControllerBase
         public required DateTime CreatedAt { get; init; }
         public required DateTime UpdatedAt { get; init; }
         public required string CreatedBy { get; init; }
+        /// <summary>True when any reservation exists for this package in the tenant.</summary>
+        public bool HasReservation { get; set; }
     }
 
     public sealed class CreateDayItineraryRequestDto
@@ -235,7 +237,11 @@ public sealed class PackagesController : TenantControllerBase
         if (pkg is null) return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
         if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail) && pkg.CreatedBy != currentUserEmail)
             return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
-        return ApiResponse<PackageDto>.Ok(ToDto(pkg));
+        var hasReservation = await _db.Reservations.AsNoTracking()
+            .AnyAsync(r => r.TenantId == TenantId && r.PackageId == pkg.Id, ct);
+        var dto = ToDto(pkg);
+        dto.HasReservation = hasReservation;
+        return ApiResponse<PackageDto>.Ok(dto);
     }
 
     [HttpGet("by-lead/{leadId:guid}")]
@@ -252,7 +258,8 @@ public sealed class PackagesController : TenantControllerBase
             query = query.Where(p => p.CreatedBy == currentUserEmail);
 
         var pkgs = await query.OrderByDescending(p => p.CreatedAt).ToListAsync(ct);
-        return ApiResponse<List<PackageDto>>.Ok(pkgs.Select(ToDto).ToList());
+        var dtos = pkgs.Select(ToDto).ToList(); // HasReservation left default (false) for this list.
+        return ApiResponse<List<PackageDto>>.Ok(dtos);
     }
 
     /// <summary>Generate and download package PDF (client-facing proposal).</summary>
@@ -272,8 +279,37 @@ public sealed class PackagesController : TenantControllerBase
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
 
         if (pkg is null) return NotFound();
-        if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail) && pkg.CreatedBy != currentUserEmail)
-            return NotFound();
+        if (!canSeeAllPackages)
+        {
+            // Admin/SuperAdmin: canSeeAllPackages = true (already bypassed).
+            // Others: allow Tour Manager (creator) OR Reservation user assigned to this package.
+            var role = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
+            var isReservation = string.Equals(role, UserRole.Reservation.ToString(), StringComparison.OrdinalIgnoreCase);
+            Guid? currentUserId = null;
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrWhiteSpace(userIdClaim) && Guid.TryParse(userIdClaim, out var uid))
+                currentUserId = uid;
+
+            var isCreator = !string.IsNullOrWhiteSpace(currentUserEmail) && pkg.CreatedBy == currentUserEmail;
+            if (!isCreator)
+            {
+                if (isReservation && currentUserId.HasValue)
+                {
+                    var hasAssignedReservation = await _db.Reservations.AsNoTracking()
+                        .AnyAsync(r =>
+                            r.TenantId == TenantId &&
+                            r.PackageId == pkg.Id &&
+                            r.AssignedToUserId == currentUserId.Value,
+                            ct);
+                    if (!hasAssignedReservation)
+                        return NotFound();
+                }
+                else
+                {
+                    return NotFound();
+                }
+            }
+        }
 
         Tenant? tenant = null;
         if (pkg.TenantId != Guid.Empty)
@@ -399,6 +435,17 @@ public sealed class PackagesController : TenantControllerBase
         if (pkg is null) return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
         if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail) && pkg.CreatedBy != currentUserEmail)
             return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
+
+        // Once a reservation exists for this package, Tour Manager (Agent) cannot edit this package anymore.
+        var role = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
+        var isTourManager = string.Equals(role, UserRole.Agent.ToString(), StringComparison.OrdinalIgnoreCase);
+        if (isTourManager)
+        {
+            var hasAnyReservation = await _db.Reservations.AsNoTracking()
+                .AnyAsync(r => r.TenantId == TenantId && r.PackageId == pkg.Id, ct);
+            if (hasAnyReservation)
+                return BadRequest(ApiResponse<PackageDto>.Fail("This package has been sent for reservation and cannot be edited."));
+        }
 
         var leadOk = await _db.Leads.AnyAsync(l => l.Id == request.LeadId && l.TenantId == TenantId, ct);
         if (!leadOk) return BadRequest(ApiResponse<PackageDto>.Fail("Lead not found"));

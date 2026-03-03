@@ -25,22 +25,22 @@ public sealed class PackageStatusConverter : ValueConverter<PackageStatus, strin
             "Matured" => PackageStatus.Matured,
             "NotInterested" => PackageStatus.NotInterested,
             "NoResponse" => PackageStatus.NoResponse,
-            "TripCancelled" => PackageStatus.TripCancelled,
-            "TripConfirmed" => PackageStatus.TripConfirmed,
+            "Cancelled" => PackageStatus.Cancelled,
+            "Confirmed" => PackageStatus.Confirmed,
             "PackageSent" => PackageStatus.PackageSent,
             "Followup" => PackageStatus.Followup,
             "AlreadyBooked" => PackageStatus.AlreadyBooked,
-            // Legacy
+            // Legacy (stored with "Trip" prefix or old names)
+            "TripCancelled" => PackageStatus.Cancelled,
+            "TripConfirmed" => PackageStatus.Confirmed,
             "New" => PackageStatus.New,
             "FollowUp" => PackageStatus.Followup,
             "PlanPostponed" => PackageStatus.Followup,
-            "PlanCanceled" => PackageStatus.TripCancelled,
-            "Confirmed" => PackageStatus.TripConfirmed,
+            "PlanCanceled" => PackageStatus.Cancelled,
             "Draft" => PackageStatus.Followup,
             "Quoted" => PackageStatus.PackageSent,
             "InProgress" => PackageStatus.Followup,
-            "Completed" => PackageStatus.TripConfirmed,
-            "Cancelled" => PackageStatus.TripCancelled,
+            "Completed" => PackageStatus.Confirmed,
             _ => PackageStatus.New
         };
     }

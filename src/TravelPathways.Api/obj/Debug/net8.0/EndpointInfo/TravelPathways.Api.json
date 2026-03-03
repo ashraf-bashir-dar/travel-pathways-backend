@@ -3673,6 +3673,459 @@
         }
       }
     },
+    "/api/reservations/my-confirmed-packages": {
+      "get": {
+        "tags": [
+          "Reservations"
+        ],
+        "parameters": [
+          {
+            "name": "dateFrom",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "dateTo",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.ReservationsController.MyConfirmedPackageDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.ReservationsController.MyConfirmedPackageDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.ReservationsController.MyConfirmedPackageDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reservations": {
+      "get": {
+        "tags": [
+          "Reservations"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Common.ReservationStatus"
+            }
+          },
+          {
+            "name": "dateFrom",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "dateTo",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "assignedTo",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationListItemDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationListItemDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationListItemDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Reservations"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.CreateReservationRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.CreateReservationRequestDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.CreateReservationRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationDetailDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationDetailDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationDetailDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reservations/confirmed-packages": {
+      "get": {
+        "tags": [
+          "Reservations"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.ReservationsController.ConfirmedPackageForReservationDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.ReservationsController.ConfirmedPackageForReservationDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.ReservationsController.ConfirmedPackageForReservationDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reservations/{id}": {
+      "get": {
+        "tags": [
+          "Reservations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationDetailDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationDetailDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationDetailDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Reservations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.UpdateReservationRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.UpdateReservationRequestDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.UpdateReservationRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationDetailDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationDetailDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationDetailDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reservations/{id}/day-completion": {
+      "put": {
+        "tags": [
+          "Reservations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.SetDayCompletionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.SetDayCompletionRequestDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.SetDayCompletionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationDayCompletionDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationDayCompletionDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationDayCompletionDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reservations/{id}/screenshots": {
+      "post": {
+        "tags": [
+          "Reservations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "dayNumber",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "description": "File to upload",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationScreenshotDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationScreenshotDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationScreenshotDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reservations/{id}/screenshots/{screenshotId}": {
+      "delete": {
+        "tags": [
+          "Reservations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "screenshotId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPathways.Api.Common.ApiResponse`1[[System.Object, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenant/bank-accounts": {
       "get": {
         "tags": [
@@ -5642,6 +6095,87 @@
         },
         "additionalProperties": false
       },
+      "TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.ReservationsController.ConfirmedPackageForReservationDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.ConfirmedPackageForReservationDto"
+            },
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.ReservationsController.MyConfirmedPackageDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.MyConfirmedPackageDto"
+            },
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationListItemDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.ReservationListItemDto"
+            },
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "TravelPathways.Api.Common.ApiResponse`1[[System.Collections.Generic.List`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]": {
         "type": "object",
         "properties": {
@@ -6283,6 +6817,75 @@
         },
         "additionalProperties": false
       },
+      "TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationDayCompletionDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.ReservationDayCompletionDto"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationDetailDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.ReservationDetailDto"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.ReservationsController.ReservationScreenshotDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.ReservationScreenshotDto"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "TravelPathways.Api.Common.ApiResponse`1[[TravelPathways.Api.Controllers.TenantBankAccountsController.BankAccountDto, TravelPathways.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
         "type": "object",
         "properties": {
@@ -6553,7 +7156,8 @@
           "EmployeeManagement",
           "VendorManagement",
           "BankAndPayment",
-          "TimeSheet"
+          "TimeSheet",
+          "Reservations"
         ],
         "type": "string"
       },
@@ -6589,8 +7193,8 @@
           "Matured",
           "NotInterested",
           "NoResponse",
-          "TripCancelled",
-          "TripConfirmed",
+          "Cancelled",
+          "Confirmed",
           "PackageSent",
           "Followup",
           "AlreadyBooked",
@@ -6616,8 +7220,8 @@
           "Matured",
           "NotInterested",
           "NoResponse",
-          "TripCancelled",
-          "TripConfirmed",
+          "Cancelled",
+          "Confirmed",
           "PackageSent",
           "Followup",
           "AlreadyBooked",
@@ -6645,8 +7249,8 @@
           "Matured",
           "NotInterested",
           "NoResponse",
-          "TripCancelled",
-          "TripConfirmed",
+          "Cancelled",
+          "Confirmed",
           "PackageSent",
           "Followup",
           "AlreadyBooked",
@@ -6933,6 +7537,14 @@
         ],
         "type": "string"
       },
+      "TravelPathways.Api.Common.ReservationStatus": {
+        "enum": [
+          "Pending",
+          "Completed",
+          "InProcess"
+        ],
+        "type": "string"
+      },
       "TravelPathways.Api.Common.SubscriptionStatus": {
         "enum": [
           "Active",
@@ -6966,7 +7578,8 @@
           "SuperAdmin",
           "Admin",
           "Agent",
-          "Viewer"
+          "Viewer",
+          "Reservation"
         ],
         "type": "string"
       },
@@ -8457,6 +9070,9 @@
           "createdBy": {
             "type": "string",
             "nullable": true
+          },
+          "hasReservation": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -9091,6 +9707,9 @@
           "createdBy": {
             "type": "string",
             "nullable": true
+          },
+          "hasReservation": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -9544,6 +10163,515 @@
             "items": {
               "$ref": "#/components/schemas/TravelPathways.Api.Controllers.PlansController.PlanPriceItemDto"
             },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.ReservationsController.ConfirmedPackageForReservationDto": {
+        "required": [
+          "clientName",
+          "endDate",
+          "id",
+          "packageName",
+          "startDate"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "packageName": {
+            "type": "string",
+            "nullable": true
+          },
+          "clientName": {
+            "type": "string",
+            "nullable": true
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.ReservationsController.CreateReservationRequestDto": {
+        "required": [
+          "assignedToUserId",
+          "packageId"
+        ],
+        "type": "object",
+        "properties": {
+          "packageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "assignedToUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.ReservationStatus"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.ReservationsController.MyConfirmedPackageDto": {
+        "required": [
+          "clientName",
+          "endDate",
+          "packageId",
+          "packageName",
+          "startDate"
+        ],
+        "type": "object",
+        "properties": {
+          "packageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "packageName": {
+            "type": "string",
+            "nullable": true
+          },
+          "clientName": {
+            "type": "string",
+            "nullable": true
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reservationId": {
+            "type": "string",
+            "nullable": true
+          },
+          "reservationStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignedToUserId": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignedToUserName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.ReservationsController.ReservationDayCompletionDto": {
+        "required": [
+          "dayNumber",
+          "isDone"
+        ],
+        "type": "object",
+        "properties": {
+          "dayNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isDone": {
+            "type": "boolean"
+          },
+          "doneAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.ReservationsController.ReservationDayItineraryItemDto": {
+        "required": [
+          "date",
+          "dayNumber"
+        ],
+        "type": "object",
+        "properties": {
+          "dayNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hotelId": {
+            "type": "string",
+            "nullable": true
+          },
+          "hotelName": {
+            "type": "string",
+            "nullable": true
+          },
+          "isHouseboat": {
+            "type": "boolean"
+          },
+          "roomType": {
+            "type": "string",
+            "nullable": true
+          },
+          "numberOfRooms": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "checkInTime": {
+            "type": "string",
+            "nullable": true
+          },
+          "checkOutTime": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "hotelCost": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.ReservationsController.ReservationDetailDto": {
+        "required": [
+          "assignedToUserId",
+          "assignedToUserName",
+          "clientName",
+          "createdAt",
+          "dayCompletions",
+          "endDate",
+          "id",
+          "packageId",
+          "packageName",
+          "paymentScreenshots",
+          "startDate",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "packageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "packageName": {
+            "type": "string",
+            "nullable": true
+          },
+          "clientName": {
+            "type": "string",
+            "nullable": true
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "totalAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "discount": {
+            "type": "number",
+            "format": "double"
+          },
+          "finalAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "advanceAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "balanceAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignedToUserId": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignedToUserName": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "screenshotCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "paymentScreenshots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.ReservationScreenshotDto"
+            },
+            "nullable": true
+          },
+          "assignedByUserId": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignedByUserName": {
+            "type": "string",
+            "nullable": true
+          },
+          "finalNotes": {
+            "type": "string",
+            "nullable": true
+          },
+          "dayCompletions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.ReservationDayCompletionDto"
+            },
+            "nullable": true
+          },
+          "packageDetail": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.ReservationPackageDetailDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.ReservationsController.ReservationListItemDto": {
+        "required": [
+          "assignedToUserId",
+          "assignedToUserName",
+          "clientName",
+          "createdAt",
+          "endDate",
+          "id",
+          "packageId",
+          "packageName",
+          "startDate",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "packageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "packageName": {
+            "type": "string",
+            "nullable": true
+          },
+          "clientName": {
+            "type": "string",
+            "nullable": true
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "totalAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "discount": {
+            "type": "number",
+            "format": "double"
+          },
+          "finalAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "advanceAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "balanceAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignedToUserId": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignedToUserName": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "screenshotCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.ReservationsController.ReservationPackageDetailDto": {
+        "required": [
+          "clientName",
+          "dayWiseItinerary",
+          "endDate",
+          "numberOfDays",
+          "packageName",
+          "startDate"
+        ],
+        "type": "object",
+        "properties": {
+          "packageName": {
+            "type": "string",
+            "nullable": true
+          },
+          "clientName": {
+            "type": "string",
+            "nullable": true
+          },
+          "clientPhone": {
+            "type": "string",
+            "nullable": true
+          },
+          "clientEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "numberOfDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "vehicleName": {
+            "type": "string",
+            "nullable": true
+          },
+          "inclusionIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "dayWiseItinerary": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelPathways.Api.Controllers.ReservationsController.ReservationDayItineraryItemDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.ReservationsController.ReservationScreenshotDto": {
+        "required": [
+          "createdAt",
+          "fileName",
+          "fileUrl",
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "fileUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "fileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dayNumber": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.ReservationsController.SetDayCompletionRequestDto": {
+        "required": [
+          "dayNumber",
+          "isDone"
+        ],
+        "type": "object",
+        "properties": {
+          "dayNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isDone": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelPathways.Api.Controllers.ReservationsController.UpdateReservationRequestDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/TravelPathways.Api.Common.ReservationStatus"
+          },
+          "assignedToUserId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "finalNotes": {
+            "type": "string",
             "nullable": true
           }
         },

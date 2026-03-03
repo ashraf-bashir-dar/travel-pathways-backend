@@ -21,6 +21,7 @@ builder.Services.AddControllers()
     {
         o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
         o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        o.JsonSerializerOptions.Converters.Add(new UserRoleJsonConverter());
         o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         o.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
@@ -228,10 +229,13 @@ using (var scope = app.Services.CreateScope())
             var superEmail = app.Configuration["SuperAdmin:Email"] ?? "super@travelpathways.local";
             var superPassword = app.Configuration["SuperAdmin:Password"] ?? "Super@123";
 
-            var existing = await db.Users.FirstOrDefaultAsync(u => u.Email == superEmail);
+            // IgnoreQueryFilters so we find Super Admin even when tenant context is set (e.g. startup)
+            var existing = await db.Users.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.Email == superEmail && u.TenantId == null);
+            var passwordEncryption = scope.ServiceProvider.GetRequiredService<TravelPathways.Api.Services.IPasswordEncryption>();
+
             if (existing == null)
             {
-                var passwordEncryption = scope.ServiceProvider.GetRequiredService<TravelPathways.Api.Services.IPasswordEncryption>();
                 db.Users.Add(new AppUser
                 {
                     TenantId = null,
@@ -243,8 +247,19 @@ using (var scope = app.Services.CreateScope())
                     PasswordHash = PasswordHasher.Hash(superPassword),
                     PasswordEncrypted = passwordEncryption.Encrypt(superPassword)
                 });
-
                 await db.SaveChangesAsync();
+                logger.LogInformation("Super Admin user created: {Email}", superEmail);
+            }
+            else if (string.IsNullOrWhiteSpace(existing.PasswordHash) || !PasswordHasher.Verify(superPassword, existing.PasswordHash))
+            {
+                // Re-seed password (e.g. after DB restore or manual fix)
+                existing.PasswordHash = PasswordHasher.Hash(superPassword);
+                existing.PasswordEncrypted = passwordEncryption.Encrypt(superPassword);
+                existing.IsActive = true;
+                existing.IsDeleted = false;
+                existing.DeletedAtUtc = null;
+                await db.SaveChangesAsync();
+                logger.LogInformation("Super Admin password reset: {Email}", superEmail);
             }
         }
 

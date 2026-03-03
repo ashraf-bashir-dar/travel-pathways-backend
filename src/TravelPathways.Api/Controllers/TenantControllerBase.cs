@@ -12,6 +12,9 @@ public abstract class TenantControllerBase : ControllerBase
     _tenant = tenant;
   }
 
+  /// <summary>True when the current request has a tenant context (X-Tenant-Id or tenant user).</summary>
+  protected bool HasTenantId => _tenant.TenantId.HasValue;
+
   protected Guid TenantId
   {
     get

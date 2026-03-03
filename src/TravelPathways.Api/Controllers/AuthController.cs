@@ -112,6 +112,14 @@ public sealed class AuthController : ControllerBase
 
             if (user is null || !user.IsActive || !PasswordHasher.Verify(request.Password, user.PasswordHash))
             {
+                // Log reason for 401 only (no credentials) to help diagnose live issues
+                if (user is null)
+                    _logger.LogWarning("Login failed: no user found for email {Email}", email);
+                else if (!user.IsActive)
+                    _logger.LogWarning("Login failed: user {UserId} is inactive", user.Id);
+                else
+                    _logger.LogWarning("Login failed: password mismatch for user {UserId}", user.Id);
+
                 var msg = requestedTenantId.HasValue
                     ? "Invalid credentials, or this account is not for the selected tenant. Use an email and password for a user of this tenant."
                     : "Invalid credentials.";

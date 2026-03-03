@@ -42,6 +42,9 @@ public sealed class AppDbContext : DbContext
     public DbSet<Area> Areas => Set<Area>();
 
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<Reservation> Reservations => Set<Reservation>();
+    public DbSet<ReservationDayCompletion> ReservationDayCompletions => Set<ReservationDayCompletion>();
+    public DbSet<ReservationPaymentScreenshot> ReservationPaymentScreenshots => Set<ReservationPaymentScreenshot>();
     public DbSet<EmployeeDailyTask> EmployeeDailyTasks => Set<EmployeeDailyTask>();
     public DbSet<EmployeeCompensation> EmployeeCompensations => Set<EmployeeCompensation>();
     public DbSet<Attendance> Attendances => Set<Attendance>();
@@ -414,6 +417,43 @@ public sealed class AppDbContext : DbContext
             (_tenant.IsSuperAdmin
                 ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
                 : e.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<Reservation>()
+            .HasOne(r => r.Package)
+            .WithMany()
+            .HasForeignKey(r => r.PackageId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Reservation>()
+            .HasOne(r => r.AssignedToUser)
+            .WithMany()
+            .HasForeignKey(r => r.AssignedToUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Reservation>()
+            .HasOne(r => r.AssignedByUser)
+            .WithMany()
+            .HasForeignKey(r => r.AssignedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Reservation>()
+            .Property(r => r.Status)
+            .HasConversion<string>();
+        modelBuilder.Entity<Reservation>()
+            .HasMany(r => r.DayCompletions)
+            .WithOne(d => d.Reservation)
+            .HasForeignKey(d => d.ReservationId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Reservation>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<ReservationDayCompletion>().HasQueryFilter(e => !e.IsDeleted);
+
+        modelBuilder.Entity<ReservationPaymentScreenshot>()
+            .HasOne(s => s.Reservation)
+            .WithMany(r => r.PaymentScreenshots)
+            .HasForeignKey(s => s.ReservationId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<TenantDocument>().HasQueryFilter(d =>
             !d.IsDeleted &&

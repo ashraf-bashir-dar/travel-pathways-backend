@@ -25,20 +25,21 @@ public sealed class LeadStatusConverter : ValueConverter<LeadStatus, string>
             "Matured" => LeadStatus.Matured,
             "NotInterested" => LeadStatus.NotInterested,
             "NoResponse" => LeadStatus.NoResponse,
-            "TripCancelled" => LeadStatus.TripCancelled,
-            "TripConfirmed" => LeadStatus.TripConfirmed,
+            "Cancelled" => LeadStatus.Cancelled,
+            "Confirmed" => LeadStatus.Confirmed,
             "PackageSent" => LeadStatus.PackageSent,
             "Followup" => LeadStatus.Followup,
             "AlreadyBooked" => LeadStatus.AlreadyBooked,
             "New" => LeadStatus.New,
-            // Legacy (old enum names)
+            // Legacy (stored with "Trip" prefix or old names)
+            "TripCancelled" => LeadStatus.Cancelled,
+            "TripConfirmed" => LeadStatus.Confirmed,
             "FollowUp" => LeadStatus.Followup,
             "PlanPostponed" => LeadStatus.Followup,
-            "PlanCanceled" => LeadStatus.TripCancelled,
-            "Confirmed" => LeadStatus.TripConfirmed,
+            "PlanCanceled" => LeadStatus.Cancelled,
             "Contacted" => LeadStatus.Followup,
             "Qualified" => LeadStatus.Followup,
-            "Converted" => LeadStatus.TripConfirmed,
+            "Converted" => LeadStatus.Confirmed,
             "Lost" => LeadStatus.NotInterested,
             _ => LeadStatus.New
         };

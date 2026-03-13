@@ -1,8 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using TravelPathways.Api.Common;
 using TravelPathways.Api.Data;
 using TravelPathways.Api.Data.Entities;
@@ -323,9 +323,9 @@ public sealed class LeadsController : TenantControllerBase
             {
                 await _db.SaveChangesAsync(ct);
             }
-            catch (DbUpdateException ex) when (ex.InnerException is SqlException sqlEx && sqlEx.Number == 208)
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "42P01")
             {
-                // 208 = Invalid object name 'LeadFollowUps' - table missing; lead was already saved
+                // 42P01 = undefined_table - table missing; lead was already saved
             }
         }
 

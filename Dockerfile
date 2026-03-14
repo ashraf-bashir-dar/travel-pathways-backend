@@ -2,10 +2,10 @@
 # Build stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY src/TravelPathways.Api/*.csproj src/TravelPathways.Api/
-RUN dotnet restore src/TravelPathways.Api/TravelPathways.Api.csproj
-COPY src/TravelPathways.Api/ src/TravelPathways.Api/
-RUN dotnet publish src/TravelPathways.Api/TravelPathways.Api.csproj -c Release -o /app/publish --no-restore
+COPY src/TravelPathways.Api/ ./TravelPathways.Api/
+WORKDIR /src/TravelPathways.Api
+RUN dotnet restore
+RUN dotnet publish -c Release -o /app/publish --no-restore
 
 # Runtime stage with Chromium for PDF generation
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime

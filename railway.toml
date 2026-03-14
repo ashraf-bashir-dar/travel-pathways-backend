@@ -1,0 +1,4 @@
+# Railway: set Root Directory in dashboard to src/TravelPathways.Api (see RAILWAY.md).
+# Only redeploy when API or Dockerfile changes.
+[build]
+watchPatterns = ["src/TravelPathways.Api/**"]

@@ -2,22 +2,14 @@
 
 ## Fix: "Railpack could not determine how to build"
 
-The API project (and its **Dockerfile**) lives in `src/TravelPathways.Api`, but Railway was building from the repo root and could not detect how to build.
+The API lives in `src/TravelPathways.Api`; Railway was building from the repo root and Railpack could not detect the app.
 
 ### What we did
 
-- Added **`railway.toml`** at the backend repo root with:
-  ```toml
-  [build]
-  rootDirectory = "src/TravelPathways.Api"
-  ```
-  So Railway builds from that folder, finds the **Dockerfile**, and uses it.
+- **`Dockerfile`** at the backend repo root: builds `src/TravelPathways.Api` so Railway has a single Dockerfile at root.
+- **`railway.toml`** sets `builder = "DOCKERFILE"` so Railway uses that Dockerfile instead of Railpack.
 
-### If it still fails
-
-1. In **Railway** → your service → **Settings** → **Build**:
-   - Set **Root Directory** to: `src/TravelPathways.Api`
-2. Redeploy.
+No need to set Root Directory in the dashboard. Commit and push, then redeploy.
 
 ### Env vars (same as other hosts)
 

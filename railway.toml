@@ -1,4 +1,4 @@
-# Railway: set Root Directory in dashboard to src/TravelPathways.Api (see RAILWAY.md).
-# Only redeploy when API or Dockerfile changes.
+# Use Dockerfile at repo root (backend/Dockerfile) so Railpack is skipped.
 [build]
-watchPatterns = ["src/TravelPathways.Api/**"]
+builder = "DOCKERFILE"
+watchPatterns = ["src/TravelPathways.Api/**", "Dockerfile"]

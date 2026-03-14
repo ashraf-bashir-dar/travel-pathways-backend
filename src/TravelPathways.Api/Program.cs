@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -78,7 +79,7 @@ var parsed = string.IsNullOrWhiteSpace(corsOriginsConfig)
   : corsOriginsConfig.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => s.Length > 0).ToArray();
 var allowedOrigins = parsed.Length > 0
   ? parsed
-  : new[] { "https://wonderful-grass-09269371e.1.azurestaticapps.net", "http://localhost:4200" };
+  : new[] { "https://wonderful-grass-09269371e.1.azurestaticapps.net", "http://localhost:4200" }; // Override with Cors__AllowedOrigins (e.g. https://your-app.pages.dev for Cloudflare Pages)
 
 builder.Services.AddCors(options =>
 {
@@ -106,15 +107,19 @@ builder.Services.AddScoped<TravelPathways.Api.Services.IEmailService,
 builder.Services.AddSingleton<TravelPathways.Api.Services.IPasswordEncryption,
                               TravelPathways.Api.Services.PasswordEncryptionService>();
 
-/* -------------------- Database -------------------- */
+/* -------------------- Database (PostgreSQL) -------------------- */
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required.");
+
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    options.UseSqlServer(
-      builder.Configuration.GetConnectionString("DefaultConnection"),
-      sql => sql.EnableRetryOnFailure(
-        maxRetryCount: 5,
-        maxRetryDelay: TimeSpan.FromSeconds(30),
-        errorNumbersToAdd: null));
+    options.UseNpgsql(connectionString, npgsql =>
+    {
+        npgsql.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorCodesToAdd: null);
+    });
 });
 
 /* -------------------- JWT Authentication -------------------- */
@@ -217,11 +222,6 @@ using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync();
-
-        await EnsureLeadFollowUpsTableAsync(db, logger);
-        await EnsureAttendanceTableAsync(db, logger);
-        await EnsureLeavesTableAsync(db, logger);
-        await EnsureTasksTimeColumnsAsync(db, logger);
 
         var superAdminEnabled = app.Configuration.GetValue<bool>("SuperAdmin:Enabled", true);
         if (superAdminEnabled)
@@ -362,131 +362,3 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.Run();
-
-/* -------------------- Helpers -------------------- */
-static async Task EnsureLeadFollowUpsTableAsync(AppDbContext db, ILogger logger)
-{
-    try
-    {
-        const string sql = """
-        IF OBJECT_ID(N'dbo.LeadFollowUps', N'U') IS NULL
-        BEGIN
-            CREATE TABLE [dbo].[LeadFollowUps] (
-                [Id] uniqueidentifier NOT NULL,
-                [LeadId] uniqueidentifier NOT NULL,
-                [FollowUpDate] datetime2 NOT NULL,
-                [Status] nvarchar(max) NOT NULL,
-                [Notes] nvarchar(max) NULL,
-                [CreatedAt] datetime2 NOT NULL,
-                [CreatedBy] nvarchar(max) NULL,
-                CONSTRAINT [PK_LeadFollowUps] PRIMARY KEY ([Id]),
-                CONSTRAINT [FK_LeadFollowUps_Leads_LeadId]
-                    FOREIGN KEY ([LeadId]) REFERENCES [Leads] ([Id])
-                    ON DELETE CASCADE
-            );
-            CREATE INDEX [IX_LeadFollowUps_LeadId]
-                ON [dbo].[LeadFollowUps] ([LeadId]);
-        END
-        """;
-
-        await db.Database.ExecuteSqlRawAsync(sql);
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "Could not ensure LeadFollowUps table.");
-    }
-}
-
-static async Task EnsureAttendanceTableAsync(AppDbContext db, ILogger logger)
-{
-    try
-    {
-        const string sql = """
-        IF OBJECT_ID(N'dbo.Attendance', N'U') IS NULL
-        BEGIN
-            CREATE TABLE [dbo].[Attendance] (
-                [Id] uniqueidentifier NOT NULL,
-                [TenantId] uniqueidentifier NOT NULL,
-                [IsActive] bit NOT NULL,
-                [CreatedAt] datetime2 NOT NULL,
-                [UpdatedAt] datetime2 NOT NULL,
-                [IsDeleted] bit NOT NULL,
-                [DeletedAtUtc] datetime2 NULL,
-                [UserId] uniqueidentifier NOT NULL,
-                [AttendanceDate] date NOT NULL,
-                [TimeInUtc] datetime2 NULL,
-                [TimeOutUtc] datetime2 NULL,
-                CONSTRAINT [PK_Attendance] PRIMARY KEY ([Id]),
-                CONSTRAINT [FK_Attendance_Tenants_TenantId] FOREIGN KEY ([TenantId]) REFERENCES [dbo].[Tenants] ([Id]) ON DELETE CASCADE,
-                CONSTRAINT [FK_Attendance_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [dbo].[Users] ([Id]) ON DELETE NO ACTION,
-                CONSTRAINT [UQ_Attendance_TenantUserDate] UNIQUE ([TenantId], [UserId], [AttendanceDate])
-            );
-            CREATE INDEX [IX_Attendance_TenantId] ON [dbo].[Attendance] ([TenantId]);
-            CREATE INDEX [IX_Attendance_UserId] ON [dbo].[Attendance] ([UserId]);
-            CREATE INDEX [IX_Attendance_AttendanceDate] ON [dbo].[Attendance] ([AttendanceDate]);
-        END
-        """;
-        await db.Database.ExecuteSqlRawAsync(sql);
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "Could not ensure Attendance table.");
-    }
-}
-
-static async Task EnsureLeavesTableAsync(AppDbContext db, ILogger logger)
-{
-    try
-    {
-        const string sql = """
-        IF OBJECT_ID(N'dbo.Leaves', N'U') IS NULL
-        BEGIN
-            CREATE TABLE [dbo].[Leaves] (
-                [Id] uniqueidentifier NOT NULL,
-                [TenantId] uniqueidentifier NOT NULL,
-                [IsActive] bit NOT NULL,
-                [CreatedAt] datetime2 NOT NULL,
-                [UpdatedAt] datetime2 NOT NULL,
-                [IsDeleted] bit NOT NULL,
-                [DeletedAtUtc] datetime2 NULL,
-                [UserId] uniqueidentifier NOT NULL,
-                [LeaveType] int NOT NULL,
-                [StartDate] date NOT NULL,
-                [EndDate] date NOT NULL,
-                [Reason] nvarchar(max) NOT NULL,
-                [Status] int NOT NULL,
-                CONSTRAINT [PK_Leaves] PRIMARY KEY ([Id]),
-                CONSTRAINT [FK_Leaves_Tenants_TenantId] FOREIGN KEY ([TenantId]) REFERENCES [dbo].[Tenants] ([Id]) ON DELETE CASCADE,
-                CONSTRAINT [FK_Leaves_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [dbo].[Users] ([Id]) ON DELETE NO ACTION
-            );
-            CREATE INDEX [IX_Leaves_TenantId] ON [dbo].[Leaves] ([TenantId]);
-            CREATE INDEX [IX_Leaves_UserId] ON [dbo].[Leaves] ([UserId]);
-            CREATE INDEX [IX_Leaves_Status] ON [dbo].[Leaves] ([Status]);
-            CREATE INDEX [IX_Leaves_StartDate] ON [dbo].[Leaves] ([StartDate]);
-        END
-        """;
-        await db.Database.ExecuteSqlRawAsync(sql);
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "Could not ensure Leaves table.");
-    }
-}
-
-static async Task EnsureTasksTimeColumnsAsync(AppDbContext db, ILogger logger)
-{
-    try
-    {
-        const string sql = """
-        IF NOT EXISTS (SELECT 1 FROM sys.columns c INNER JOIN sys.tables t ON c.object_id = t.object_id WHERE t.name = 'Tasks' AND c.name = 'StartTimeUtc')
-        ALTER TABLE [dbo].[Tasks] ADD [StartTimeUtc] datetime2 NULL;
-        IF NOT EXISTS (SELECT 1 FROM sys.columns c INNER JOIN sys.tables t ON c.object_id = t.object_id WHERE t.name = 'Tasks' AND c.name = 'EndTimeUtc')
-        ALTER TABLE [dbo].[Tasks] ADD [EndTimeUtc] datetime2 NULL;
-        """;
-        await db.Database.ExecuteSqlRawAsync(sql);
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "Could not ensure Tasks StartTimeUtc/EndTimeUtc columns.");
-    }
-}

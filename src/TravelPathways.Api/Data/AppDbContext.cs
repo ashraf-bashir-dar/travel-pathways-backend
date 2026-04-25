@@ -351,7 +351,11 @@ public sealed class AppDbContext : DbContext
         // Note: EF will parameterize these values per DbContext instance.
         // Soft delete: exclude IsDeleted everywhere.
         modelBuilder.Entity<Tenant>().HasQueryFilter(t => !t.IsDeleted);
-        modelBuilder.Entity<AppUser>().HasQueryFilter(e => e.TenantId == _tenant.TenantId && !e.IsDeleted);
+        modelBuilder.Entity<AppUser>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
 
         // When Super Admin has NOT selected a tenant (no X-Tenant-Id), they can see data for all tenants.
         // When Super Admin HAS selected a tenant (X-Tenant-Id is set), they should only see that tenant's data.
@@ -514,6 +518,8 @@ public sealed class AppDbContext : DbContext
 
     private void ApplyTimestamps()
     {
+        NormalizeDateTimesToUtc();
+
         var now = DateTime.UtcNow;
         foreach (var entry in ChangeTracker.Entries<EntityBase>())
         {
@@ -525,6 +531,36 @@ public sealed class AppDbContext : DbContext
             else if (entry.State == EntityState.Modified)
             {
                 entry.Entity.UpdatedAt = now;
+            }
+        }
+    }
+
+    /// <summary>
+    /// PostgreSQL timestamp with time zone requires UTC/Local DateTime kinds.
+    /// Normalize all pending DateTime values before persisting to avoid Kind=Unspecified failures.
+    /// </summary>
+    private void NormalizeDateTimesToUtc()
+    {
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified))
+                continue;
+
+            foreach (var property in entry.Properties)
+            {
+                var clrType = property.Metadata.ClrType;
+                if (clrType != typeof(DateTime) && clrType != typeof(DateTime?))
+                    continue;
+
+                if (property.CurrentValue is DateTime dateTime)
+                {
+                    property.CurrentValue = dateTime.Kind switch
+                    {
+                        DateTimeKind.Utc => dateTime,
+                        DateTimeKind.Local => dateTime.ToUniversalTime(),
+                        _ => DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)
+                    };
+                }
             }
         }
     }

@@ -163,8 +163,8 @@ public sealed class AdminTenantUsersController : ControllerBase
             PasswordHash = PasswordHasher.Hash(request.Password),
             PasswordEncrypted = _passwordEncryption.Encrypt(request.Password),
             Phone = request.Phone?.Trim(),
-            DateOfBirth = request.DateOfBirth,
-            JoinDate = request.JoinDate,
+            DateOfBirth = NormalizeNullableUtc(request.DateOfBirth),
+            JoinDate = NormalizeNullableUtc(request.JoinDate),
             Designation = request.Designation?.Trim(),
             Address = request.Address?.Trim(),
             EmergencyContactName = request.EmergencyContactName?.Trim(),
@@ -217,8 +217,8 @@ public sealed class AdminTenantUsersController : ControllerBase
         user.AllowedModules = request.AllowedModules?.ToList() ?? user.AllowedModules ?? [];
         user.CanViewCostBifurcation = request.CanViewCostBifurcation;
         user.Phone = request.Phone?.Trim();
-        user.DateOfBirth = request.DateOfBirth;
-        user.JoinDate = request.JoinDate;
+        user.DateOfBirth = NormalizeNullableUtc(request.DateOfBirth);
+        user.JoinDate = NormalizeNullableUtc(request.JoinDate);
         user.Designation = request.Designation?.Trim();
         user.Address = request.Address?.Trim();
         user.EmergencyContactName = request.EmergencyContactName?.Trim();
@@ -247,6 +247,18 @@ public sealed class AdminTenantUsersController : ControllerBase
         user.IsActive = false;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
+    }
+
+    private static DateTime? NormalizeNullableUtc(DateTime? value)
+    {
+        if (!value.HasValue) return null;
+        var v = value.Value;
+        return v.Kind switch
+        {
+            DateTimeKind.Utc => v,
+            DateTimeKind.Local => v.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(v, DateTimeKind.Utc)
+        };
     }
 
     private static TenantUserDto ToDto(AppUser u) =>

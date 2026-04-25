@@ -360,6 +360,8 @@ public sealed class PackagesController : TenantControllerBase
         var totalAmount = request.TotalAmount;
         var discount = request.Discount;
         var finalAmount = Math.Max(0, totalAmount - discount);
+        var normalizedStartDate = NormalizeUtc(request.StartDate);
+        var normalizedEndDate = NormalizeUtc(request.EndDate);
         var pkg = new TourPackage
         {
             TenantId = TenantId,
@@ -372,10 +374,10 @@ public sealed class PackagesController : TenantControllerBase
             ClientPickupLocation = request.ClientPickupLocation.Trim(),
             ClientDropLocation = request.ClientDropLocation.Trim(),
             PackageName = request.PackageName.Trim(),
-            StartDate = request.StartDate,
-            EndDate = request.EndDate,
+            StartDate = normalizedStartDate,
+            EndDate = normalizedEndDate,
             // Use the date range as the source of truth so transport/hotel/PDF stay consistent.
-            NumberOfDays = DaysInclusive(request.StartDate, request.EndDate),
+            NumberOfDays = DaysInclusive(normalizedStartDate, normalizedEndDate),
             NumberOfAdults = request.NumberOfAdults,
             NumberOfChildren = request.NumberOfChildren,
             VehicleId = request.VehicleId,
@@ -398,7 +400,7 @@ public sealed class PackagesController : TenantControllerBase
                 TenantId = TenantId,
                 PackageId = pkg.Id,
                 DayNumber = d.DayNumber,
-                Date = d.Date,
+                Date = NormalizeUtc(d.Date),
                 HotelId = d.HotelId,
                 RoomType = d.RoomType?.Trim(),
                 NumberOfRooms = d.NumberOfRooms,
@@ -465,10 +467,10 @@ public sealed class PackagesController : TenantControllerBase
         pkg.ClientPickupLocation = request.ClientPickupLocation.Trim();
         pkg.ClientDropLocation = request.ClientDropLocation.Trim();
         pkg.PackageName = request.PackageName.Trim();
-        pkg.StartDate = request.StartDate;
-        pkg.EndDate = request.EndDate;
+        pkg.StartDate = NormalizeUtc(request.StartDate);
+        pkg.EndDate = NormalizeUtc(request.EndDate);
         // Use the date range as the source of truth so transport/hotel/PDF stay consistent.
-        pkg.NumberOfDays = DaysInclusive(request.StartDate, request.EndDate);
+        pkg.NumberOfDays = DaysInclusive(pkg.StartDate, pkg.EndDate);
         pkg.NumberOfAdults = request.NumberOfAdults;
         pkg.NumberOfChildren = request.NumberOfChildren;
         pkg.VehicleId = request.VehicleId;
@@ -504,7 +506,7 @@ public sealed class PackagesController : TenantControllerBase
                 TenantId = TenantId,
                 PackageId = pkg.Id,
                 DayNumber = d.DayNumber,
-                Date = d.Date,
+                Date = NormalizeUtc(d.Date),
                 HotelId = d.HotelId,
                 RoomType = d.RoomType?.Trim(),
                 NumberOfRooms = d.NumberOfRooms,
@@ -552,6 +554,16 @@ public sealed class PackagesController : TenantControllerBase
     {
         var numShikaras = numberOfAdults <= 0 ? 0 : (numberOfAdults + 3) / 4;
         return 700m * numShikaras;
+    }
+
+    private static DateTime NormalizeUtc(DateTime value)
+    {
+        return value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
     }
 
     private static string SanitizeFilenamePart(string? s, int maxLen = 50)

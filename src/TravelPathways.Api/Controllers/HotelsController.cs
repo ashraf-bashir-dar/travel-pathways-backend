@@ -209,8 +209,8 @@ public sealed class HotelsController : TenantControllerBase
                 {
                     TenantId = TenantId,
                     HotelId = hotel.Id,
-                    FromDate = r.FromDate,
-                    ToDate = r.ToDate,
+                    FromDate = NormalizeUtc(r.FromDate),
+                    ToDate = NormalizeUtc(r.ToDate),
                     RoomCategory = r.RoomCategory?.Trim(),
                     MealPlan = r.MealPlan,
                     CostPrice = r.CostPrice,
@@ -263,8 +263,8 @@ public sealed class HotelsController : TenantControllerBase
                 {
                     TenantId = TenantId,
                     HotelId = hotel.Id,
-                    FromDate = r.FromDate,
-                    ToDate = r.ToDate,
+                    FromDate = NormalizeUtc(r.FromDate),
+                    ToDate = NormalizeUtc(r.ToDate),
                     RoomCategory = r.RoomCategory?.Trim(),
                     MealPlan = r.MealPlan,
                     CostPrice = r.CostPrice,
@@ -333,6 +333,16 @@ public sealed class HotelsController : TenantControllerBase
     public ActionResult<ApiResponse<List<object>>> GetHotelRooms([FromRoute] Guid hotelId)
     {
         return ApiResponse<List<object>>.Ok([]);
+    }
+
+    private static DateTime NormalizeUtc(DateTime value)
+    {
+        return value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
     }
 
     private static HotelDto ToDto(Hotel h) =>

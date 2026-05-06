@@ -76,10 +76,19 @@ builder.Services.AddSwaggerGen(c =>
 var corsOriginsConfig = builder.Configuration["Cors:AllowedOrigins"] ?? builder.Configuration["Cors__AllowedOrigins"];
 var parsed = string.IsNullOrWhiteSpace(corsOriginsConfig)
   ? Array.Empty<string>()
-  : corsOriginsConfig.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => s.Length > 0).ToArray();
+  : corsOriginsConfig
+      .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+      .Select(s => s.Trim().TrimEnd('/'))
+      .Where(s => s.Length > 0)
+      .Distinct(StringComparer.OrdinalIgnoreCase)
+      .ToArray();
 var allowedOrigins = parsed.Length > 0
   ? parsed
-  : new[] { "https://wonderful-grass-09269371e.1.azurestaticapps.net", "http://localhost:4200" }; // Override with Cors__AllowedOrigins (e.g. https://your-app.pages.dev for Cloudflare Pages)
+  : new[]
+  {
+      "http://localhost:4200",
+      "https://localhost:4200"
+  }; // Production: set Cors__AllowedOrigins (e.g. your CloudFront https://... URL).
 
 builder.Services.AddCors(options =>
 {
@@ -158,10 +167,18 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
+if (allowedOrigins.Length > 0)
+{
+  app.Logger.LogInformation(
+      "CORS: {Count} allowed origin(s): {Origins}",
+      allowedOrigins.Length,
+      string.Join(", ", allowedOrigins));
+}
+
 if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
 
-/* -------------------- Forwarded headers (so Request.Scheme/Host are correct behind Azure proxy for PDF image URLs) -------------------- */
+/* -------------------- Forwarded headers (ALB / reverse proxy: correct Scheme/Host for PDF image URLs) -------------------- */
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
@@ -170,13 +187,11 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 });
 
 /* -------------------- CORS: handle preflight and add headers to all responses -------------------- */
-const string allowedOriginStatic = "https://wonderful-grass-09269371e.1.azurestaticapps.net";
 app.Use(async (context, next) =>
 {
     var origin = context.Request.Headers["Origin"].FirstOrDefault() ?? "";
-    var originAllowed = !string.IsNullOrEmpty(origin) && (
-      allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase) ||
-      string.Equals(origin, allowedOriginStatic, StringComparison.OrdinalIgnoreCase));
+    var originAllowed = !string.IsNullOrEmpty(origin) &&
+      allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase);
 
     if (context.Request.Method == "OPTIONS")
     {
@@ -322,7 +337,7 @@ app.UseExceptionHandler(a => a.Run(async context =>
     // Get the real error message (unwrap DB/SQL exceptions)
     string detailMessage = GetExceptionDetailMessage(ex);
 
-    // Always log the full error on the server so you can see it in Azure Log stream / App Insights
+    // Always log the full error on the server (CloudWatch, container logs, etc.)
     var logger = context.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("ExceptionHandler");
     if (ex != null)
         logger?.LogError(ex, "Unhandled exception: {Detail}", detailMessage);

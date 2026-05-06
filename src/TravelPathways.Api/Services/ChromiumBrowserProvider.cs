@@ -109,9 +109,9 @@ public sealed class ChromiumBrowserProvider : IChromiumBrowserProvider, IAsyncDi
             var msg = ex.Message;
             if (msg.Contains("side-by-side", StringComparison.OrdinalIgnoreCase) || msg.Contains("failed to start", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException(
-                    "PDF generation failed: Chromium could not start. On Azure App Service (Windows) this usually means missing runtimes. " +
-                    "Use Azure App Service on Linux, or deploy with a Docker image that includes Chromium (see README or deploy Dockerfile from the API project). " +
-                    "You can also set PdfGenerator:ChromeExecutablePath to a Chromium path if you install it yourself. Original error: " + msg, ex);
+                    "PDF generation failed: Chromium could not start. Deploy the API on Linux with Chromium available " +
+                    "(use the API Dockerfile, or set PdfGenerator:ChromeExecutablePath to an installed Chromium binary). " +
+                    "Original error: " + msg, ex);
             throw;
         }
     }

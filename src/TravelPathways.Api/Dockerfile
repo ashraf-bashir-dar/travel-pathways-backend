@@ -6,7 +6,7 @@ RUN dotnet restore
 COPY . .
 RUN dotnet publish -c Release -o /app/publish --no-restore
 
-# Runtime stage with Chromium for PDF generation (use this for Azure Linux / Container)
+# Runtime stage with Chromium for PDF generation (EC2, ECS, Elastic Beanstalk, etc.)
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 
@@ -56,7 +56,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Tell the app where to find Chrome (no download on first request)
 ENV PdfGenerator__ChromeExecutablePath="/usr/bin/google-chrome-stable"
 
-# App listens on 8080; Azure must use WEBSITES_PORT=8080 so traffic reaches the app
+# App listens on 8080; map ALB/target group or host port 80/443 → 8080 as needed
 ENV ASPNETCORE_URLS="http://+:8080"
 EXPOSE 8080
 

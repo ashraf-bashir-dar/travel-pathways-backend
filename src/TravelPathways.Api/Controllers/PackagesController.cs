@@ -320,7 +320,7 @@ public sealed class PackagesController : TenantControllerBase
 
         try
         {
-            // Use configured base URL so PDF images load on live (Azure). Request.Scheme/Host can be wrong behind a proxy.
+            // Use configured base URL so PDF images load in production; Request.Scheme/Host can be wrong behind a proxy.
             var baseUrl = _configuration["Api:BaseUrl"]?.Trim()
                 ?? _configuration["Api__BaseUrl"]?.Trim()
                 ?? _configuration["PdfGenerator:BaseUrl"]?.Trim()

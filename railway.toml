@@ -1,4 +1,0 @@
-# Use Dockerfile at repo root (backend/Dockerfile) so Railpack is skipped.
-[build]
-builder = "DOCKERFILE"
-watchPatterns = ["src/TravelPathways.Api/**", "Dockerfile"]

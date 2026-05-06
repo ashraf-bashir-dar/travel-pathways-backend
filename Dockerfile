@@ -1,4 +1,4 @@
-# Build from backend repo root so Railway/Railpack finds this Dockerfile.
+# Build from backend repo root (docker build -f backend/Dockerfile backend).
 # Build stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src

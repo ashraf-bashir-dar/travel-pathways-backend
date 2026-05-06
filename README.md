@@ -1,35 +1,23 @@
-## TravelPathways Backend (ASP.NET Core + SQL Server)
+## TravelPathways Backend (ASP.NET Core + PostgreSQL)
 
 This folder contains the backend API for the Angular app.
 
 ### Prerequisites
 
 - .NET SDK 8.x
-- SQL Server (one of):
-  - SQL Server Express / Developer
-  - LocalDB (optional)
+- **PostgreSQL** (local, **Amazon RDS for PostgreSQL**, or another host)
 
 ### Configure DB connection
 
-The connection string in `backend/src/TravelPathways.Api/appsettings.json` is set for **localhost with Windows Authentication**:
+Set `ConnectionStrings:DefaultConnection` in `src/TravelPathways.Api/appsettings.json` (development) or environment variables / **AWS Secrets Manager** (production). Example (local):
 
 ```text
-Server=localhost;Database=TravelPathways;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True
-```
-
-- **Default instance** (typical for SQL Server 2022 Developer): use `Server=localhost` as above.
-- **Named instance** (e.g. Express): use `Server=localhost\\SQLEXPRESS` (or your instance name).
-- If connection fails: ensure **SQL Server service** is running (e.g. "SQL Server (MSSQLSERVER)" in Services), and that TCP/IP or Named Pipes is enabled in SQL Server Configuration Manager.
-
-For SQL auth instead of Windows auth:
-
-```text
-Server=localhost;Database=TravelPathways;User Id=sa;Password=YourPassword;TrustServerCertificate=True
+Host=localhost;Port=5432;Database=TravelPathways;Username=postgres;Password=YourPassword
 ```
 
 ### Apply migrations
 
-After configuring the connection string, create/update the database from the API project folder:
+From the API project folder:
 
 ```powershell
 cd backend/src/TravelPathways.Api
@@ -47,33 +35,34 @@ dotnet ef database update
 
 ### Run the API
 
-From repo root:
-
 ```powershell
 cd backend/src/TravelPathways.Api
 dotnet run
 ```
 
-Swagger will be available at:
-- `https://localhost:7001/swagger`
+Swagger: `https://localhost:7001/swagger` (or the URL shown in the console).
 
 ### Login (seeded Super Admin)
 
-The API seeds a Super Admin user on startup (see `appsettings.json`):
+See `appsettings.json`:
 
 - **Email**: `super@travelpathways.local`
 - **Password**: `Super@123`
 
 Use `POST /api/auth/login` in Swagger to get a JWT.
 
-### Notes about multi-tenancy
+### Multi-tenancy
 
 - Tenant users have `tenantId` claim in JWT.
-- Super Admin can optionally pass `X-Tenant-Id` header to scope reads.
+- Super Admin can pass `X-Tenant-Id` header to scope reads.
+
+### Hosting on AWS
+
+See **`../docs/AWS-HOSTING.md`** for S3 + CloudFront (UI), EC2/ECS/RDS (API + DB), CORS, TLS, and optional CI.
 
 ### Production deployment checklist
 
-Before selling or hosting for multiple tenants, set these in environment variables or a secure config (e.g. Azure Key Vault, User Secrets); **do not** rely on defaults in `appsettings.json`.
+Before selling or hosting for multiple tenants, set these in environment variables or a secure config (e.g. **AWS Secrets Manager**, User Secrets); **do not** rely on defaults in `appsettings.json`.
 
 | Setting | Purpose | Risk if default |
 |--------|---------|------------------|
@@ -85,4 +74,3 @@ Before selling or hosting for multiple tenants, set these in environment variabl
 - **CORS**: Set `Cors:AllowedOrigins` to your frontend origin(s) only (no `*` in production if using credentials).
 - **IncludeExceptionDetailsInResponse**: Keep `false` in production so stack traces are not sent to clients.
 - Run `dotnet ef database update` against the production database and ensure migrations are applied.
-

@@ -51,6 +51,10 @@ public sealed class PackagePdfModel
     public string? PrimaryColor { get; init; }
     public string? SecondaryColor { get; init; }
     public string? CoverTitle { get; init; }
+    /// <summary>Template key selected for tenant PDF rendering.</summary>
+    public string? TemplateKey { get; init; }
+    /// <summary>Optional custom HTML template body loaded from template library.</summary>
+    public string? CustomHtmlTemplate { get; init; }
     public bool? ShowBankDetails { get; init; }
     public bool? ShowQrCodes { get; init; }
 }

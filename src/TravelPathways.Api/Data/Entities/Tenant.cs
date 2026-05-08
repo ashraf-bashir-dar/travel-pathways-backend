@@ -18,6 +18,8 @@ public sealed class Tenant : EntityBase
     public string? PdfCoverTitle { get; set; }
     public string? PdfPrimaryColor { get; set; }
     public string? PdfSecondaryColor { get; set; }
+    /// <summary>Selected tenant PDF template key (e.g. "classic-quote", "modern-itinerary").</summary>
+    public string? PdfTemplateKey { get; set; }
     public bool? PdfShowBankDetails { get; set; }
     public bool? PdfShowQrCodes { get; set; }
 

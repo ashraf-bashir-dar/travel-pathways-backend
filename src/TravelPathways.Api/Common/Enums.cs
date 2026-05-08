@@ -96,7 +96,9 @@ public enum TenantDocumentType
     Registration = 1,
     PAN = 2,
     GST = 3,
-    Other = 4
+    Other = 4,
+    PdfCoverPage = 5,
+    PdfAppendixPage = 6
 }
 
 public enum LeadSource

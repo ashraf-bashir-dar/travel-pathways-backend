@@ -295,6 +295,28 @@ using (var scope = app.Services.CreateScope())
             await db.SaveChangesAsync();
         }
 
+        if (!await db.PdfTemplates.AnyAsync())
+        {
+            db.PdfTemplates.AddRange(
+                new PdfTemplate
+                {
+                    Key = "classic-quote",
+                    Name = "Classic Quote",
+                    Description = "System template: classic quote design",
+                    IsSystem = true,
+                    IsActive = true
+                },
+                new PdfTemplate
+                {
+                    Key = "modern-itinerary",
+                    Name = "Modern Itinerary",
+                    Description = "System template: modern itinerary design",
+                    IsSystem = true,
+                    IsActive = true
+                });
+            await db.SaveChangesAsync();
+        }
+
         await SeedStateCity.SeedAsync(db);
         await SeedAreas.SeedAsync(db);
     }

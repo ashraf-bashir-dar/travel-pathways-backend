@@ -19,6 +19,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<TenantDocument> TenantDocuments => Set<TenantDocument>();
     public DbSet<TenantBankAccount> TenantBankAccounts => Set<TenantBankAccount>();
     public DbSet<TenantQrCode> TenantQrCodes => Set<TenantQrCode>();
+    public DbSet<PdfTemplate> PdfTemplates => Set<PdfTemplate>();
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<Plan> Plans => Set<Plan>();
     public DbSet<PlanPrice> PlanPrices => Set<PlanPrice>();
@@ -269,6 +270,16 @@ public sealed class AppDbContext : DbContext
             .HasForeignKey(q => q.TenantId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<PdfTemplate>()
+            .Property(t => t.Key)
+            .HasMaxLength(120);
+        modelBuilder.Entity<PdfTemplate>()
+            .Property(t => t.Name)
+            .HasMaxLength(180);
+        modelBuilder.Entity<PdfTemplate>()
+            .HasIndex(t => t.Key)
+            .IsUnique();
+
         modelBuilder.Entity<State>()
             .HasMany(s => s.Cities)
             .WithOne(c => c.State)
@@ -502,6 +513,7 @@ public sealed class AppDbContext : DbContext
                 : e.TenantId == _tenant.TenantId));
 
         modelBuilder.Entity<Plan>().HasQueryFilter(p => !p.IsDeleted);
+        modelBuilder.Entity<PdfTemplate>().HasQueryFilter(t => !t.IsDeleted);
     }
 
     public override int SaveChanges()

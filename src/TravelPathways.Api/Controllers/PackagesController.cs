@@ -10,6 +10,8 @@ using TravelPathways.Api.Data.Entities;
 using TravelPathways.Api.MultiTenancy;
 using TravelPathways.Api.Services;
 using System.Globalization;
+using PdfSharpCore.Pdf;
+using PdfSharpCore.Pdf.IO;
 
 namespace TravelPathways.Api.Controllers;
 
@@ -316,22 +318,12 @@ public sealed class PackagesController : TenantControllerBase
             tenant = await _db.Tenants.AsNoTracking()
                 .Include(t => t.BankAccounts)
                 .Include(t => t.QrCodes)
+                .Include(t => t.Documents)
                 .FirstOrDefaultAsync(t => t.Id == pkg.TenantId, ct);
 
         try
         {
-            // Use configured base URL so PDF images load in production; Request.Scheme/Host can be wrong behind a proxy.
-            var baseUrl = _configuration["Api:BaseUrl"]?.Trim()
-                ?? _configuration["Api__BaseUrl"]?.Trim()
-                ?? _configuration["PdfGenerator:BaseUrl"]?.Trim()
-                ?? _configuration["PdfGenerator__BaseUrl"]?.Trim();
-            if (string.IsNullOrEmpty(baseUrl))
-                baseUrl = $"{Request.Scheme}://{Request.Host}";
-            baseUrl = baseUrl.TrimEnd('/');
-            var model = BuildPdfModel(pkg, tenant, baseUrl);
-            model = InlinePdfImagesFromDisk(model);
-            var pdfBytes = await _pdfGenerator.GenerateAsync(model, ct);
-
+            var pdfBytes = await GeneratePackagePdfWithTenantAssetsAsync(pkg, tenant, ct);
             var filename = BuildPdfFilename(pkg);
             return File(pdfBytes, "application/pdf", filename);
         }
@@ -339,6 +331,48 @@ public sealed class PackagesController : TenantControllerBase
         {
             var inner = ex.InnerException?.Message ?? ex.Message;
             return StatusCode(500, ApiResponse<object>.Fail($"PDF generation failed: {inner}"));
+        }
+    }
+
+    /// <summary>Generate package PDF and return inline response for browser preview.</summary>
+    [HttpGet("{id:guid}/pdf-preview")]
+    [ProducesResponseType(typeof(FileResult), 200)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(500)]
+    public async Task<IActionResult> PreviewPackagePdf([FromRoute] Guid id, CancellationToken ct)
+    {
+        var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+
+        var pkg = await _db.Packages.AsNoTracking()
+            .Include(p => p.DayWiseItinerary!)
+            .ThenInclude(d => d.Hotel)
+            .Include(p => p.DayWiseItinerary!)
+            .ThenInclude(d => d.ItineraryTemplate)
+            .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
+
+        if (pkg is null) return NotFound();
+        if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail) && pkg.CreatedBy != currentUserEmail)
+            return NotFound();
+
+        Tenant? tenant = null;
+        if (pkg.TenantId != Guid.Empty)
+            tenant = await _db.Tenants.AsNoTracking()
+                .Include(t => t.BankAccounts)
+                .Include(t => t.QrCodes)
+                .Include(t => t.Documents)
+                .FirstOrDefaultAsync(t => t.Id == pkg.TenantId, ct);
+
+        try
+        {
+            var pdfBytes = await GeneratePackagePdfWithTenantAssetsAsync(pkg, tenant, ct);
+            var filename = BuildPdfFilename(pkg);
+            Response.Headers.ContentDisposition = $"inline; filename=\"{filename}\"";
+            return File(pdfBytes, "application/pdf");
+        }
+        catch (Exception ex)
+        {
+            var inner = ex.InnerException?.Message ?? ex.Message;
+            return StatusCode(500, ApiResponse<object>.Fail($"PDF preview generation failed: {inner}"));
         }
     }
 
@@ -738,6 +772,7 @@ public sealed class PackagesController : TenantControllerBase
             PrimaryColor = tenant?.PdfPrimaryColor?.Trim(),
             SecondaryColor = tenant?.PdfSecondaryColor?.Trim(),
             CoverTitle = tenant?.PdfCoverTitle?.Trim(),
+            TemplateKey = tenant?.PdfTemplateKey?.Trim(),
             ShowBankDetails = tenant?.PdfShowBankDetails,
             ShowQrCodes = tenant?.PdfShowQrCodes
         };
@@ -839,9 +874,177 @@ public sealed class PackagesController : TenantControllerBase
             PrimaryColor = model.PrimaryColor,
             SecondaryColor = model.SecondaryColor,
             CoverTitle = model.CoverTitle,
+            TemplateKey = model.TemplateKey,
+            CustomHtmlTemplate = model.CustomHtmlTemplate,
             ShowBankDetails = model.ShowBankDetails,
             ShowQrCodes = model.ShowQrCodes
         };
+    }
+
+    private async Task<byte[]> GeneratePackagePdfWithTenantAssetsAsync(TourPackage pkg, Tenant? tenant, CancellationToken ct)
+    {
+        // Use configured base URL so PDF images load in production; Request.Scheme/Host can be wrong behind a proxy.
+        var baseUrl = _configuration["Api:BaseUrl"]?.Trim()
+            ?? _configuration["Api__BaseUrl"]?.Trim()
+            ?? _configuration["PdfGenerator:BaseUrl"]?.Trim()
+            ?? _configuration["PdfGenerator__BaseUrl"]?.Trim();
+        if (string.IsNullOrEmpty(baseUrl))
+            baseUrl = $"{Request.Scheme}://{Request.Host}";
+        baseUrl = baseUrl.TrimEnd('/');
+
+        var model = BuildPdfModel(pkg, tenant, baseUrl);
+        var templateKey = model.TemplateKey?.Trim();
+        if (!string.IsNullOrWhiteSpace(templateKey))
+        {
+            var template = await _db.PdfTemplates.AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Key == templateKey && t.IsActive, ct);
+            if (template is not null && !string.IsNullOrWhiteSpace(template.HtmlTemplate))
+            {
+                model = new PackagePdfModel
+                {
+                    PackageName = model.PackageName,
+                    ClientName = model.ClientName,
+                    ClientPhone = model.ClientPhone,
+                    ClientEmail = model.ClientEmail,
+                    ClientAddress = model.ClientAddress,
+                    StartDate = model.StartDate,
+                    EndDate = model.EndDate,
+                    DaysLabel = model.DaysLabel,
+                    PickUpLocation = model.PickUpLocation,
+                    DropLocation = model.DropLocation,
+                    NumberOfAdults = model.NumberOfAdults,
+                    NumberOfChildren = model.NumberOfChildren,
+                    MealPlanLabel = model.MealPlanLabel,
+                    FirstDayRooms = model.FirstDayRooms,
+                    TotalExtraBeds = model.TotalExtraBeds,
+                    TotalCnbCount = model.TotalCnbCount,
+                    TotalAmount = model.TotalAmount,
+                    Discount = model.Discount,
+                    FinalAmount = model.FinalAmount,
+                    PerPersonAmount = model.PerPersonAmount,
+                    AdvanceAmount = model.AdvanceAmount,
+                    BalanceAmount = model.BalanceAmount,
+                    Days = model.Days,
+                    Hotels = model.Hotels,
+                    CoverImageUrls = model.CoverImageUrls,
+                    InclusionLabels = model.InclusionLabels,
+                    ExclusionLabels = model.ExclusionLabels,
+                    AgencyName = model.AgencyName,
+                    AgencyPhone = model.AgencyPhone,
+                    AgencyEmail = model.AgencyEmail,
+                    AgencyLogoUrl = model.AgencyLogoUrl,
+                    ManagingDirectorName = model.ManagingDirectorName,
+                    GeneratedDate = model.GeneratedDate,
+                    BankAccounts = model.BankAccounts,
+                    QrCodes = model.QrCodes,
+                    PrimaryColor = model.PrimaryColor,
+                    SecondaryColor = model.SecondaryColor,
+                    CoverTitle = model.CoverTitle,
+                    TemplateKey = model.TemplateKey,
+                    CustomHtmlTemplate = template.HtmlTemplate,
+                    ShowBankDetails = model.ShowBankDetails,
+                    ShowQrCodes = model.ShowQrCodes
+                };
+            }
+        }
+        model = InlinePdfImagesFromDisk(model);
+        var generatedPdf = await _pdfGenerator.GenerateAsync(model, ct);
+        return MergePdfWithTenantAssets(generatedPdf, tenant);
+    }
+
+    private byte[] MergePdfWithTenantAssets(byte[] generatedPdf, Tenant? tenant)
+    {
+        var uploadsRoot = ResolveUploadsRoot();
+        if (tenant?.Documents is null || tenant.Documents.Count == 0 || !Directory.Exists(uploadsRoot))
+            return generatedPdf;
+
+        var coverDoc = tenant.Documents
+            .Where(d => !d.IsDeleted && d.Type == TenantDocumentType.PdfCoverPage)
+            .OrderByDescending(d => d.CreatedAt)
+            .FirstOrDefault();
+        var appendixDocs = tenant.Documents
+            .Where(d => !d.IsDeleted && d.Type == TenantDocumentType.PdfAppendixPage)
+            .OrderBy(d => d.CreatedAt)
+            .ToList();
+
+        if (coverDoc is null && appendixDocs.Count == 0)
+            return generatedPdf;
+
+        var merged = new PdfDocument();
+
+        void AppendPdfBytes(byte[] bytes)
+        {
+            using var source = PdfReader.Open(new MemoryStream(bytes), PdfDocumentOpenMode.Import);
+            for (var i = 0; i < source.PageCount; i++)
+                merged.AddPage(source.Pages[i]);
+        }
+
+        if (coverDoc is not null)
+        {
+            var coverBytes = TryReadTenantDocumentPdfBytes(coverDoc.Url, uploadsRoot);
+            if (coverBytes is not null) AppendPdfBytes(coverBytes);
+        }
+
+        AppendPdfBytes(generatedPdf);
+
+        foreach (var appendix in appendixDocs)
+        {
+            var appendixBytes = TryReadTenantDocumentPdfBytes(appendix.Url, uploadsRoot);
+            if (appendixBytes is not null) AppendPdfBytes(appendixBytes);
+        }
+
+        using var ms = new MemoryStream();
+        merged.Save(ms, false);
+        return ms.ToArray();
+    }
+
+    private string ResolveUploadsRoot()
+    {
+        var customUploads = _configuration["Uploads:Path"]?.Trim() ?? _configuration["Uploads__Path"]?.Trim();
+        return !string.IsNullOrEmpty(customUploads)
+            ? customUploads
+            : Path.Combine(_env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot"), "uploads");
+    }
+
+    private static byte[]? TryReadTenantDocumentPdfBytes(string? url, string uploadsRoot)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return null;
+
+        var pathSegment = url.Trim();
+        if (pathSegment.Contains("?")) pathSegment = pathSegment[..pathSegment.IndexOf('?')];
+        if (pathSegment.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            pathSegment.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                pathSegment = new Uri(pathSegment).AbsolutePath;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        pathSegment = pathSegment.TrimStart('/');
+        if (!pathSegment.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var relativePath = pathSegment["uploads/".Length..];
+        var fullPath = Path.Combine(uploadsRoot, relativePath);
+        if (!System.IO.File.Exists(fullPath))
+            return null;
+        if (!string.Equals(Path.GetExtension(fullPath), ".pdf", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        try
+        {
+            return System.IO.File.ReadAllBytes(fullPath);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static PackageDto ToDto(TourPackage p)

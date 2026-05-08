@@ -42,6 +42,7 @@ public sealed class AdminTenantsController : ControllerBase
         public string? PdfCoverTitle { get; init; }
         public string? PdfPrimaryColor { get; init; }
         public string? PdfSecondaryColor { get; init; }
+        public string? PdfTemplateKey { get; init; }
         public bool? PdfShowBankDetails { get; init; }
         public bool? PdfShowQrCodes { get; init; }
         public List<TenantDocumentDto>? Documents { get; init; }
@@ -72,6 +73,8 @@ public sealed class AdminTenantsController : ControllerBase
         public IFormFile? RegistrationPdf { get; set; }
         public IFormFile? PanPdf { get; set; }
         public IFormFile? GstPdf { get; set; }
+        public IFormFile? PdfCoverPage { get; set; }
+        public List<IFormFile>? PdfAppendixPages { get; set; }
     }
 
     public sealed class UpdateTenantRequestDto : CreateTenantRequestDto
@@ -80,6 +83,7 @@ public sealed class AdminTenantsController : ControllerBase
         public string? PdfCoverTitle { get; set; }
         public string? PdfPrimaryColor { get; set; }
         public string? PdfSecondaryColor { get; set; }
+        public string? PdfTemplateKey { get; set; }
         public bool? PdfShowBankDetails { get; set; }
         public bool? PdfShowQrCodes { get; set; }
         public string? DefaultUserId { get; set; }
@@ -172,9 +176,8 @@ public sealed class AdminTenantsController : ControllerBase
         };
 
         _db.Tenants.Add(tenant);
-        await _db.SaveChangesAsync(ct);
-
         await UpsertTenantDocumentsAsync(tenant, request, ct);
+        await _db.SaveChangesAsync(ct);
 
         return CreatedAtAction(nameof(GetTenantById), new { id = tenant.Id }, ApiResponse<TenantDto>.Ok(ToDto(tenant)));
     }
@@ -200,26 +203,7 @@ public sealed class AdminTenantsController : ControllerBase
                 return BadRequest(ApiResponse<TenantDto>.Fail("A tenant with this email already exists. Use a different email."));
         }
 
-        tenant.Name = request.Name.Trim();
-        tenant.Code = newCode;
-        tenant.ContactPerson = request.ContactPerson.Trim();
-        tenant.Email = newEmail;
-        tenant.Phone = request.Phone.Trim();
-        tenant.Address = request.Address.Trim();
-        tenant.IsActive = request.IsActive;
-        tenant.EnabledModules = request.EnabledModules?.ToList() ?? [];
-        tenant.DefaultUserId = Guid.TryParse(request.DefaultUserId, out var du) ? du : null;
-        tenant.PlanId = Guid.TryParse(request.PlanId, out var pid) ? pid : null;
-        tenant.BillingCycle = request.BillingCycle;
-        tenant.SeatsPurchased = request.SeatsPurchased;
-        tenant.SubscriptionStatus = request.SubscriptionStatus;
-        tenant.SubscriptionStartUtc = request.SubscriptionStartUtc;
-        tenant.SubscriptionEndUtc = request.SubscriptionEndUtc;
-        tenant.PdfCoverTitle = string.IsNullOrWhiteSpace(request.PdfCoverTitle) ? null : request.PdfCoverTitle.Trim();
-        tenant.PdfPrimaryColor = string.IsNullOrWhiteSpace(request.PdfPrimaryColor) ? null : request.PdfPrimaryColor.Trim();
-        tenant.PdfSecondaryColor = string.IsNullOrWhiteSpace(request.PdfSecondaryColor) ? null : request.PdfSecondaryColor.Trim();
-        tenant.PdfShowBankDetails = request.PdfShowBankDetails;
-        tenant.PdfShowQrCodes = request.PdfShowQrCodes;
+        ApplyTenantUpdates(tenant, request, newCode, newEmail);
 
         // When tenant is deactivated, deactivate all its users
         if (!request.IsActive)
@@ -233,8 +217,37 @@ public sealed class AdminTenantsController : ControllerBase
             }
         }
 
-        await _db.SaveChangesAsync(ct);
-        await UpsertTenantDocumentsAsync(tenant, request, ct);
+        try
+        {
+            await UpsertTenantDocumentsAsync(tenant, request, ct);
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Retry once with a fresh entity snapshot to handle benign races.
+            _db.ChangeTracker.Clear();
+            var freshTenant = await _db.Tenants
+                .IgnoreQueryFilters()
+                .Include(t => t.Documents)
+                .FirstOrDefaultAsync(t => t.Id == id, ct);
+
+            if (freshTenant is null)
+            {
+                return NotFound(ApiResponse<TenantDto>.Fail("Tenant not found (it may have been deleted)."));
+            }
+
+            ApplyTenantUpdates(freshTenant, request, newCode, newEmail);
+            try
+            {
+                await UpsertTenantDocumentsAsync(freshTenant, request, ct);
+                await _db.SaveChangesAsync(ct);
+                tenant = freshTenant;
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(ApiResponse<TenantDto>.Fail("Tenant was modified by another request. Please refresh and try again."));
+            }
+        }
 
         var activeUserCount = await _db.Users.CountAsync(u => u.TenantId == tenant.Id && u.IsActive, ct);
         return ApiResponse<TenantDto>.Ok(ToDto(tenant, activeUserCount));
@@ -264,32 +277,90 @@ public sealed class AdminTenantsController : ControllerBase
 
     private async Task UpsertTenantDocumentsAsync(Tenant tenant, CreateTenantRequestDto request, CancellationToken ct)
     {
-        tenant.Documents ??= [];
 
         if (request.LogoFile is not null)
         {
             var url = await _storage.SaveTenantFileAsync(tenant.Id, "logo", request.LogoFile, ct);
             tenant.LogoUrl = url;
-            tenant.Documents.Add(new TenantDocument { TenantId = tenant.Id, Type = TenantDocumentType.Logo, FileName = request.LogoFile.FileName, Url = url });
+            _db.TenantDocuments.Add(new TenantDocument { TenantId = tenant.Id, Type = TenantDocumentType.Logo, FileName = request.LogoFile.FileName, Url = url });
         }
 
         if (request.RegistrationPdf is not null)
         {
             var url = await _storage.SaveTenantFileAsync(tenant.Id, "documents", request.RegistrationPdf, ct);
-            tenant.Documents.Add(new TenantDocument { TenantId = tenant.Id, Type = TenantDocumentType.Registration, FileName = request.RegistrationPdf.FileName, Url = url });
+            _db.TenantDocuments.Add(new TenantDocument { TenantId = tenant.Id, Type = TenantDocumentType.Registration, FileName = request.RegistrationPdf.FileName, Url = url });
         }
         if (request.PanPdf is not null)
         {
             var url = await _storage.SaveTenantFileAsync(tenant.Id, "documents", request.PanPdf, ct);
-            tenant.Documents.Add(new TenantDocument { TenantId = tenant.Id, Type = TenantDocumentType.PAN, FileName = request.PanPdf.FileName, Url = url });
+            _db.TenantDocuments.Add(new TenantDocument { TenantId = tenant.Id, Type = TenantDocumentType.PAN, FileName = request.PanPdf.FileName, Url = url });
         }
         if (request.GstPdf is not null)
         {
             var url = await _storage.SaveTenantFileAsync(tenant.Id, "documents", request.GstPdf, ct);
-            tenant.Documents.Add(new TenantDocument { TenantId = tenant.Id, Type = TenantDocumentType.GST, FileName = request.GstPdf.FileName, Url = url });
+            _db.TenantDocuments.Add(new TenantDocument { TenantId = tenant.Id, Type = TenantDocumentType.GST, FileName = request.GstPdf.FileName, Url = url });
         }
 
-        await _db.SaveChangesAsync(ct);
+        if (request.PdfCoverPage is not null)
+        {
+            var now = DateTime.UtcNow;
+            await _db.TenantDocuments
+                .IgnoreQueryFilters()
+                .Where(d => d.TenantId == tenant.Id && d.Type == TenantDocumentType.PdfCoverPage && !d.IsDeleted)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(d => d.IsDeleted, _ => true)
+                    .SetProperty(d => d.DeletedAtUtc, _ => now), ct);
+
+            var url = await _storage.SaveTenantFileAsync(tenant.Id, "pdf-cover", request.PdfCoverPage, ct);
+            _db.TenantDocuments.Add(new TenantDocument
+            {
+                TenantId = tenant.Id,
+                Type = TenantDocumentType.PdfCoverPage,
+                FileName = request.PdfCoverPage.FileName,
+                Url = url
+            });
+        }
+
+        if (request.PdfAppendixPages is { Count: > 0 })
+        {
+            foreach (var appendix in request.PdfAppendixPages.Where(a => a is not null))
+            {
+                var url = await _storage.SaveTenantFileAsync(tenant.Id, "pdf-appendix", appendix, ct);
+                _db.TenantDocuments.Add(new TenantDocument
+                {
+                    TenantId = tenant.Id,
+                    Type = TenantDocumentType.PdfAppendixPage,
+                    FileName = appendix.FileName,
+                    Url = url
+                });
+            }
+        }
+
+    }
+
+    private static void ApplyTenantUpdates(Tenant tenant, UpdateTenantRequestDto request, string newCode, string newEmail)
+    {
+        tenant.Name = request.Name.Trim();
+        tenant.Code = newCode;
+        tenant.ContactPerson = request.ContactPerson.Trim();
+        tenant.Email = newEmail;
+        tenant.Phone = request.Phone.Trim();
+        tenant.Address = request.Address.Trim();
+        tenant.IsActive = request.IsActive;
+        tenant.EnabledModules = request.EnabledModules?.ToList() ?? [];
+        tenant.DefaultUserId = Guid.TryParse(request.DefaultUserId, out var du) ? du : null;
+        tenant.PlanId = Guid.TryParse(request.PlanId, out var pid) ? pid : null;
+        tenant.BillingCycle = request.BillingCycle;
+        tenant.SeatsPurchased = request.SeatsPurchased;
+        tenant.SubscriptionStatus = request.SubscriptionStatus;
+        tenant.SubscriptionStartUtc = request.SubscriptionStartUtc;
+        tenant.SubscriptionEndUtc = request.SubscriptionEndUtc;
+        tenant.PdfCoverTitle = string.IsNullOrWhiteSpace(request.PdfCoverTitle) ? null : request.PdfCoverTitle.Trim();
+        tenant.PdfPrimaryColor = string.IsNullOrWhiteSpace(request.PdfPrimaryColor) ? null : request.PdfPrimaryColor.Trim();
+        tenant.PdfSecondaryColor = string.IsNullOrWhiteSpace(request.PdfSecondaryColor) ? null : request.PdfSecondaryColor.Trim();
+        tenant.PdfTemplateKey = string.IsNullOrWhiteSpace(request.PdfTemplateKey) ? null : request.PdfTemplateKey.Trim();
+        tenant.PdfShowBankDetails = request.PdfShowBankDetails;
+        tenant.PdfShowQrCodes = request.PdfShowQrCodes;
     }
 
     private static TenantDto ToDto(Tenant t, int? activeUserCount = null) =>
@@ -306,6 +377,7 @@ public sealed class AdminTenantsController : ControllerBase
             PdfCoverTitle = t.PdfCoverTitle,
             PdfPrimaryColor = t.PdfPrimaryColor,
             PdfSecondaryColor = t.PdfSecondaryColor,
+            PdfTemplateKey = t.PdfTemplateKey,
             PdfShowBankDetails = t.PdfShowBankDetails,
             PdfShowQrCodes = t.PdfShowQrCodes,
             Documents = t.Documents.Select(d => new TenantDocumentDto { Type = d.Type, FileName = d.FileName, Url = d.Url }).ToList(),

@@ -237,6 +237,10 @@ using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync();
+        // Backward-safe hotfix: ensure newly introduced user permission column exists
+        // even if migration history is out-of-sync in a local DB.
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"CanPriceOverride\" boolean NOT NULL DEFAULT false;");
 
         var superAdminEnabled = app.Configuration.GetValue<bool>("SuperAdmin:Enabled", true);
         if (superAdminEnabled)
@@ -292,28 +296,6 @@ using (var scope = app.Services.CreateScope())
                 IsActive = true
             });
 
-            await db.SaveChangesAsync();
-        }
-
-        if (!await db.PdfTemplates.AnyAsync())
-        {
-            db.PdfTemplates.AddRange(
-                new PdfTemplate
-                {
-                    Key = "classic-quote",
-                    Name = "Classic Quote",
-                    Description = "System template: classic quote design",
-                    IsSystem = true,
-                    IsActive = true
-                },
-                new PdfTemplate
-                {
-                    Key = "modern-itinerary",
-                    Name = "Modern Itinerary",
-                    Description = "System template: modern itinerary design",
-                    IsSystem = true,
-                    IsActive = true
-                });
             await db.SaveChangesAsync();
         }
 

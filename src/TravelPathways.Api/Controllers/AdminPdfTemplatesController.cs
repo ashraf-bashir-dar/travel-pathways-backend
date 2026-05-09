@@ -67,6 +67,10 @@ public sealed class AdminPdfTemplatesController : ControllerBase
         if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(name))
             return BadRequest(ApiResponse<PdfTemplateDto>.Fail("Template key and name are required."));
 
+        var htmlTemplate = request.HtmlTemplate?.Trim();
+        if (string.IsNullOrWhiteSpace(htmlTemplate))
+            return BadRequest(ApiResponse<PdfTemplateDto>.Fail("Html template body is required."));
+
         var exists = await _db.PdfTemplates.AnyAsync(t => t.Key == key, ct);
         if (exists) return BadRequest(ApiResponse<PdfTemplateDto>.Fail("Template key already exists."));
 
@@ -77,7 +81,7 @@ public sealed class AdminPdfTemplatesController : ControllerBase
             Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
             IsSystem = false,
             IsActive = request.IsActive,
-            HtmlTemplate = string.IsNullOrWhiteSpace(request.HtmlTemplate) ? null : request.HtmlTemplate.Trim()
+            HtmlTemplate = htmlTemplate
         };
         _db.PdfTemplates.Add(entity);
         await _db.SaveChangesAsync(ct);
@@ -97,14 +101,15 @@ public sealed class AdminPdfTemplatesController : ControllerBase
 
         var keyExists = await _db.PdfTemplates.AnyAsync(t => t.Id != id && t.Key == key, ct);
         if (keyExists) return BadRequest(ApiResponse<PdfTemplateDto>.Fail("Template key already exists."));
-        if (item.IsSystem && key != item.Key)
-            return BadRequest(ApiResponse<PdfTemplateDto>.Fail("System template key cannot be changed."));
 
         item.Key = key;
         item.Name = name;
         item.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
         item.IsActive = request.IsActive;
-        item.HtmlTemplate = string.IsNullOrWhiteSpace(request.HtmlTemplate) ? null : request.HtmlTemplate.Trim();
+        var htmlTemplateUpdate = request.HtmlTemplate?.Trim();
+        if (string.IsNullOrWhiteSpace(htmlTemplateUpdate))
+            return BadRequest(ApiResponse<PdfTemplateDto>.Fail("Html template body is required."));
+        item.HtmlTemplate = htmlTemplateUpdate;
 
         await _db.SaveChangesAsync(ct);
         return ApiResponse<PdfTemplateDto>.Ok(ToDto(item));
@@ -115,7 +120,6 @@ public sealed class AdminPdfTemplatesController : ControllerBase
     {
         var item = await _db.PdfTemplates.FirstOrDefaultAsync(t => t.Id == id, ct);
         if (item is null) return NotFound(ApiResponse<object>.Fail("Template not found"));
-        if (item.IsSystem) return BadRequest(ApiResponse<object>.Fail("System template cannot be deleted."));
 
         item.IsDeleted = true;
         item.DeletedAtUtc = DateTime.UtcNow;

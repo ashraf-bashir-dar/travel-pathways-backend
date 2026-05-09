@@ -16,12 +16,5 @@ CREATE TABLE IF NOT EXISTS "PdfTemplates" (
 
 CREATE UNIQUE INDEX IF NOT EXISTS "IX_PdfTemplates_Key" ON "PdfTemplates" ("Key");
 
-INSERT INTO "PdfTemplates"
-("Id","Key","Name","Description","IsSystem","IsActive","HtmlTemplate","CreatedAt","UpdatedAt","IsDeleted","DeletedAtUtc")
-SELECT gen_random_uuid(),'classic-quote','Classic Quote','System template: classic quote design',TRUE,TRUE,NULL,now(),now(),FALSE,NULL
-WHERE NOT EXISTS (SELECT 1 FROM "PdfTemplates" WHERE "Key"='classic-quote');
-
-INSERT INTO "PdfTemplates"
-("Id","Key","Name","Description","IsSystem","IsActive","HtmlTemplate","CreatedAt","UpdatedAt","IsDeleted","DeletedAtUtc")
-SELECT gen_random_uuid(),'modern-itinerary','Modern Itinerary','System template: modern itinerary design',TRUE,TRUE,NULL,now(),now(),FALSE,NULL
-WHERE NOT EXISTS (SELECT 1 FROM "PdfTemplates" WHERE "Key"='modern-itinerary');
+-- Default HTML templates are no longer inserted: each PdfTemplates row must have non-empty HtmlTemplate.
+-- Sample layout: Api/Data/DefaultHtmlTemplates/classic-quote-replica.html

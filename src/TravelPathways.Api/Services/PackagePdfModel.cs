@@ -57,6 +57,9 @@ public sealed class PackagePdfModel
     public string? CustomHtmlTemplate { get; init; }
     public bool? ShowBankDetails { get; init; }
     public bool? ShowQrCodes { get; init; }
+    public List<string> TermsAndConditions { get; init; } = [];
+    public List<string> CancellationPolicy { get; init; } = [];
+    public List<string> SupplementCosts { get; init; } = [];
 }
 
 public sealed class BankAccountItem
@@ -77,6 +80,14 @@ public sealed class QrCodeItem
 public sealed class DayItem
 {
     public int DayNumber { get; init; }
+    /// <summary>Display date for this day (e.g. 12 May 2026).</summary>
+    public string DateLabel { get; init; } = "";
+    /// <summary>Hotel/houseboat name mapped to this day itinerary row.</summary>
+    public string? HotelName { get; init; }
+    /// <summary>Hotel area/location mapped to this day itinerary row.</summary>
+    public string? HotelLocation { get; init; }
+    /// <summary>Representative image URL for this day (usually hotel's first image).</summary>
+    public string? DayImageUrl { get; init; }
     public string Title { get; init; } = "";
     public string Description { get; init; } = "";
     /// <summary>Extra beds for this day. Shown in PDF when > 0.</summary>

@@ -39,6 +39,11 @@ public sealed class AppUser : EntityBase
 
     /// <summary>If true, user can see the Cost Bifurcation section on the package form. Set by Tenant Admin when editing users.</summary>
     public bool CanViewCostBifurcation { get; set; }
+    /// <summary>
+    /// If true, user can override package selling price by entering margin on top of base cost.
+    /// Mutually exclusive with <see cref="CanViewCostBifurcation"/>.
+    /// </summary>
+    public bool CanPriceOverride { get; set; }
 
     // Stored as PBKDF2 hash string (see PasswordHasher)
     public string PasswordHash { get; set; } = string.Empty;

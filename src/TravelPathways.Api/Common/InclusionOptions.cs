@@ -5,18 +5,18 @@ public static class InclusionOptions
 {
     public static readonly IReadOnlyList<(string Id, string Label)> All = new[]
     {
+        ("welcome_greeting", "Welcome and greeting"),
+        ("sightseeing_as_per_itinerary", "Sightseeing as per itinerary"),
         ("shikara_1hr", "1-hour Shikara ride (complimentary)"),
-        ("toll_tax_driver", "Toll tax, diesel, parking and driver allowances"),
+        ("accommodation_mentioned_hotels", "Accommodation in above mentioned hotels"),
+        ("transportation", "Transportation"),
+        ("meals_dinner_breakfast", "Meals (Dinner and Breakfast)"),
         ("gondola_phase1", "Gondola tickets (Phase 1)"),
         ("gondola_phase2", "Gondola tickets (Phase 2)"),
         ("mugal_gardens", "Entry tickets for Srinagar Mughal Gardens"),
-        ("air_train_coolie", "Air or train fare, coolie/porter charges and camera charges"),
-        ("donations_temples", "Donations at temples"),
         ("extended_stay", "Extended stay or travel due to any reason"),
         ("meals_not_specified", "Any meals not specified in the tour cost"),
-        ("personal_expenses", "Personal expenses (e.g. tips, telephone, laundry, liquor)"),
-        ("union_cabs_pony", "Local cabs in Gulmarg, Sonmarg, Pahalgam and pony rides"),
-        ("health_insurance", "Health insurance")
+        ("union_cabs_pony", "Local cabs in Gulmarg, Sonmarg, Pahalgam and pony rides")
     };
 
     public static IReadOnlyList<string> GetInclusionLabels(IEnumerable<string> selectedIds)

@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Travel Itinerary</title>
+  <style>
+    /*
+      Professional package PDF — light red, black & white colourway.
+      Full sibling of professional-package-pdf.html (same layout/tokens).
+
+      BRAND COLOURS:
+        --tp-primary = black (structure, headings, quote amount)
+        --tp-secondary = light red (ribbon accent, highlights)
+        Page bg: white; surfaces: off-white (--surface).
+
+      Tweak red: e.g. #fca5a5 softer, #fb7185 slightly deeper.
+
+      Suggested pairs (other files):
+        teal + terracotta: professional-package-pdf.html
+        navy + coral: professional-package-pdf-navy-coral.html
+
+      Tokens: {{CoverTitle}} {{AgencyLogoHtml}} {{PackageName}} {{ClientName}} {{ClientPhone}} {{ClientEmail}}
+      {{StartDate}} {{EndDate}} {{DaysLabel}} {{DestinationLine}} {{PickUpLocation}} {{DropLocation}}
+      {{MealPlan}} {{PaxSummary}} {{FinalAmount}} {{TotalAmount}} {{Discount}} {{AdvanceAmount}}
+      {{BalanceAmount}} {{PerPersonAmount}} {{ItineraryOverviewHtml}} {{HotelsHtml}} {{DaysHtml}}
+      {{InclusionsHtml}} {{ExclusionsHtml}} {{TermsHtml}} {{CancellationHtml}} {{SupplementHtml}}
+      {{BankRowsHtml}} {{QrHtml}} {{AgencyName}} {{AgencyPhone}} {{AgencyEmail}} {{ManagingDirectorName}} {{GeneratedDate}}
+
+      Legacy: {{PrimaryColor}} / {{SecondaryColor}} still work if present but are not required here.
+    */
+    :root {
+      /* Black + light red (+ white / neutral greys) */
+      --tp-primary: #111111;
+      --tp-secondary: #f87171;
+
+      --ink: #0a0a0a;
+      --muted: #525252;
+      --line: #e5e5e5;
+      --surface: #fafafa;
+      --primary: var(--tp-primary);
+      --secondary: var(--tp-secondary);
+    }
+    * { box-sizing: border-box; }
+    html {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body {
+      margin: 0;
+      padding: 0 0 28px;
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.5;
+      color: var(--ink);
+      background: #fff;
+    }
+
+    /* --- Top ribbon --- */
+    .doc-shell {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 16px;
+    }
+    .ribbon {
+      height: 6px;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      border-radius: 0 0 6px 6px;
+      margin-bottom: 18px;
+    }
+
+    /* --- Header --- */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand .logo-slot { margin-bottom: 6px; min-height: 48px; }
+    .brand .logo-slot img { max-height: 52px; max-width: 200px; object-fit: contain; }
+    .proposal-title {
+      margin: 0;
+      font-size: 20pt;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      line-height: 1.2;
+    }
+    .package-line {
+      margin: 6px 0 0;
+      font-size: 11pt;
+      font-weight: 600;
+      color: var(--secondary);
+    }
+    .reference-pill {
+      flex-shrink: 0;
+      text-align: right;
+      font-size: 8.5pt;
+    }
+    .reference-pill span {
+      display: inline-block;
+      padding: 6px 12px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .reference-pill strong { color: var(--ink); display: block; margin-top: 4px; font-size: 10pt; }
+
+    /* --- Client strip --- */
+    .client-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 24px;
+      padding: 12px 14px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      margin-bottom: 18px;
+    }
+    .client-strip dl { margin: 0; min-width: 140px; }
+    .client-strip dt {
+      font-size: 7.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .client-strip dd { margin: 2px 0 0; font-weight: 600; }
+
+    /* --- Two-column facts --- */
+    .facts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .fact-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px 14px;
+      background: #fff;
+    }
+    .fact-card h3 {
+      margin: 0 0 10px;
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+    .fact-rows { display: table; width: 100%; font-size: 9.5pt; }
+    .fact-rows .row { display: table-row; }
+    .fact-rows .row > span {
+      display: table-cell;
+      padding: 4px 8px 4px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .fact-rows .row > span:first-child { color: var(--muted); width: 42%; }
+    .fact-rows .row:last-child > span { border-bottom: none; }
+
+    /* --- Pricing --- */
+    .pricing-panel {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      margin-bottom: 20px;
+    }
+    .pricing-head {
+      padding: 10px 14px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: #fff;
+      font-size: 8.5pt;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .pricing-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      background: #fff;
+    }
+    .pricing-hero {
+      padding: 16px 18px;
+      border-right: 1px solid var(--line);
+      text-align: center;
+      background: linear-gradient(180deg, #fafbfc 0%, #fff 100%);
+    }
+    .pricing-hero .label { font-size: 8pt; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .pricing-hero .amount {
+      font-size: 22pt;
+      font-weight: 800;
+      color: var(--primary);
+      margin: 6px 0 4px;
+      letter-spacing: -0.02em;
+    }
+    .pricing-hero .note { font-size: 8.5pt; color: var(--muted); }
+    .pricing-side {
+      padding: 14px 16px;
+      font-size: 9.5pt;
+    }
+    .pricing-side .line {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px dashed #e2e8f0;
+    }
+    .pricing-side .line:last-child { border-bottom: none; }
+    .pricing-side .muted { color: var(--muted); }
+
+    /* --- Section titles --- */
+    h2.section-title {
+      margin: 22px 0 10px;
+      font-size: 9.5pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--primary);
+      padding-bottom: 6px;
+      border-bottom: 2px solid var(--line);
+    }
+    h2.section-title:first-of-type { margin-top: 0; }
+
+    /* --- Server-generated blocks (hotels, days, itinerary) --- */
+    .acc-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      page-break-inside: avoid;
+      background: #fff;
+    }
+    .acc-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .acc-name { font-size: 11pt; font-weight: 700; }
+    .pill {
+      font-size: 7.5pt;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .acc-meta { font-size: 9pt; color: var(--muted); }
+    .acc-divider { height: 1px; background: var(--line); margin: 8px 0; }
+    .acc-imgs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .acc-imgs img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+    }
+
+    .day-block {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      margin-bottom: 10px;
+      overflow: hidden;
+      page-break-inside: avoid;
+    }
+    .day-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+    .day-no {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-size: 9pt;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .day-title { font-weight: 700; font-size: 10pt; }
+    .day-desc { padding: 12px 14px; white-space: pre-wrap; color: var(--ink); }
+
+    /* Itinerary overview cards from API */
+    .itv-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      page-break-inside: avoid;
+      background: #fff;
+    }
+    .itv-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 14px;
+      margin: 0 0 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+    .itv-day-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 8pt;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #fff;
+      background: var(--primary);
+      border: 1px solid rgba(248, 113, 113, 0.5);
+    }
+    .itv-date {
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: var(--secondary);
+    }
+    .itv-desc { color: var(--ink); white-space: pre-wrap; line-height: 1.55; }
+
+    /* Lists --- */
+    .dual-column {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .list-panel {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px 14px;
+      page-break-inside: avoid;
+    }
+    .list-panel h3 {
+      margin: 0 0 10px;
+      font-size: 9pt;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .list-panel.incl h3 { color: #166534; }
+    .list-panel.excl h3 { color: #991b1b; }
+    .list-panel ul { margin: 0; padding-left: 18px; }
+    .list-panel li { margin: 5px 0; }
+
+    /* Policy blocks */
+    .policy-block {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      page-break-inside: avoid;
+      font-size: 9.5pt;
+    }
+    .policy-block h3 {
+      margin: 0 0 8px;
+      font-size: 10pt;
+      font-weight: 700;
+    }
+    .policy-block ul { margin: 0; padding-left: 18px; }
+
+    /* Bank */
+    .bank-wrap { overflow: hidden; border-radius: 10px; border: 1px solid var(--line); margin-bottom: 16px; }
+    table.bank {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+    }
+    table.bank th {
+      background: var(--primary);
+      color: #fff;
+      text-align: left;
+      padding: 9px 10px;
+      font-weight: 700;
+    }
+    table.bank td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+    }
+    table.bank tr:last-child td { border-bottom: none; }
+
+    /* QR */
+    .qr-section {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 12px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      margin-bottom: 18px;
+      page-break-inside: avoid;
+    }
+    .qr-section > div {
+      text-align: center;
+      padding: 8px;
+      background: #fff;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      font-size: 8pt;
+      color: var(--muted);
+    }
+    .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
+
+
+    /* Last page — About us & leadership */
+    .last-page {
+      page-break-before: always;
+      margin-top: 8px;
+      padding-top: 8px;
+    }
+    .last-page .about-copy {
+      font-size: 10.5pt;
+      line-height: 1.7;
+      color: var(--ink);
+      margin: 0 0 18px;
+    }
+    .last-page .about-copy p {
+      margin: 0 0 10px;
+    }
+    .leadership-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 18px;
+      background: var(--surface);
+    }
+    .leadership-card h3 {
+      margin: 0 0 12px;
+      font-size: 10pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--secondary);
+    }
+    .leadership-card dl {
+      margin: 0;
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 8px 16px;
+      font-size: 10.5pt;
+    }
+    .leadership-card dt {
+      margin: 0;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .leadership-card dd {
+      margin: 0;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    /* Page 1 — greeting letter */
+    .greeting-block {
+      margin-bottom: 20px;
+      padding: 16px 18px;
+      background: linear-gradient(180deg, rgba(248, 113, 113, 0.1) 0%, transparent 100%);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      page-break-inside: avoid;
+    }
+    .greeting-block .salutation {
+      margin: 0 0 12px;
+      font-size: 11pt;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .greeting-block p {
+      margin: 0 0 10px;
+      font-size: 10.5pt;
+      line-height: 1.65;
+      color: var(--ink);
+    }
+    .greeting-block p:last-child {
+      margin-bottom: 0;
+    }
+    .greeting-block .lead {
+      font-weight: 600;
+      color: var(--secondary);
+    }
+
+    @media print {
+      .doc-shell { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ribbon"></div>
+  <div class="doc-shell">
+    <header class="header">
+      <div class="brand">
+        <div class="logo-slot">{{AgencyLogoHtml}}</div>
+        <h1 class="proposal-title">Travel Itinerary</h1>
+        <p class="package-line">{{DaysLabel}}</p>
+      </div>
+      <div class="reference-pill">      
+       
+      </div>
+    </header>
+
+    <section class="greeting-block" aria-label="Greeting">
+      <p class="salutation">Dear {{ClientName}},</p>
+      <p class="lead">Thank you for choosing {{AgencyName}} for your tour.</p>
+      <p>
+        We are delighted to be a part of your journey and look forward to providing you with a memorable travel experience filled with comfort, beauty, and unforgettable moments.
+      </p>
+    </section>
+
+    <section class="client-strip">
+      <dl><dt>Guest</dt><dd>{{ClientName}}</dd></dl>
+      <dl><dt>Phone</dt><dd>{{ClientPhone}}</dd></dl>
+      <dl><dt>Email</dt><dd>{{ClientEmail}}</dd></dl>
+      <dl><dt>Pax</dt><dd>{{PaxSummary}}</dd></dl>
+      <dl><dt>Meal plan</dt><dd>{{MealPlan}}</dd></dl>
+    </section>
+
+    <div class="facts-grid">
+      <div class="fact-card">
+        <h3>Trip</h3>
+        <div class="fact-rows">
+          <div class="row"><span>Arrival</span><span>{{StartDate}}</span></div>
+          <div class="row"><span>Departure</span><span>{{EndDate}}</span></div>
+          <div class="row"><span>Duration</span><span>{{DaysLabel}}</span></div>
+          <div class="row"><span>Destination</span><span>{{DestinationLine}}</span></div>
+        </div>
+      </div>
+      <div class="fact-card">
+        <h3>Transfer</h3>
+        <div class="fact-rows">
+          <div class="row"><span>Pick-up</span><span>{{PickUpLocation}}</span></div>
+          <div class="row"><span>Drop-off</span><span>{{DropLocation}}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pricing-panel">
+      <div class="pricing-head">Quote summary</div>
+      <div class="pricing-body">
+        <div class="pricing-hero">
+          <div class="label">Quoted amount</div>
+          <div class="amount">{{FinalAmount}}</div>          
+        </div>
+        <div class="pricing-side">          
+          
+        </div>
+      </div>
+    </div>
+
+    <h2 class="section-title">Itinerary overview</h2>
+    {{ItineraryOverviewHtml}}
+
+    <h2 class="section-title">Where you stay</h2>
+    {{HotelsHtml}}
+    
+
+    <div class="dual-column">
+      <div class="list-panel incl">
+        <h3>Inclusions</h3>
+        <ul>{{InclusionsHtml}}</ul>
+      </div>
+      <div class="list-panel excl">
+        <h3>Exclusions</h3>
+        <ul>{{ExclusionsHtml}}</ul>
+      </div>
+    </div>
+
+    <div class="policy-block">
+      <h3>Terms &amp; conditions</h3>
+      <ul>{{TermsHtml}}</ul>
+    </div>
+    <div class="policy-block">
+      <h3>Cancellation</h3>
+      <ul>{{CancellationHtml}}</ul>
+    </div>
+    <div class="policy-block">
+      <h3>Supplements &amp; notes</h3>
+      <ul>{{SupplementHtml}}</ul>
+    </div>
+
+    <h2 class="section-title">Bank details</h2>
+    <div class="bank-wrap">
+      <table class="bank">
+        <thead>
+          <tr>
+            <th>Account holder</th>
+            <th>Bank</th>
+            <th>Account no.</th>
+            <th>IFSC</th>
+          </tr>
+        </thead>
+        <tbody>{{BankRowsHtml}}</tbody>
+      </table>
+    </div>
+
+    <h2 class="section-title">Pay online</h2>
+    <div class="qr-section">{{QrHtml}}</div>
+
+    <section class="last-page" id="about-us">
+      <h2 class="section-title">About us</h2>
+      <div class="about-copy">
+        <p>
+          <strong>{{AgencyName}}</strong> is committed to delivering thoughtful itineraries, reliable service, and enriching travel experiences.
+          Our team works closely with guests to ensure comfort, clarity, and memorable moments from arrival to departure.
+        </p>
+        <p>
+          We thank you for your trust and look forward to being part of your journey.
+        </p>
+      </div>
+      <div class="leadership-card">
+        <h3>Leadership &amp; contact</h3>
+        <dl>
+          <dt>Managing Director</dt>
+          <dd>{{ManagingDirectorName}}</dd>
+          <dt>Sales Head</dt>
+          <dd>Mr Ashraf Dar</dd>
+          <dt>Contact</dt>
+          <dd>9906372023</dd>
+        </dl>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

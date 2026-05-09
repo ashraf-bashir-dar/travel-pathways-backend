@@ -205,6 +205,24 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<Tenant>()
             .Property(t => t.EnabledModules)
             .Metadata.SetValueComparer(new JsonValueComparer<List<AppModuleKey>, AppModuleKey>());
+        modelBuilder.Entity<Tenant>()
+            .Property(t => t.TermsAndConditions)
+            .HasConversion(new JsonValueConverter<List<string>>());
+        modelBuilder.Entity<Tenant>()
+            .Property(t => t.TermsAndConditions)
+            .Metadata.SetValueComparer(new JsonValueComparer<List<string>, string>());
+        modelBuilder.Entity<Tenant>()
+            .Property(t => t.CancellationPolicy)
+            .HasConversion(new JsonValueConverter<List<string>>());
+        modelBuilder.Entity<Tenant>()
+            .Property(t => t.CancellationPolicy)
+            .Metadata.SetValueComparer(new JsonValueComparer<List<string>, string>());
+        modelBuilder.Entity<Tenant>()
+            .Property(t => t.SupplementCosts)
+            .HasConversion(new JsonValueConverter<List<string>>());
+        modelBuilder.Entity<Tenant>()
+            .Property(t => t.SupplementCosts)
+            .Metadata.SetValueComparer(new JsonValueComparer<List<string>, string>());
 
         modelBuilder.Entity<Tenant>()
             .HasOne(t => t.DefaultUser)

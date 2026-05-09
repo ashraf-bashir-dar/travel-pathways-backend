@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="description" content="Client PDF Option 3 — Teal &amp; sand executive itinerary" />
+  <title>Travel Itinerary — Teal Sand</title>
+  <style>
+    /*
+      CLIENT PDF OPTION 3 — Teal &amp; Sand (ocean + warm sand).
+
+      Tokens: {{CoverTitle}} {{AgencyLogoHtml}} {{PackageName}} {{ClientName}} {{ClientPhone}} {{ClientEmail}}
+      {{StartDate}} {{EndDate}} {{DaysLabel}} {{DestinationLine}} {{PickUpLocation}} {{DropLocation}}
+      {{MealPlan}} {{PaxSummary}} {{FinalAmount}} {{TotalAmount}} {{Discount}} {{AdvanceAmount}}
+      {{BalanceAmount}} {{PerPersonAmount}} {{ItineraryOverviewHtml}} {{HotelsHtml}} {{DaysHtml}}
+      {{InclusionsHtml}} {{ExclusionsHtml}} {{TermsHtml}} {{CancellationHtml}} {{SupplementHtml}}
+      {{BankRowsHtml}} {{QrHtml}} {{AgencyName}} {{AgencyPhone}} {{AgencyEmail}} {{ManagingDirectorName}} {{GeneratedDate}}
+
+      Legacy: {{PrimaryColor}} / {{SecondaryColor}} still work if present but are not required here.
+
+      The head title tag is browser metadata only; on-page premium styling is .title-block + .doc-eyebrow.
+      Agency address block is static in this file — change text if your office moves.
+    */
+    :root {
+      --tp-primary: #0a3d54;
+      --tp-secondary: #c9a574;
+      --ink: #1e293b;
+      --muted: #5c6b7a;
+      --line: #e2ded6;
+      --surface: #faf6ef;
+      --primary: var(--tp-primary);
+      --secondary: var(--tp-secondary);
+      --quote-amount: #7d5c32;
+      --shadow: 0 4px 24px rgba(10, 61, 84, 0.08);
+      --shadow-tight: 0 2px 8px rgba(10, 61, 84, 0.06);
+      --glow-gold: linear-gradient(135deg, rgba(201, 165, 116, 0.25) 0%, rgba(201, 165, 116, 0.05) 100%);
+    }
+    * { box-sizing: border-box; }
+    html {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body {
+      margin: 0;
+      padding: 0 0 32px;
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.55;
+      color: var(--ink);
+      background: linear-gradient(180deg, #eef6f3 0%, #ffffff 160px);
+    }
+
+    /* --- Top ribbon --- */
+    .doc-shell {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 4px 22px 36px;
+      background: #fff;
+      border-radius: 0 0 18px 18px;
+      box-shadow: 0 12px 48px rgba(12, 18, 32, 0.1);
+    }
+    .ribbon {
+      height: 12px;
+      margin-bottom: 0;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0) 55%),
+        linear-gradient(90deg, #042f3c 0%, #0a5c72 30%, #0f766e 55%, #c9a574 82%, #e8d4b8 100%);
+      border-radius: 0 0 14px 14px;
+      box-shadow: 0 6px 20px rgba(10, 61, 84, 0.12);
+    }
+
+    /* --- Header --- */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 22px;
+      margin-top: 22px;
+      padding-bottom: 18px;
+      border-bottom: none;
+      position: relative;
+    }
+    .header::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 1px;
+      background: linear-gradient(90deg, var(--secondary) 0%, var(--secondary) 72px, var(--line) 72px, var(--line) 100%);
+    }
+    .brand .logo-slot { margin-bottom: 8px; min-height: 48px; }
+    .brand .logo-slot img { max-height: 56px; max-width: 220px; object-fit: contain; }
+
+    /* Visible “title” stack — mirrors & elevates <title> for the PDF page */
+    .title-block {
+      position: relative;
+      padding-left: 18px;
+      margin-left: 2px;
+    }
+    .title-block::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 4px;
+      bottom: 4px;
+      width: 4px;
+      border-radius: 3px;
+      background: linear-gradient(180deg, var(--secondary) 0%, rgba(201, 162, 39, 0.35) 60%, var(--primary) 100%);
+      box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.25);
+    }
+    .doc-eyebrow {
+      margin: 0 0 6px;
+      font-size: 8.5pt;
+      font-weight: 800;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--secondary);
+    }
+    .doc-eyebrow span {
+      display: inline-block;
+      padding-bottom: 2px;
+      border-bottom: 1px solid rgba(201, 162, 39, 0.45);
+    }
+    .proposal-title {
+      margin: 0;
+      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-size: 26pt;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--primary);
+      line-height: 1.12;
+    }
+    .package-line {
+      margin: 10px 0 0;
+      font-size: 10.5pt;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--secondary);
+    }
+
+    .reference-pill {
+      flex-shrink: 0;
+      text-align: right;
+      font-size: 8.5pt;
+    }
+    .reference-pill span {
+      display: inline-block;
+      padding: 8px 14px;
+      background: linear-gradient(180deg, #fff 0%, var(--surface) 100%);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: var(--shadow-tight);
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .reference-pill strong { color: var(--ink); display: block; margin-top: 4px; font-size: 10pt; }
+
+    /* --- Client strip --- */
+    .client-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 24px;
+      padding: 16px 18px 16px 20px;
+      background: linear-gradient(90deg, rgba(201, 162, 39, 0.09) 0%, var(--surface) 42%);
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--secondary);
+      border-radius: 0 12px 12px 0;
+      box-shadow: var(--shadow-tight);
+      margin-bottom: 20px;
+    }
+    .client-strip dl { margin: 0; min-width: 140px; }
+    .client-strip dt {
+      font-size: 7.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .client-strip dd { margin: 2px 0 0; font-weight: 600; }
+
+    /* --- Two-column facts --- */
+    .facts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .fact-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 16px;
+      background: #fff;
+      box-shadow: var(--shadow-tight);
+      border-top: 2px solid rgba(201, 162, 39, 0.55);
+    }
+    .fact-card h3 {
+      margin: 0 0 10px;
+      font-size: 7.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--secondary);
+      font-weight: 800;
+    }
+    .fact-rows { display: table; width: 100%; font-size: 9.5pt; }
+    .fact-rows .row { display: table-row; }
+    .fact-rows .row > span {
+      display: table-cell;
+      padding: 5px 8px 5px 0;
+      border-bottom: 1px solid rgba(232, 228, 222, 0.9);
+    }
+    .fact-rows .row > span:first-child { color: var(--muted); width: 42%; }
+    .fact-rows .row:last-child > span { border-bottom: none; }
+
+    /* --- Pricing --- */
+    .pricing-panel {
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(12, 18, 32, 0.12);
+      margin-bottom: 24px;
+      box-shadow: var(--shadow);
+    }
+    .pricing-head {
+      padding: 12px 18px;
+      background: linear-gradient(118deg, #021a24 0%, #0a3d54 38%, #0f766e 62%, #b8956c 88%, #e8d4b8 100%);
+      color: #fff;
+      font-size: 8pt;
+      font-weight: 800;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    }
+    /* Quote row: label + amount on one line (compact, no wasted vertical space) */
+    .pricing-body {
+      display: block;
+      background: linear-gradient(180deg, #fdfaf6 0%, #fffef9 45%, #fff 100%);
+    }
+    .pricing-hero.quote-row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: nowrap;
+      gap: 16px;
+      width: 100%;
+      padding: 12px 22px 14px;
+      box-sizing: border-box;
+    }
+    .pricing-hero.quote-row .label {
+      font-size: 7.5pt;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-weight: 700;
+      margin: 0;
+      flex: 1 1 auto;
+      text-align: left;
+      min-width: 0;
+    }
+    .pricing-hero.quote-row .amount {
+      font-family: Cambria, Georgia, serif;
+      font-size: 22pt;
+      font-weight: 700;
+      color: var(--quote-amount);
+      margin: 0;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      flex: 0 0 auto;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .pricing-hero .note { font-size: 8.5pt; color: var(--muted); }
+
+    /* --- Section titles --- */
+    h2.section-title {
+      margin: 26px 0 14px;
+      font-family: Cambria, Georgia, serif;
+      font-size: 11pt;
+      font-weight: 600;
+      font-style: italic;
+      text-transform: none;
+      letter-spacing: 0.02em;
+      color: var(--primary);
+      padding: 0 0 10px 14px;
+      border-left: 4px solid var(--secondary);
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(90deg, rgba(201, 162, 39, 0.07) 0%, transparent 55%);
+    }
+    h2.section-title:first-of-type { margin-top: 0; }
+    /* Force Itinerary overview onto a new page (avoids stacking at bottom of page 2) */
+    h2.section-title.section-itinerary-overview {
+      page-break-before: always;
+      break-before: page;
+    }
+
+    /* --- Server-generated blocks (hotels, days, itinerary) --- */
+    .acc-item {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      page-break-inside: avoid;
+      background: #fff;
+      box-shadow: var(--shadow-tight);
+    }
+    .acc-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .acc-name { font-size: 11pt; font-weight: 700; }
+    .pill {
+      font-size: 7.5pt;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .acc-meta { font-size: 9pt; color: var(--muted); }
+    .acc-divider { height: 1px; background: var(--line); margin: 8px 0; }
+    .acc-imgs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .acc-imgs img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+    }
+
+    .day-block {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      margin-bottom: 10px;
+      overflow: hidden;
+      page-break-inside: avoid;
+    }
+    .day-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+    .day-no {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #1a2f4d 0%, var(--primary) 100%);
+      color: #fff;
+      font-size: 9pt;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(12, 18, 32, 0.2);
+      border: 1px solid rgba(201, 162, 39, 0.35);
+    }
+    .day-title { font-weight: 700; font-size: 10pt; }
+    .day-desc { padding: 12px 14px; white-space: pre-wrap; color: var(--ink); }
+
+    /* Itinerary overview cards from API */
+    .itv-card {
+      border: 1px solid var(--line);
+      border-left: 3px solid rgba(201, 162, 39, 0.85);
+      border-radius: 0 12px 12px 0;
+      padding: 14px 16px 16px;
+      margin-bottom: 12px;
+      page-break-inside: avoid;
+      background: linear-gradient(90deg, rgba(201, 162, 39, 0.06) 0%, #fff 46%);
+      box-shadow: var(--shadow-tight);
+    }
+    .itv-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 16px;
+      margin: 0 0 12px;
+      padding: 0 0 11px;
+      border-bottom: 1px solid rgba(201, 162, 39, 0.2);
+    }
+    .itv-day-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 8pt;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #fff;
+      background: linear-gradient(145deg, #1a2f4d 0%, var(--primary) 55%, #0a1424 100%);
+      border: 1px solid rgba(201, 162, 39, 0.45);
+      box-shadow: 0 2px 6px rgba(12, 18, 32, 0.14);
+      flex-shrink: 0;
+    }
+    .itv-date {
+      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-size: 11.5pt;
+      font-weight: 600;
+      font-style: italic;
+      color: var(--primary);
+      letter-spacing: 0.03em;
+      line-height: 1.2;
+    }
+    .itv-date::before {
+      content: "";
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      margin-right: 10px;
+      margin-bottom: 2px;
+      vertical-align: middle;
+      background: var(--secondary);
+      opacity: 0.85;
+      transform: rotate(45deg);
+      border-radius: 1px;
+    }
+    .itv-desc {
+      color: var(--ink);
+      white-space: pre-wrap;
+      font-size: 10.5pt;
+      line-height: 1.6;
+    }
+
+    /* Lists --- */
+    .dual-column {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .list-panel {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 16px;
+      page-break-inside: avoid;
+      background: #fff;
+      box-shadow: var(--shadow-tight);
+    }
+    .list-panel h3 {
+      margin: 0 0 10px;
+      font-size: 9pt;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .list-panel.incl h3 { color: #166534; }
+    .list-panel.excl h3 { color: #991b1b; }
+    .list-panel ul { margin: 0; padding-left: 18px; }
+    .list-panel li { margin: 5px 0; }
+
+    /* Policy blocks */
+    .policy-block {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      page-break-inside: avoid;
+      font-size: 9.5pt;
+      background: #fff;
+      box-shadow: var(--shadow-tight);
+    }
+    .policy-block h3 {
+      margin: 0 0 8px;
+      font-size: 10pt;
+      font-weight: 700;
+    }
+    .policy-block ul { margin: 0; padding-left: 18px; }
+
+    /* Bank */
+    .bank-wrap { overflow: hidden; border-radius: 12px; border: 1px solid var(--line); margin-bottom: 16px; box-shadow: var(--shadow-tight); }
+    table.bank {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+    }
+    table.bank th {
+      background: linear-gradient(90deg, var(--primary) 0%, #1a3050 100%);
+      color: #fff;
+      text-align: left;
+      padding: 10px 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    table.bank td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+    }
+    table.bank tr:last-child td { border-bottom: none; }
+
+    /* QR */
+    .qr-section {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 16px;
+      background: linear-gradient(135deg, var(--surface) 0%, #fff 100%);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      margin-bottom: 18px;
+      page-break-inside: avoid;
+      box-shadow: var(--shadow-tight);
+    }
+    .qr-section > div {
+      text-align: center;
+      padding: 8px;
+      background: #fff;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      font-size: 8pt;
+      color: var(--muted);
+    }
+    .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
+
+
+    /* Last page — About us & leadership */
+    .last-page {
+      page-break-before: always;
+      margin-top: 8px;
+      padding-top: 8px;
+    }
+    /* Registered office + contact — bottom of last page */
+    .last-page-registered {
+      margin: 0 0 28px;
+      padding: 22px 22px 24px;
+      text-align: left;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
+      box-shadow: var(--shadow-tight);
+    }
+    .last-page-registered-kicker {
+      margin: 0 0 14px;
+      font-size: 7.5pt;
+      font-weight: 800;
+      letter-spacing: 0.38em;
+      text-transform: uppercase;
+      color: var(--primary);
+      line-height: 1.65;
+    }
+    .last-page-registered-addr {
+      margin: 0 0 20px;
+      font-size: 9.5pt;
+      line-height: 1.65;
+      color: var(--ink);
+      font-weight: 500;
+    }
+    .last-page-reg-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: flex-start;
+      margin: 0;
+    }
+    .last-page-reg-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      align-items: baseline;
+      gap: 8px 16px;
+      max-width: 100%;
+    }
+    .last-page-registered-end {
+      margin-top: 28px;
+      margin-bottom: 0;
+      page-break-inside: avoid;
+    }
+    .last-page-reg-label {
+      font-size: 7pt;
+      font-weight: 800;
+      letter-spacing: 0.42em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .last-page-reg-value {
+      font-size: 10pt;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    .last-page-reg-value a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+      border-bottom: 1px solid rgba(12, 18, 32, 0.18);
+    }
+    .last-page-reg-phone {
+      color: var(--ink);
+    }
+    .last-page .about-copy {
+      font-size: 10.5pt;
+      line-height: 1.7;
+      color: var(--ink);
+      margin: 0 0 18px;
+    }
+    .last-page .about-copy p {
+      margin: 0 0 10px;
+    }
+    .leadership-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 18px 20px;
+      background: linear-gradient(180deg, #fff 0%, var(--surface) 100%);
+      box-shadow: var(--shadow-tight);
+      border-top: 2px solid rgba(201, 162, 39, 0.45);
+    }
+    .leadership-card h3 {
+      margin: 0 0 12px;
+      font-size: 10pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--secondary);
+    }
+    .leadership-card dl {
+      margin: 0;
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 8px 16px;
+      font-size: 10.5pt;
+    }
+    .leadership-card dt {
+      margin: 0;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .leadership-card dd {
+      margin: 0;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    /* Page 1 — greeting letter */
+    .greeting-block {
+      margin-bottom: 22px;
+      padding: 20px 22px 20px 24px;
+      background: linear-gradient(145deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.09) 48%, rgba(255, 255, 255, 0.9) 100%);
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--secondary);
+      border-radius: 0 14px 14px 0;
+      box-shadow: var(--shadow-tight);
+      page-break-inside: avoid;
+    }
+    .greeting-block .salutation {
+      margin: 0 0 12px;
+      font-size: 11pt;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .greeting-block p {
+      margin: 0 0 10px;
+      font-size: 10.5pt;
+      line-height: 1.65;
+      color: var(--ink);
+    }
+    .greeting-block p:last-child {
+      margin-bottom: 0;
+    }
+    .greeting-block .lead {
+      font-weight: 600;
+      color: var(--secondary);
+    }
+
+    @media print {
+      body { background: #fff; }
+      .doc-shell { max-width: 100%; box-shadow: none; border-radius: 0; padding-left: 16px; padding-right: 16px; }
+      .ribbon { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ribbon"></div>
+  <div class="doc-shell">
+    <header class="header">
+      <div class="brand">
+        <div class="logo-slot">{{AgencyLogoHtml}}</div>
+        <div class="title-block">
+          <p class="doc-eyebrow"><span>Travel Pathways</span></p>
+          <h1 class="proposal-title">Travel Itinerary</h1>
+          <p class="package-line">{{DaysLabel}}</p>
+        </div>
+      </div>
+      <div class="reference-pill">      
+       
+      </div>
+    </header>
+
+    <section class="greeting-block" aria-label="Greeting">
+      <p class="salutation">Dear {{ClientName}},</p>
+      <p class="lead">Thank you for choosing {{AgencyName}} for your tour.</p>
+      <p>
+        We are delighted to be a part of your journey and look forward to providing you with a memorable travel experience filled with comfort, beauty, and unforgettable moments.
+      </p>
+    </section>
+
+    <section class="client-strip">
+      <dl><dt>Guest</dt><dd>{{ClientName}}</dd></dl>
+      <dl><dt>Phone</dt><dd>{{ClientPhone}}</dd></dl>
+      <dl><dt>Email</dt><dd>{{ClientEmail}}</dd></dl>
+      <dl><dt>Pax</dt><dd>{{PaxSummary}}</dd></dl>
+      <dl><dt>Meal plan</dt><dd>{{MealPlan}}</dd></dl>
+    </section>
+
+    <div class="facts-grid">
+      <div class="fact-card">
+        <h3>Trip</h3>
+        <div class="fact-rows">
+          <div class="row"><span>Arrival</span><span>{{StartDate}}</span></div>
+          <div class="row"><span>Departure</span><span>{{EndDate}}</span></div>
+          <div class="row"><span>Duration</span><span>{{DaysLabel}}</span></div>
+          <div class="row"><span>Destination</span><span>{{DestinationLine}}</span></div>
+        </div>
+      </div>
+      <div class="fact-card">
+        <h3>Transfer</h3>
+        <div class="fact-rows">
+          <div class="row"><span>Pick-up</span><span>{{PickUpLocation}}</span></div>
+          <div class="row"><span>Drop-off</span><span>{{DropLocation}}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pricing-panel">
+      <div class="pricing-head">Quote summary</div>
+      <div class="pricing-body">
+        <div class="pricing-hero quote-row">
+          <div class="label">Quoted amount</div>
+          <div class="amount">{{FinalAmount}}</div>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="section-title section-itinerary-overview">Itinerary overview</h2>
+    {{ItineraryOverviewHtml}}
+
+    <h2 class="section-title">Where you stay</h2>
+    {{HotelsHtml}}
+    
+
+    <div class="dual-column">
+      <div class="list-panel incl">
+        <h3>Inclusions</h3>
+        <ul>{{InclusionsHtml}}</ul>
+      </div>
+      <div class="list-panel excl">
+        <h3>Exclusions</h3>
+        <ul>{{ExclusionsHtml}}</ul>
+      </div>
+    </div>
+
+    <div class="policy-block">
+      <h3>Terms &amp; conditions</h3>
+      <ul>{{TermsHtml}}</ul>
+    </div>
+    <div class="policy-block">
+      <h3>Cancellation</h3>
+      <ul>{{CancellationHtml}}</ul>
+    </div>
+    <div class="policy-block">
+      <h3>Supplements &amp; notes</h3>
+      <ul>{{SupplementHtml}}</ul>
+    </div>
+
+    <h2 class="section-title">Bank details</h2>
+    <div class="bank-wrap">
+      <table class="bank">
+        <thead>
+          <tr>
+            <th>Account holder</th>
+            <th>Bank</th>
+            <th>Account no.</th>
+            <th>IFSC</th>
+          </tr>
+        </thead>
+        <tbody>{{BankRowsHtml}}</tbody>
+      </table>
+    </div>
+
+    <h2 class="section-title">Pay online</h2>
+    <div class="qr-section">{{QrHtml}}</div>
+
+    <section class="last-page" id="about-us">
+      <h2 class="section-title">About us</h2>
+      <div class="about-copy">
+        <p>
+          <strong>{{AgencyName}}</strong> is committed to delivering thoughtful itineraries, reliable service, and enriching travel experiences.
+          Our team works closely with guests to ensure comfort, clarity, and memorable moments from arrival to departure.
+        </p>
+        <p>
+          We thank you for your trust and look forward to being part of your journey.
+        </p>
+      </div>
+      <div class="leadership-card">
+        <h3>Leadership &amp; contact</h3>
+        <dl>
+          <dt>Managing Director</dt>
+          <dd>{{ManagingDirectorName}}</dd>
+          <dt>Sales Head</dt>
+          <dd>Mr Ashraf Dar</dd>
+          <dt>Contact</dt>
+          <dd>9906372023</dd>
+        </dl>
+      </div>
+      <div class="last-page-registered last-page-registered-end" role="note" aria-label="Registered office and contact">
+        <div class="last-page-registered-kicker">Registered office</div>
+        <p class="last-page-registered-addr">
+          3rd Floor, Asad Complex Sangrama, Sopore,<br />
+          Jammu and Kashmir — 193201
+        </p>
+        <div class="last-page-reg-meta">
+          <div class="last-page-reg-row">
+            <span class="last-page-reg-label">Email</span>
+            <span class="last-page-reg-value"><a href="mailto:info@travelpathways.in">info@travelpathways.in</a></span>
+          </div>
+          <div class="last-page-reg-row">
+            <span class="last-page-reg-label">Website</span>
+            <span class="last-page-reg-value">www.travelpathways.in</span>
+          </div>
+          <div class="last-page-reg-row">
+            <span class="last-page-reg-label">Contact</span>
+            <span class="last-page-reg-value last-page-reg-phone">9906372023</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

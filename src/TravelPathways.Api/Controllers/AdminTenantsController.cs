@@ -24,6 +24,7 @@ public sealed class AdminTenantsController : ControllerBase
 
     public sealed class TenantDocumentDto
     {
+        public required string Id { get; init; }
         public required TenantDocumentType Type { get; init; }
         public required string FileName { get; init; }
         public required string Url { get; init; }
@@ -45,6 +46,9 @@ public sealed class AdminTenantsController : ControllerBase
         public string? PdfTemplateKey { get; init; }
         public bool? PdfShowBankDetails { get; init; }
         public bool? PdfShowQrCodes { get; init; }
+        public List<string> TermsAndConditions { get; init; } = [];
+        public List<string> CancellationPolicy { get; init; } = [];
+        public List<string> SupplementCosts { get; init; } = [];
         public List<TenantDocumentDto>? Documents { get; init; }
         public List<AppModuleKey>? EnabledModules { get; init; }
         public required bool IsActive { get; init; }
@@ -68,6 +72,9 @@ public sealed class AdminTenantsController : ControllerBase
         public string Phone { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;
         public List<AppModuleKey> EnabledModules { get; set; } = [];
+        public List<string> TermsAndConditions { get; set; } = [];
+        public List<string> CancellationPolicy { get; set; } = [];
+        public List<string> SupplementCosts { get; set; } = [];
 
         public IFormFile? LogoFile { get; set; }
         public IFormFile? RegistrationPdf { get; set; }
@@ -172,7 +179,10 @@ public sealed class AdminTenantsController : ControllerBase
             Email = tenantEmail ?? string.Empty,
             Phone = request.Phone.Trim(),
             Address = request.Address.Trim(),
-            EnabledModules = request.EnabledModules?.ToList() ?? []
+            EnabledModules = request.EnabledModules?.ToList() ?? [],
+            TermsAndConditions = NormalizePolicyLines(request.TermsAndConditions),
+            CancellationPolicy = NormalizePolicyLines(request.CancellationPolicy),
+            SupplementCosts = NormalizePolicyLines(request.SupplementCosts)
         };
 
         _db.Tenants.Add(tenant);
@@ -202,6 +212,9 @@ public sealed class AdminTenantsController : ControllerBase
             if (await _db.Tenants.AnyAsync(t => t.Email == newEmail && t.Id != id, ct))
                 return BadRequest(ApiResponse<TenantDto>.Fail("A tenant with this email already exists. Use a different email."));
         }
+
+        var pdfTplError = await ValidateTenantPdfTemplateKeyAsync(request.PdfTemplateKey, ct);
+        if (pdfTplError is not null) return BadRequest(ApiResponse<TenantDto>.Fail(pdfTplError));
 
         ApplyTenantUpdates(tenant, request, newCode, newEmail);
 
@@ -275,6 +288,49 @@ public sealed class AdminTenantsController : ControllerBase
         return ApiResponse<object>.Ok(new { });
     }
 
+    /// <summary>
+    /// Soft-deletes one tenant-owned document (logo, registration PDF, PDF cover, appendix PDF, etc.).
+    /// </summary>
+    [HttpDelete("{id:guid}/documents/{documentId:guid}")]
+    public async Task<ActionResult<ApiResponse<TenantDto>>> DeleteTenantDocument(
+        [FromRoute] Guid id,
+        [FromRoute] Guid documentId,
+        CancellationToken ct)
+    {
+        var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted, ct);
+        if (tenant is null) return NotFound(ApiResponse<TenantDto>.Fail("Tenant not found"));
+
+        var doc = await _db.TenantDocuments.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(d => d.Id == documentId && d.TenantId == id && !d.IsDeleted, ct);
+        if (doc is null) return NotFound(ApiResponse<TenantDto>.Fail("Document not found"));
+
+        var now = DateTime.UtcNow;
+        doc.IsDeleted = true;
+        doc.DeletedAtUtc = now;
+
+        if (doc.Type == TenantDocumentType.Logo)
+        {
+            if (!string.IsNullOrWhiteSpace(tenant.LogoUrl) && !string.IsNullOrWhiteSpace(doc.Url) &&
+                string.Equals(tenant.LogoUrl.Trim(), doc.Url.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                var nextLogoUrl = await _db.TenantDocuments.AsNoTracking()
+                    .Where(d => d.TenantId == id && d.Type == TenantDocumentType.Logo && !d.IsDeleted && d.Id != documentId)
+                    .OrderByDescending(d => d.CreatedAt)
+                    .Select(d => d.Url)
+                    .FirstOrDefaultAsync(ct);
+                tenant.LogoUrl = string.IsNullOrWhiteSpace(nextLogoUrl) ? null : nextLogoUrl;
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        var fresh = await _db.Tenants.AsNoTracking()
+            .Include(t => t.Documents)
+            .FirstAsync(t => t.Id == id, ct);
+        var activeUserCount = await _db.Users.CountAsync(u => u.TenantId == id && u.IsActive, ct);
+        return ApiResponse<TenantDto>.Ok(ToDto(fresh, activeUserCount));
+    }
+
     private async Task UpsertTenantDocumentsAsync(Tenant tenant, CreateTenantRequestDto request, CancellationToken ct)
     {
 
@@ -338,6 +394,21 @@ public sealed class AdminTenantsController : ControllerBase
 
     }
 
+    private async Task<string?> ValidateTenantPdfTemplateKeyAsync(string? pdfTemplateKey, CancellationToken ct)
+    {
+        var key = string.IsNullOrWhiteSpace(pdfTemplateKey) ? null : pdfTemplateKey.Trim();
+        if (key is null)
+            return "Select a PDF template for this agency (Admin → Travel agency → PDF template). Each tenant must use a library template that includes HTML.";
+
+        var t = await _db.PdfTemplates.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Key == key && !x.IsDeleted && x.IsActive, ct);
+        if (t is null)
+            return $"PDF template '{key}' was not found or is inactive.";
+        if (string.IsNullOrWhiteSpace(t.HtmlTemplate))
+            return $"PDF template '{t.Name}' has no HTML. Edit it under Admin → PDF templates and save.";
+        return null;
+    }
+
     private static void ApplyTenantUpdates(Tenant tenant, UpdateTenantRequestDto request, string newCode, string newEmail)
     {
         tenant.Name = request.Name.Trim();
@@ -361,7 +432,17 @@ public sealed class AdminTenantsController : ControllerBase
         tenant.PdfTemplateKey = string.IsNullOrWhiteSpace(request.PdfTemplateKey) ? null : request.PdfTemplateKey.Trim();
         tenant.PdfShowBankDetails = request.PdfShowBankDetails;
         tenant.PdfShowQrCodes = request.PdfShowQrCodes;
+        tenant.TermsAndConditions = NormalizePolicyLines(request.TermsAndConditions);
+        tenant.CancellationPolicy = NormalizePolicyLines(request.CancellationPolicy);
+        tenant.SupplementCosts = NormalizePolicyLines(request.SupplementCosts);
     }
+
+    private static List<string> NormalizePolicyLines(List<string>? lines) =>
+        (lines ?? [])
+            .Select(x => (x ?? string.Empty).Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
     private static TenantDto ToDto(Tenant t, int? activeUserCount = null) =>
         new()
@@ -380,7 +461,17 @@ public sealed class AdminTenantsController : ControllerBase
             PdfTemplateKey = t.PdfTemplateKey,
             PdfShowBankDetails = t.PdfShowBankDetails,
             PdfShowQrCodes = t.PdfShowQrCodes,
-            Documents = t.Documents.Select(d => new TenantDocumentDto { Type = d.Type, FileName = d.FileName, Url = d.Url }).ToList(),
+            TermsAndConditions = t.TermsAndConditions ?? [],
+            CancellationPolicy = t.CancellationPolicy ?? [],
+            SupplementCosts = t.SupplementCosts ?? [],
+            Documents = t.Documents.Select(d => new TenantDocumentDto
+                {
+                    Id = d.Id.ToString("D"),
+                    Type = d.Type,
+                    FileName = d.FileName,
+                    Url = d.Url
+                })
+                .ToList(),
             EnabledModules = t.EnabledModules.ToList(),
             IsActive = t.IsActive,
             CreatedAt = t.CreatedAt,

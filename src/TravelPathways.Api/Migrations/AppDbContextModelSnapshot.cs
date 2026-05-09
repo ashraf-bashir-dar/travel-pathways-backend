@@ -103,6 +103,9 @@ namespace TravelPathways.Api.Migrations
                     b.Property<bool>("CanViewCostBifurcation")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("CanPriceOverride")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 

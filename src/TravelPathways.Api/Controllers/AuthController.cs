@@ -50,10 +50,12 @@ public sealed class AuthController : ControllerBase
         public required bool IsActive { get; init; }
         public required DateTime CreatedAt { get; init; }
         public bool CanViewCostBifurcation { get; init; }
+        public bool CanPriceOverride { get; init; }
     }
 
     public sealed class TenantDocumentDto
     {
+        public required string Id { get; init; }
         public required TenantDocumentType Type { get; init; }
         public required string FileName { get; init; }
         public required string Url { get; init; }
@@ -71,6 +73,9 @@ public sealed class AuthController : ControllerBase
         public string? LogoUrl { get; init; }
         public List<TenantDocumentDto>? Documents { get; init; }
         public List<AppModuleKey>? EnabledModules { get; init; }
+        public List<string> TermsAndConditions { get; init; } = [];
+        public List<string> CancellationPolicy { get; init; } = [];
+        public List<string> SupplementCosts { get; init; } = [];
         public required bool IsActive { get; init; }
         public required DateTime CreatedAt { get; init; }
         public string? DefaultUserId { get; init; }
@@ -181,6 +186,9 @@ public sealed class AuthController : ControllerBase
                     LogoUrl = null,
                     Documents = [],
                     EnabledModules = [],
+                    TermsAndConditions = [],
+                    CancellationPolicy = [],
+                    SupplementCosts = [],
                     IsActive = true,
                     CreatedAt = user.CreatedAt
                 }
@@ -196,11 +204,15 @@ public sealed class AuthController : ControllerBase
                     LogoUrl = tenant.LogoUrl,
                     Documents = (tenant.Documents ?? []).Select(d => new TenantDocumentDto
                     {
+                        Id = d.Id.ToString("D"),
                         Type = d.Type,
                         FileName = d.FileName,
                         Url = d.Url
                     }).ToList(),
                     EnabledModules = (tenant.EnabledModules ?? []).ToList(),
+                    TermsAndConditions = tenant.TermsAndConditions ?? [],
+                    CancellationPolicy = tenant.CancellationPolicy ?? [],
+                    SupplementCosts = tenant.SupplementCosts ?? [],
                     IsActive = tenant.IsActive,
                     CreatedAt = tenant.CreatedAt,
                     DefaultUserId = tenant.DefaultUserId?.ToString("D"),
@@ -224,7 +236,8 @@ public sealed class AuthController : ControllerBase
                 AllowedModules = user.AllowedModules?.ToList() ?? [],
                 IsActive = user.IsActive,
                 CreatedAt = user.CreatedAt,
-                CanViewCostBifurcation = user.CanViewCostBifurcation
+                CanViewCostBifurcation = user.CanViewCostBifurcation,
+                CanPriceOverride = user.CanPriceOverride
             };
 
             return Ok(new LoginResponseDto { Token = token, User = userDto, Tenant = tenantDto });

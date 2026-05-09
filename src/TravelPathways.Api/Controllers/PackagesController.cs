@@ -327,6 +327,10 @@ public sealed class PackagesController : TenantControllerBase
             var filename = BuildPdfFilename(pkg);
             return File(pdfBytes, "application/pdf", filename);
         }
+        catch (PdfTemplateConfigurationException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
         catch (Exception ex)
         {
             var inner = ex.InnerException?.Message ?? ex.Message;
@@ -368,6 +372,10 @@ public sealed class PackagesController : TenantControllerBase
             var filename = BuildPdfFilename(pkg);
             Response.Headers.ContentDisposition = $"inline; filename=\"{filename}\"";
             return File(pdfBytes, "application/pdf");
+        }
+        catch (PdfTemplateConfigurationException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
         }
         catch (Exception ex)
         {
@@ -652,6 +660,7 @@ public sealed class PackagesController : TenantControllerBase
 
         var inclusionLabels = InclusionOptions.GetInclusionLabels(pkg.InclusionIds ?? []).ToList();
         var exclusionLabels = InclusionOptions.GetExclusionLabels(pkg.InclusionIds ?? []).ToList();
+        var indiaCulture = CultureInfo.GetCultureInfo("en-IN");
 
         string ToAbsolute(string? url)
         {
@@ -672,6 +681,10 @@ public sealed class PackagesController : TenantControllerBase
             return new DayItem
             {
                 DayNumber = d.DayNumber,
+                DateLabel = d.Date.ToString("d MMM yyyy", indiaCulture),
+                HotelName = d.Hotel?.Name,
+                HotelLocation = d.Hotel is null ? null : GetLocationString(d.Hotel),
+                DayImageUrl = d.Hotel?.ImageUrls?.Select(ToAbsolute).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
                 Title = title,
                 Description = description,
                 ExtraBedCount = d.ExtraBedCount ?? 0,
@@ -718,6 +731,16 @@ public sealed class PackagesController : TenantControllerBase
         var clientAddress = string.Join(", ", new[] { pkg.ClientCity, pkg.ClientState }.Where(s => !string.IsNullOrWhiteSpace(s))).Trim();
         if (string.IsNullOrEmpty(clientAddress) && !string.IsNullOrWhiteSpace(pkg.ClientPickupLocation))
             clientAddress = pkg.ClientPickupLocation.Trim();
+        List<string> NormalizeLines(List<string>? lines) =>
+            (lines ?? [])
+                .Select(x => (x ?? string.Empty).Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+        var termsAndConditions = NormalizeLines(tenant?.TermsAndConditions);
+        var cancellationPolicy = NormalizeLines(tenant?.CancellationPolicy);
+        var supplementCosts = NormalizeLines(tenant?.SupplementCosts);
 
         return new PackagePdfModel
         {
@@ -774,7 +797,10 @@ public sealed class PackagesController : TenantControllerBase
             CoverTitle = tenant?.PdfCoverTitle?.Trim(),
             TemplateKey = tenant?.PdfTemplateKey?.Trim(),
             ShowBankDetails = tenant?.PdfShowBankDetails,
-            ShowQrCodes = tenant?.PdfShowQrCodes
+            ShowQrCodes = tenant?.PdfShowQrCodes,
+            TermsAndConditions = termsAndConditions,
+            CancellationPolicy = cancellationPolicy,
+            SupplementCosts = supplementCosts
         };
     }
 
@@ -877,7 +903,10 @@ public sealed class PackagesController : TenantControllerBase
             TemplateKey = model.TemplateKey,
             CustomHtmlTemplate = model.CustomHtmlTemplate,
             ShowBankDetails = model.ShowBankDetails,
-            ShowQrCodes = model.ShowQrCodes
+            ShowQrCodes = model.ShowQrCodes,
+            TermsAndConditions = model.TermsAndConditions,
+            CancellationPolicy = model.CancellationPolicy,
+            SupplementCosts = model.SupplementCosts
         };
     }
 
@@ -894,59 +923,69 @@ public sealed class PackagesController : TenantControllerBase
 
         var model = BuildPdfModel(pkg, tenant, baseUrl);
         var templateKey = model.TemplateKey?.Trim();
-        if (!string.IsNullOrWhiteSpace(templateKey))
+        if (string.IsNullOrWhiteSpace(templateKey))
+            throw new PdfTemplateConfigurationException(
+                "This agency has no PDF template selected. Open the travel agency in Admin and assign a PDF template that includes HTML.");
+
+        var templateEntity = await _db.PdfTemplates.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Key == templateKey && !t.IsDeleted && t.IsActive, ct);
+        if (templateEntity is null)
+            throw new PdfTemplateConfigurationException(
+                $"The assigned PDF template key \"{templateKey}\" does not exist or is inactive.");
+
+        var htmlBody = templateEntity.HtmlTemplate?.Trim();
+        if (string.IsNullOrWhiteSpace(htmlBody))
+            throw new PdfTemplateConfigurationException(
+                $"The PDF template \"{templateEntity.Name}\" ({templateKey}) has no HTML saved. Edit it under Admin → PDF templates and paste or design the Html template.");
+
+        model = new PackagePdfModel
         {
-            var template = await _db.PdfTemplates.AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Key == templateKey && t.IsActive, ct);
-            if (template is not null && !string.IsNullOrWhiteSpace(template.HtmlTemplate))
-            {
-                model = new PackagePdfModel
-                {
-                    PackageName = model.PackageName,
-                    ClientName = model.ClientName,
-                    ClientPhone = model.ClientPhone,
-                    ClientEmail = model.ClientEmail,
-                    ClientAddress = model.ClientAddress,
-                    StartDate = model.StartDate,
-                    EndDate = model.EndDate,
-                    DaysLabel = model.DaysLabel,
-                    PickUpLocation = model.PickUpLocation,
-                    DropLocation = model.DropLocation,
-                    NumberOfAdults = model.NumberOfAdults,
-                    NumberOfChildren = model.NumberOfChildren,
-                    MealPlanLabel = model.MealPlanLabel,
-                    FirstDayRooms = model.FirstDayRooms,
-                    TotalExtraBeds = model.TotalExtraBeds,
-                    TotalCnbCount = model.TotalCnbCount,
-                    TotalAmount = model.TotalAmount,
-                    Discount = model.Discount,
-                    FinalAmount = model.FinalAmount,
-                    PerPersonAmount = model.PerPersonAmount,
-                    AdvanceAmount = model.AdvanceAmount,
-                    BalanceAmount = model.BalanceAmount,
-                    Days = model.Days,
-                    Hotels = model.Hotels,
-                    CoverImageUrls = model.CoverImageUrls,
-                    InclusionLabels = model.InclusionLabels,
-                    ExclusionLabels = model.ExclusionLabels,
-                    AgencyName = model.AgencyName,
-                    AgencyPhone = model.AgencyPhone,
-                    AgencyEmail = model.AgencyEmail,
-                    AgencyLogoUrl = model.AgencyLogoUrl,
-                    ManagingDirectorName = model.ManagingDirectorName,
-                    GeneratedDate = model.GeneratedDate,
-                    BankAccounts = model.BankAccounts,
-                    QrCodes = model.QrCodes,
-                    PrimaryColor = model.PrimaryColor,
-                    SecondaryColor = model.SecondaryColor,
-                    CoverTitle = model.CoverTitle,
-                    TemplateKey = model.TemplateKey,
-                    CustomHtmlTemplate = template.HtmlTemplate,
-                    ShowBankDetails = model.ShowBankDetails,
-                    ShowQrCodes = model.ShowQrCodes
-                };
-            }
-        }
+            PackageName = model.PackageName,
+            ClientName = model.ClientName,
+            ClientPhone = model.ClientPhone,
+            ClientEmail = model.ClientEmail,
+            ClientAddress = model.ClientAddress,
+            StartDate = model.StartDate,
+            EndDate = model.EndDate,
+            DaysLabel = model.DaysLabel,
+            PickUpLocation = model.PickUpLocation,
+            DropLocation = model.DropLocation,
+            NumberOfAdults = model.NumberOfAdults,
+            NumberOfChildren = model.NumberOfChildren,
+            MealPlanLabel = model.MealPlanLabel,
+            FirstDayRooms = model.FirstDayRooms,
+            TotalExtraBeds = model.TotalExtraBeds,
+            TotalCnbCount = model.TotalCnbCount,
+            TotalAmount = model.TotalAmount,
+            Discount = model.Discount,
+            FinalAmount = model.FinalAmount,
+            PerPersonAmount = model.PerPersonAmount,
+            AdvanceAmount = model.AdvanceAmount,
+            BalanceAmount = model.BalanceAmount,
+            Days = model.Days,
+            Hotels = model.Hotels,
+            CoverImageUrls = model.CoverImageUrls,
+            InclusionLabels = model.InclusionLabels,
+            ExclusionLabels = model.ExclusionLabels,
+            AgencyName = model.AgencyName,
+            AgencyPhone = model.AgencyPhone,
+            AgencyEmail = model.AgencyEmail,
+            AgencyLogoUrl = model.AgencyLogoUrl,
+            ManagingDirectorName = model.ManagingDirectorName,
+            GeneratedDate = model.GeneratedDate,
+            BankAccounts = model.BankAccounts,
+            QrCodes = model.QrCodes,
+            PrimaryColor = model.PrimaryColor,
+            SecondaryColor = model.SecondaryColor,
+            CoverTitle = model.CoverTitle,
+            TemplateKey = model.TemplateKey,
+            CustomHtmlTemplate = htmlBody,
+            ShowBankDetails = model.ShowBankDetails,
+            ShowQrCodes = model.ShowQrCodes,
+            TermsAndConditions = model.TermsAndConditions,
+            CancellationPolicy = model.CancellationPolicy,
+            SupplementCosts = model.SupplementCosts
+        };
         model = InlinePdfImagesFromDisk(model);
         var generatedPdf = await _pdfGenerator.GenerateAsync(model, ct);
         return MergePdfWithTenantAssets(generatedPdf, tenant);

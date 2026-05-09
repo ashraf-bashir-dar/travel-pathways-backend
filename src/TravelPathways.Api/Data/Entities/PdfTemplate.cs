@@ -9,6 +9,6 @@ public sealed class PdfTemplate : EntityBase
     public string? Description { get; set; }
     public bool IsSystem { get; set; }
     public bool IsActive { get; set; } = true;
-    /// <summary>Optional custom HTML. When empty, built-in renderer uses Key.</summary>
+    /// <summary>Full HTML document with placeholders (e.g. {{PackageName}}). Required for PDF output.</summary>
     public string? HtmlTemplate { get; set; }
 }

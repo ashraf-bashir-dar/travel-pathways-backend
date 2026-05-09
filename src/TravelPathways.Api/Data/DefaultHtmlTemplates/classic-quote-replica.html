@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10pt;
+      line-height: 1.5;
+      color: #0f172a;
+    }
+    .watermark {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: -1;
+      opacity: 0.06;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .watermark div {
+      font-size: 22px;
+      line-height: 2.1;
+      color: {{PrimaryColor}};
+      white-space: nowrap;
+      transform: rotate(-19deg) translate(-120px, -40px);
+      transform-origin: 0 0;
+    }
+    .section { margin-bottom: 18px; }
+    .hero {
+      padding: 12px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo img { max-height: 52px; max-width: 190px; object-fit: contain; }
+    .trip-id { font-weight: 700; color: {{PrimaryColor}}; font-size: 11pt; }
+    .hero h1 {
+      margin: 8px 0 2px;
+      font-size: 16pt;
+      color: #111827;
+      letter-spacing: 0.01em;
+    }
+    .hero .meta { font-size: 9.5pt; color: #334155; margin: 3px 0; }
+    .consultant {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #cbd5e1;
+      font-size: 9pt;
+      color: #475569;
+    }
+    .title-bar {
+      margin: 16px 0 9px;
+      background: #111827;
+      color: #fff;
+      padding: 7px 10px;
+      border-radius: 4px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      font-size: 9pt;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .card {
+      border: 1px solid #dbe1ea;
+      border-radius: 10px;
+      padding: 11px;
+      background: #fff;
+    }
+    .kpi {
+      font-size: 8.3pt;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .val { font-size: 12.5pt; font-weight: 700; color: #111827; margin-top: 3px; }
+    .quote {
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+      text-align: center;
+    }
+    .quote .amt { font-size: 17pt; font-weight: 800; color: #111827; margin: 6px 0 2px; }
+    .quote .sub { font-size: 8.5pt; color: #6b7280; }
+    .acc-item {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 11px;
+      margin-bottom: 10px;
+      page-break-inside: avoid;
+      background: #fff;
+    }
+    .acc-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .acc-name { font-size: 11pt; font-weight: 700; color: #1f2937; }
+    .pill {
+      font-size: 8pt;
+      background: #f3f4f6;
+      color: #111827;
+      border: 1px solid #d1d5db;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+    .acc-meta { font-size: 9pt; color: #475569; margin-bottom: 6px; }
+    .acc-divider { height: 1px; background: #f1f5f9; margin: 7px 0; }
+    .acc-imgs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+    .acc-imgs img {
+      width: 100%;
+      height: 140px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    .acc-day-line { margin-bottom: 10px; }
+    .acc-day-line strong { font-size: 10pt; }
+    .day-block {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      page-break-inside: avoid;
+      background: #fff;
+    }
+    .day-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      background: #f3f4f6;
+      color: #111827;
+      border-radius: 10px 10px 0 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .day-no {
+      display: inline-flex;
+      width: 26px; height: 26px;
+      border-radius: 999px;
+      background: #111827;
+      color: #fff;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 9pt;
+    }
+    .day-title { font-weight: 700; font-size: 10pt; }
+    .day-desc {
+      padding: 11px 12px;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      color: #1f2937;
+    }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .list-box {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px;
+      background: #fff;
+    }
+    .list-box h3 { margin: 0 0 8px; font-size: 10.5pt; color: #111827; }
+    .list-box ul { margin: 0; padding-left: 18px; }
+    .list-box li { margin: 3px 0; }
+    .terms {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px;
+      background: #fff;
+    }
+    .terms h3 { margin: 0 0 8px; font-size: 10.5pt; color: #111827; }
+    .terms ul { margin: 0; padding-left: 18px; }
+    .terms li { margin: 4px 0; }
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .table th, .table td {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .table th { background: {{PrimaryColor}}; color: #fff; font-weight: 700; }
+    .table tr:last-child td { border-bottom: none; }
+    .contact {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px dashed #cbd5e1;
+      border-radius: 10px;
+      background: #f8fafc;
+      font-size: 9pt;
+    }
+    .contact b { color: #111827; }
+    .qr-wrap { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+    .qr {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 6px;
+      text-align: center;
+      background: #fff;
+    }
+    .qr img { width: 92px; height: 92px; object-fit: contain; display: block; }
+    .qr span { display: block; font-size: 8pt; color: #475569; margin-top: 4px; }
+    .page-break { page-break-before: always; }
+    .pdf-footer {
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px dashed #cbd5e1;
+      font-size: 8pt;
+      color: #64748b;
+      display: flex;
+      justify-content: space-between;
+    }
+    @media print { .day-block, .acc-item { page-break-inside: avoid; } }
+  </style>
+</head>
+<body>
+  <div class="watermark"><div>
+    {{AgencyName}} • {{PackageName}} • {{AgencyName}} • {{PackageName}} • {{AgencyName}} • {{PackageName}} •
+  </div></div>
+
+  <section class="section hero">
+    <div class="hero-top">
+      <div class="logo">{{AgencyLogoHtml}}</div>
+      <div class="trip-id">Trip ID: {{PackageName}}</div>
+    </div>
+    <h1>{{CoverTitle}}</h1>
+    <p class="meta"><b>{{ClientName}}</b> • {{ClientPhone}}</p>
+    <p class="meta">Starts: {{StartDate}} Ends: {{EndDate}} ({{DaysLabel}})</p>
+    <p class="meta">Dear {{ClientName}}, greetings from {{AgencyName}}.</p>
+    <div class="consultant">
+      <div>Your holiday consultant: <b>{{AgencyName}}</b></div>
+      <div>Contact: {{AgencyPhone}}</div>
+    </div>
+  </section>
+
+  <div class="title-bar">Quote summary</div>
+  <section class="grid-2 section">
+    <div class="card">
+      <div class="kpi">Destination</div>
+      <div class="val">{{DestinationLine}}</div>
+      <div class="kpi" style="margin-top:8px;">Start date</div>
+      <div class="val">{{StartDate}}</div>
+      <div class="kpi" style="margin-top:8px;">Duration</div>
+      <div class="val">{{DaysLabel}}</div>
+      <div class="kpi" style="margin-top:8px;">Pax</div>
+      <div class="val">{{PaxSummary}}</div>
+    </div>
+    <div class="quote">
+      <div class="kpi">Quote price</div>
+      <div class="amt">{{FinalAmount}}</div>
+      <div class="sub">Total (INR) • excluding GST</div>
+    </div>
+  </section>
+
+  <div class="title-bar">Hotels / accommodations</div>
+  {{HotelsHtml}}
+
+  <div class="title-bar">Transportation</div>
+  <div class="card section">Transportation route: {{PickUpLocation}} to {{DropLocation}}</div>
+
+  <div class="page-break"></div>
+  <div class="title-bar">Day wise itinerary</div>
+  {{DaysHtml}}
+
+  <div class="title-bar">Inclusions / exclusions</div>
+  <section class="split section">
+    <div class="list-box"><h3>Inclusions</h3><ul>{{InclusionsHtml}}</ul></div>
+    <div class="list-box"><h3>Exclusions</h3><ul>{{ExclusionsHtml}}</ul></div>
+  </section>
+
+  <div class="title-bar">Terms &amp; conditions</div>
+  <div class="terms section"><h3>General terms</h3><ul>
+    <li>Rates are subject to availability at the time of confirmation.</li>
+    <li>Any increase in transport, taxes, or supplier charges will be applicable.</li>
+    <li>Guest must carry valid government photo ID at check-in.</li>
+    <li>Anything not mentioned in inclusions is treated as excluded.</li>
+    <li>Cancellation charges apply as per the booking policy.</li>
+    <li>Supplement costs (if any) are payable directly at destination.</li>
+  </ul></div>
+
+  <div class="title-bar">Bank details</div>
+  <table class="table section">
+    <thead><tr><th>Account holder</th><th>Bank name</th><th>Account number</th><th>IFSC</th></tr></thead>
+    <tbody>{{BankRowsHtml}}</tbody>
+  </table>
+
+  <div class="title-bar">Scan &amp; pay</div>
+  <div class="qr-wrap section">{{QrHtml}}</div>
+
+  <div class="contact">
+    <div><b>{{AgencyName}}</b></div>
+    <div>Phone: {{AgencyPhone}}</div>
+    <div>Email: {{AgencyEmail}}</div>
+    <div>Contact person: {{ManagingDirectorName}}</div>
+  </div>
+
+  <div class="pdf-footer"><span>{{AgencyName}}</span><span>Generated on {{GeneratedDate}}</span></div>
+</body>
+</html>

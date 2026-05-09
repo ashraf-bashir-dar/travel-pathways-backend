@@ -38,6 +38,7 @@ public sealed class AdminTenantUsersController : ControllerBase
         public required bool IsActive { get; init; }
         public required DateTime CreatedAt { get; init; }
         public bool CanViewCostBifurcation { get; init; }
+        public bool CanPriceOverride { get; init; }
         public string? Phone { get; init; }
         public DateTime? DateOfBirth { get; init; }
         public DateTime? JoinDate { get; init; }
@@ -59,6 +60,7 @@ public sealed class AdminTenantUsersController : ControllerBase
         public bool IsActive { get; set; } = true;
         public List<AppModuleKey>? AllowedModules { get; set; }
         public bool CanViewCostBifurcation { get; set; }
+        public bool CanPriceOverride { get; set; }
         public string? Phone { get; set; }
         public DateTime? DateOfBirth { get; set; }
         public DateTime? JoinDate { get; set; }
@@ -80,6 +82,7 @@ public sealed class AdminTenantUsersController : ControllerBase
         public bool IsActive { get; set; } = true;
         public List<AppModuleKey>? AllowedModules { get; set; }
         public bool CanViewCostBifurcation { get; set; }
+        public bool CanPriceOverride { get; set; }
         public string? Phone { get; set; }
         public DateTime? DateOfBirth { get; set; }
         public DateTime? JoinDate { get; set; }
@@ -133,6 +136,8 @@ public sealed class AdminTenantUsersController : ControllerBase
         {
             return BadRequest(ApiResponse<TenantUserDto>.Fail("Email and password are required."));
         }
+        if (request.CanViewCostBifurcation && request.CanPriceOverride)
+            return BadRequest(ApiResponse<TenantUserDto>.Fail("Can view cost bifurcation and Price Override cannot both be enabled for the same user."));
 
         var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct);
         if (tenant is null) return BadRequest(ApiResponse<TenantUserDto>.Fail("Tenant not found."));
@@ -160,6 +165,7 @@ public sealed class AdminTenantUsersController : ControllerBase
             IsActive = request.IsActive,
             AllowedModules = request.AllowedModules?.ToList() ?? [],
             CanViewCostBifurcation = request.CanViewCostBifurcation,
+            CanPriceOverride = request.CanPriceOverride,
             PasswordHash = PasswordHasher.Hash(request.Password),
             PasswordEncrypted = _passwordEncryption.Encrypt(request.Password),
             Phone = request.Phone?.Trim(),
@@ -200,6 +206,8 @@ public sealed class AdminTenantUsersController : ControllerBase
     public async Task<ActionResult<ApiResponse<TenantUserDto>>> UpdateUser([FromRoute] Guid tenantId, [FromRoute] Guid userId, [FromBody] UpdateTenantUserRequestDto request, CancellationToken ct)
     {
         if (request.Role == UserRole.SuperAdmin) return BadRequest(ApiResponse<TenantUserDto>.Fail("Role not allowed."));
+        if (request.CanViewCostBifurcation && request.CanPriceOverride)
+            return BadRequest(ApiResponse<TenantUserDto>.Fail("Can view cost bifurcation and Price Override cannot both be enabled for the same user."));
 
         var user = await _db.Users.FirstOrDefaultAsync(u => u.TenantId == tenantId && u.Id == userId, ct);
         if (user is null) return NotFound(ApiResponse<TenantUserDto>.Fail("User not found"));
@@ -216,6 +224,7 @@ public sealed class AdminTenantUsersController : ControllerBase
         user.IsActive = request.IsActive;
         user.AllowedModules = request.AllowedModules?.ToList() ?? user.AllowedModules ?? [];
         user.CanViewCostBifurcation = request.CanViewCostBifurcation;
+        user.CanPriceOverride = request.CanPriceOverride;
         user.Phone = request.Phone?.Trim();
         user.DateOfBirth = NormalizeNullableUtc(request.DateOfBirth);
         user.JoinDate = NormalizeNullableUtc(request.JoinDate);
@@ -275,6 +284,7 @@ public sealed class AdminTenantUsersController : ControllerBase
             IsActive = u.IsActive,
             CreatedAt = u.CreatedAt,
             CanViewCostBifurcation = u.CanViewCostBifurcation,
+            CanPriceOverride = u.CanPriceOverride,
             Phone = u.Phone,
             DateOfBirth = u.DateOfBirth,
             JoinDate = u.JoinDate,

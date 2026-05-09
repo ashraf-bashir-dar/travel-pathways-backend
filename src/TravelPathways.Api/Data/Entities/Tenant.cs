@@ -18,10 +18,16 @@ public sealed class Tenant : EntityBase
     public string? PdfCoverTitle { get; set; }
     public string? PdfPrimaryColor { get; set; }
     public string? PdfSecondaryColor { get; set; }
-    /// <summary>Selected tenant PDF template key (e.g. "classic-quote", "modern-itinerary").</summary>
+    /// <summary>Assigned library template key (PdfTemplates.Key). Must resolve to an active template with HTML.</summary>
     public string? PdfTemplateKey { get; set; }
     public bool? PdfShowBankDetails { get; set; }
     public bool? PdfShowQrCodes { get; set; }
+    /// <summary>Tenant-managed PDF terms (shown in package PDF terms section).</summary>
+    public List<string> TermsAndConditions { get; set; } = [];
+    /// <summary>Tenant-managed PDF cancellation policies.</summary>
+    public List<string> CancellationPolicy { get; set; } = [];
+    /// <summary>Tenant-managed PDF supplement costs/policies.</summary>
+    public List<string> SupplementCosts { get; set; } = [];
 
     // Enabled modules for this tenant (stored as JSON string)
     public List<AppModuleKey> EnabledModules { get; set; } = [];

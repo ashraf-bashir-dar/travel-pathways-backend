@@ -579,18 +579,19 @@ public sealed class AppDbContext : DbContext
             foreach (var property in entry.Properties)
             {
                 var clrType = property.Metadata.ClrType;
-                if (clrType != typeof(DateTime) && clrType != typeof(DateTime?))
+                var isDateTimeProp = clrType == typeof(DateTime) || Nullable.GetUnderlyingType(clrType) == typeof(DateTime);
+                if (!isDateTimeProp)
                     continue;
 
-                if (property.CurrentValue is DateTime dateTime)
+                if (property.CurrentValue is not DateTime dateTime)
+                    continue;
+
+                property.CurrentValue = dateTime.Kind switch
                 {
-                    property.CurrentValue = dateTime.Kind switch
-                    {
-                        DateTimeKind.Utc => dateTime,
-                        DateTimeKind.Local => dateTime.ToUniversalTime(),
-                        _ => DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)
-                    };
-                }
+                    DateTimeKind.Utc => dateTime,
+                    DateTimeKind.Local => dateTime.ToUniversalTime(),
+                    _ => DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)
+                };
             }
         }
     }

@@ -27,7 +27,12 @@ public sealed class TourPackage : TenantEntityBase
     public Guid? VehicleId { get; set; }
     public Vehicle? Vehicle { get; set; }
 
+    /// <summary>Total package price before discount (client quote). In price-override mode this is base cost + <see cref="MarginAmount"/>.</summary>
     public decimal TotalAmount { get; set; }
+
+    /// <summary>Agency margin (INR) when using price override; optional audit field. Does not change totals — <see cref="TotalAmount"/> is still the source of truth for the quote.</summary>
+    public decimal MarginAmount { get; set; }
+
     /// <summary>Discount amount (e.g. in INR). Final package cost = TotalAmount - Discount.</summary>
     public decimal Discount { get; set; }
     public decimal AdvanceAmount { get; set; }

@@ -249,7 +249,7 @@ public sealed class VehiclesController : TenantControllerBase
             FromDate = p.FromDate,
             ToDate = p.ToDate,
             Rate = p.SellingPrice,
-            RateType = null,
+            RateType = p.RateType,
             EffectiveFrom = p.FromDate,
             EffectiveTo = p.ToDate,
             TenantId = p.TenantId.ToString("D"),

@@ -51,6 +51,13 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
         }, cts.Token).ConfigureAwait(false);
     }
 
+    private static readonly Regex PlaceholderRegex = new(@"\{\{[^{}]+\}\}", RegexOptions.Compiled);
+
+    /// <summary>Single pass over the template — avoids O(tokens × length) repeated <see cref="string.Replace"/> on large HTML.</summary>
+    private static string ApplyPlaceholders(string template, Dictionary<string, string> replacements) =>
+        PlaceholderRegex.Replace(template, m =>
+            replacements.TryGetValue(m.Value, out var v) ? v : m.Value);
+
     private static string H(string? s) => string.IsNullOrEmpty(s) ? "" : System.Net.WebUtility.HtmlEncode(s);
 
     private static string BuildCustomHtml(PackagePdfModel m)
@@ -161,6 +168,8 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             ["{{TotalCnbCount}}"] = H(m.TotalCnbCount.ToString()),
             ["{{FinalAmount}}"] = H(m.FinalAmount),
             ["{{TotalAmount}}"] = H(m.TotalAmount),
+            ["{{TotalPackagePrice}}"] = H(string.IsNullOrEmpty(m.TotalPackagePrice) ? m.TotalAmount : m.TotalPackagePrice),
+            ["{{MarginAmount}}"] = H(m.MarginAmountDisplay),
             ["{{PerPersonAmount}}"] = H(m.PerPersonAmount ?? "–"),
             ["{{Discount}}"] = H(m.Discount),
             ["{{AdvanceAmount}}"] = H(m.AdvanceAmount),
@@ -183,8 +192,7 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             ["{{QrHtml}}"] = qrHtml
         };
 
-        foreach (var kv in replacements)
-            template = template.Replace(kv.Key, kv.Value, StringComparison.OrdinalIgnoreCase);
+        template = ApplyPlaceholders(template, replacements);
 
         return template;
     }

@@ -112,56 +112,48 @@ public sealed class HotelsController : TenantControllerBase
         [FromQuery] int? starRating = null,
         CancellationToken ct = default)
     {
-        try
+        pageNumber = Math.Max(1, pageNumber);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+
+        var query = _db.Hotels.AsNoTracking()
+            .Include(h => h.Rates)
+            .Include(h => h.Area)
+            .Where(h => h.TenantId == TenantId);
+
+        if (isHouseboat is not null)
         {
-            pageNumber = Math.Max(1, pageNumber);
-            pageSize = Math.Clamp(pageSize, 1, 200);
-
-            var query = _db.Hotels.AsNoTracking()
-                .Include(h => h.Rates)
-                .Include(h => h.Area)
-                .Where(h => h.TenantId == TenantId);
-
-            if (isHouseboat is not null)
-            {
-                query = query.Where(h => h.IsHouseboat == isHouseboat.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(searchTerm))
-            {
-                var s = searchTerm.Trim().ToLower();
-                query = query.Where(h => h.Name.ToLower().Contains(s) || h.City.ToLower().Contains(s) || h.Address.ToLower().Contains(s));
-            }
-
-            if (starRating is >= 1 and <= 5)
-            {
-                query = query.Where(h => h.StarRating != null && h.StarRating == starRating.Value);
-            }
-
-            var total = await query.CountAsync(ct);
-            var hotels = await query
-                .OrderByDescending(h => h.CreatedAt)
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync(ct);
-
-            var items = hotels.Select(ToDto).ToList();
-            var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
-
-            return ApiResponse<PaginatedResponse<HotelDto>>.Ok(new PaginatedResponse<HotelDto>
-            {
-                Items = items,
-                TotalCount = total,
-                PageNumber = pageNumber,
-                PageSize = pageSize,
-                TotalPages = totalPages
-            });
+            query = query.Where(h => h.IsHouseboat == isHouseboat.Value);
         }
-        catch (Exception ex)
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
         {
-
-            throw;
+            var s = searchTerm.Trim().ToLower();
+            query = query.Where(h => h.Name.ToLower().Contains(s) || h.City.ToLower().Contains(s) || h.Address.ToLower().Contains(s));
         }
+
+        if (starRating is >= 1 and <= 5)
+        {
+            query = query.Where(h => h.StarRating != null && h.StarRating == starRating.Value);
+        }
+
+        var total = await query.CountAsync(ct);
+        var hotels = await query
+            .OrderByDescending(h => h.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        var items = hotels.Select(ToDto).ToList();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+
+        return ApiResponse<PaginatedResponse<HotelDto>>.Ok(new PaginatedResponse<HotelDto>
+        {
+            Items = items,
+            TotalCount = total,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalPages = totalPages
+        });
     }
 
     [HttpGet("{id:guid}")]

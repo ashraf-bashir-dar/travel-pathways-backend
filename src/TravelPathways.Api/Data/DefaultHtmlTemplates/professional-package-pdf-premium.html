@@ -18,7 +18,7 @@
 
       Tokens: {{CoverTitle}} {{AgencyLogoHtml}} {{PackageName}} {{ClientName}} {{ClientPhone}} {{ClientEmail}}
       {{StartDate}} {{EndDate}} {{DaysLabel}} {{DestinationLine}} {{PickUpLocation}} {{DropLocation}}
-      {{MealPlan}} {{PaxSummary}} {{FinalAmount}} {{TotalAmount}} {{Discount}} {{AdvanceAmount}}
+      {{MealPlan}} {{PaxSummary}} {{FinalAmount}} {{TotalAmount}} {{TotalPackagePrice}} {{MarginAmount}} {{Discount}} {{AdvanceAmount}}
       {{BalanceAmount}} {{PerPersonAmount}} {{ItineraryOverviewHtml}} {{HotelsHtml}} {{DaysHtml}}
       {{InclusionsHtml}} {{ExclusionsHtml}} {{TermsHtml}} {{CancellationHtml}} {{SupplementHtml}}
       {{BankRowsHtml}} {{QrHtml}} {{AgencyName}} {{AgencyPhone}} {{AgencyEmail}} {{ManagingDirectorName}} {{GeneratedDate}}
@@ -281,6 +281,34 @@
       white-space: nowrap;
     }
     .pricing-hero .note { font-size: 8.5pt; color: var(--muted); }
+
+    .pricing-detail.quote-row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      width: 100%;
+      padding: 8px 22px 10px;
+      box-sizing: border-box;
+      border-top: 1px solid rgba(12, 18, 32, 0.08);
+    }
+    .pricing-detail.quote-row .label {
+      font-size: 7pt;
+      color: var(--muted);
+      font-weight: 600;
+      margin: 0;
+      flex: 1 1 auto;
+    }
+    .pricing-detail.quote-row .amount-sm {
+      font-family: Cambria, Georgia, serif;
+      font-size: 11pt;
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0;
+      text-align: right;
+      white-space: nowrap;
+    }
 
     /* --- Section titles --- */
     h2.section-title {
@@ -739,6 +767,14 @@
         <div class="pricing-hero quote-row">
           <div class="label">Quoted amount</div>
           <div class="amount">{{FinalAmount}}</div>
+        </div>
+        <div class="pricing-detail quote-row">
+          <div class="label">Total package price (before discount)</div>
+          <div class="amount-sm">{{TotalPackagePrice}}</div>
+        </div>
+        <div class="pricing-detail quote-row">
+          <div class="label">Agency margin</div>
+          <div class="amount-sm">{{MarginAmount}}</div>
         </div>
       </div>
     </div>

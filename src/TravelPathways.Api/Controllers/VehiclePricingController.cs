@@ -101,21 +101,24 @@ public sealed class VehiclePricingController : TenantControllerBase
         if (vehicleId.HasValue)
             query = query.Where(p => p.VehicleId == vehicleId.Value);
 
+        // Vehicle / company may be missing (soft-deleted) while pricing rows remain — avoid null deref in projection.
         var list = await query
             .Include(p => p.Vehicle)
             .ThenInclude(v => v!.TransportCompany)
-            .OrderBy(p => p.Vehicle!.TransportCompany!.Name)
-            .ThenBy(p => p.Vehicle!.VehicleModel ?? p.Vehicle!.VehicleNumber ?? "")
+            .OrderBy(p => p.Vehicle != null && p.Vehicle.TransportCompany != null ? p.Vehicle.TransportCompany.Name : "")
+            .ThenBy(p => p.Vehicle != null ? (p.Vehicle.VehicleModel ?? p.Vehicle.VehicleNumber ?? "") : "")
             .ThenBy(p => p.PickupLocation)
             .ThenBy(p => p.DropLocation)
             .Select(p => new VehiclePricingListDto
             {
                 Id = p.Id.ToString(),
                 VehicleId = p.VehicleId.ToString(),
-                VehicleModel = p.Vehicle!.VehicleModel,
-                VehicleNumber = p.Vehicle.VehicleNumber,
-                VehicleType = p.Vehicle.VehicleType,
-                TransportCompanyName = p.Vehicle.TransportCompany!.Name,
+                VehicleModel = p.Vehicle != null ? p.Vehicle.VehicleModel : null,
+                VehicleNumber = p.Vehicle != null ? p.Vehicle.VehicleNumber : null,
+                VehicleType = p.Vehicle != null ? p.Vehicle.VehicleType : VehicleType.Other,
+                TransportCompanyName = p.Vehicle != null && p.Vehicle.TransportCompany != null
+                    ? p.Vehicle.TransportCompany.Name
+                    : "",
                 PickupLocation = p.PickupLocation,
                 DropLocation = p.DropLocation,
                 CostPrice = p.CostPrice,
@@ -136,9 +139,10 @@ public sealed class VehiclePricingController : TenantControllerBase
 
         var selling = request.SellingPrice ?? request.Rate ?? 0m;
         var cost = request.CostPrice ?? 0m;
-        var from = request.FromDate ?? request.EffectiveFrom ?? DateTime.UtcNow.Date;
-        var to = request.ToDate ?? request.EffectiveTo;
+        var from = EnsureUtc(request.FromDate ?? request.EffectiveFrom ?? DateTime.UtcNow.Date);
+        var to = EnsureUtcNullable(request.ToDate ?? request.EffectiveTo);
 
+        var rateType = request.RateType ?? RateType.PerDay;
         var pricing = new VehiclePricing
         {
             TenantId = TenantId,
@@ -147,7 +151,7 @@ public sealed class VehiclePricingController : TenantControllerBase
             DropLocation = request.DropLocation.Trim(),
             CostPrice = cost,
             SellingPrice = selling,
-            RateType = request.RateType,
+            RateType = rateType,
             FromDate = from,
             ToDate = to
         };
@@ -155,7 +159,7 @@ public sealed class VehiclePricingController : TenantControllerBase
         _db.VehiclePricing.Add(pricing);
         await _db.SaveChangesAsync(ct);
 
-        return ApiResponse<VehiclePricingDto>.Ok(ToDto(pricing, request.RateType));
+        return ApiResponse<VehiclePricingDto>.Ok(ToDto(pricing, rateType));
     }
 
     [HttpPut("{id:guid}")]
@@ -170,20 +174,20 @@ public sealed class VehiclePricingController : TenantControllerBase
 
         var selling = request.SellingPrice ?? request.Rate ?? pricing.SellingPrice;
         var cost = request.CostPrice ?? pricing.CostPrice;
-        var from = request.FromDate ?? request.EffectiveFrom ?? pricing.FromDate;
-        var to = request.ToDate ?? request.EffectiveTo;
+        var from = EnsureUtc(request.FromDate ?? request.EffectiveFrom ?? pricing.FromDate);
+        var to = EnsureUtcNullable(request.ToDate ?? request.EffectiveTo);
 
         pricing.VehicleId = request.VehicleId;
         pricing.PickupLocation = request.PickupLocation.Trim();
         pricing.DropLocation = request.DropLocation.Trim();
         pricing.CostPrice = cost;
         pricing.SellingPrice = selling;
-        pricing.RateType = request.RateType;
+        pricing.RateType = request.RateType ?? pricing.RateType ?? RateType.PerDay;
         pricing.FromDate = from;
         pricing.ToDate = to;
 
         await _db.SaveChangesAsync(ct);
-        return ApiResponse<VehiclePricingDto>.Ok(ToDto(pricing, request.RateType));
+        return ApiResponse<VehiclePricingDto>.Ok(ToDto(pricing, pricing.RateType));
     }
 
     [HttpDelete("{id:guid}")]
@@ -216,5 +220,17 @@ public sealed class VehiclePricingController : TenantControllerBase
             CreatedAt = p.CreatedAt,
             UpdatedAt = p.UpdatedAt
         };
+
+    /// <summary>Npgsql rejects Kind=Unspecified for timestamptz; JSON date strings deserialize as Unspecified.</summary>
+    private static DateTime EnsureUtc(DateTime value) =>
+        value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
+
+    private static DateTime? EnsureUtcNullable(DateTime? value) =>
+        value.HasValue ? EnsureUtc(value.Value) : null;
 }
 

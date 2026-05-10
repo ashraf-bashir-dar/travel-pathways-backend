@@ -105,9 +105,11 @@ builder.Services.AddCors(options =>
 
 
 /* -------------------- Dependency Injection -------------------- */
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<TenantMiddleware>();
 builder.Services.AddScoped<FileStorage>();
+builder.Services.AddScoped<TravelPathways.Api.Services.IPdfTemplateHtmlCache, TravelPathways.Api.Services.PdfTemplateHtmlCache>();
 builder.Services.AddSingleton<TravelPathways.Api.Services.IChromiumBrowserProvider, TravelPathways.Api.Services.ChromiumBrowserProvider>();
 builder.Services.AddHostedService<TravelPathways.Api.Services.ChromiumBrowserHostedService>();
 builder.Services.AddScoped<TravelPathways.Api.Services.IPackagePdfGenerator, TravelPathways.Api.Services.PackagePdfGenerator>();
@@ -241,6 +243,9 @@ using (var scope = app.Services.CreateScope())
         // even if migration history is out-of-sync in a local DB.
         await db.Database.ExecuteSqlRawAsync(
             "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"CanPriceOverride\" boolean NOT NULL DEFAULT false;");
+        // Same for package margin (PDF / price override); avoids 42703 if migrations were not applied to this DB.
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Packages\" ADD COLUMN IF NOT EXISTS \"MarginAmount\" numeric(18,2) NOT NULL DEFAULT 0;");
 
         var superAdminEnabled = app.Configuration.GetValue<bool>("SuperAdmin:Enabled", true);
         if (superAdminEnabled)

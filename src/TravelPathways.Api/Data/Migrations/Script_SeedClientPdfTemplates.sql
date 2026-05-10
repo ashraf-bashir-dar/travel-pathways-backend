@@ -535,6 +535,31 @@ $tpdf01$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -546,7 +571,7 @@ $tpdf01$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -572,13 +597,13 @@ $tpdf01$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -846,6 +871,14 @@ $tpdf01$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>
@@ -1382,6 +1415,31 @@ $tpdf02$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -1393,7 +1451,7 @@ $tpdf02$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -1419,13 +1477,13 @@ $tpdf02$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -1693,6 +1751,14 @@ $tpdf02$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>
@@ -2228,6 +2294,31 @@ $tpdf03$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -2239,7 +2330,7 @@ $tpdf03$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -2265,13 +2356,13 @@ $tpdf03$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -2539,6 +2630,14 @@ $tpdf03$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>
@@ -3074,6 +3173,31 @@ $tpdf04$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -3085,7 +3209,7 @@ $tpdf04$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -3111,13 +3235,13 @@ $tpdf04$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -3385,6 +3509,14 @@ $tpdf04$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>
@@ -3920,6 +4052,31 @@ $tpdf05$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -3931,7 +4088,7 @@ $tpdf05$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -3957,13 +4114,13 @@ $tpdf05$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -4231,6 +4388,14 @@ $tpdf05$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>
@@ -4756,6 +4921,31 @@ $tpdf06$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -4767,7 +4957,7 @@ $tpdf06$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -4793,13 +4983,13 @@ $tpdf06$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -5067,6 +5257,14 @@ $tpdf06$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>
@@ -5594,6 +5792,31 @@ $tpdf07$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -5605,7 +5828,7 @@ $tpdf07$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -5631,13 +5854,13 @@ $tpdf07$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -5905,6 +6128,14 @@ $tpdf07$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>
@@ -6430,6 +6661,31 @@ $tpdf08$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -6441,7 +6697,7 @@ $tpdf08$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -6467,13 +6723,13 @@ $tpdf08$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -6741,6 +6997,14 @@ $tpdf08$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>
@@ -7266,6 +7530,31 @@ $tpdf09$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -7277,7 +7566,7 @@ $tpdf09$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -7303,13 +7592,13 @@ $tpdf09$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -7577,6 +7866,14 @@ $tpdf09$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>
@@ -8104,6 +8401,31 @@ $tpdf10$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -8115,7 +8437,7 @@ $tpdf10$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -8141,13 +8463,13 @@ $tpdf10$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -8415,6 +8737,14 @@ $tpdf10$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>
@@ -8940,6 +9270,31 @@ $tpdf11$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -8951,7 +9306,7 @@ $tpdf11$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -8977,13 +9332,13 @@ $tpdf11$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -9251,6 +9606,14 @@ $tpdf11$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>
@@ -9776,6 +10139,31 @@ $tpdf12$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -9787,7 +10175,7 @@ $tpdf12$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -9813,13 +10201,13 @@ $tpdf12$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -10087,6 +10475,14 @@ $tpdf12$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>
@@ -10612,6 +11008,31 @@ $tpdf13$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -10623,7 +11044,7 @@ $tpdf13$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -10649,13 +11070,13 @@ $tpdf13$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -10923,6 +11344,14 @@ $tpdf13$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>
@@ -11450,6 +11879,31 @@ $tpdf14$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -11461,7 +11915,7 @@ $tpdf14$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -11487,13 +11941,13 @@ $tpdf14$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -11761,6 +12215,14 @@ $tpdf14$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>
@@ -12286,6 +12748,31 @@ $tpdf15$
     }
     .qr-section img { width: 88px; height: 88px; object-fit: contain; display: block; margin: 0 auto 4px; }
 
+    /* Footer --- */
+    .footer {
+      position: relative;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: none;
+      font-size: 8.5pt;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent 8%, var(--secondary) 42%, rgba(201, 162, 39, 0.35) 50%, var(--secondary) 58%, transparent 92%);
+    }
+    .footer strong { color: var(--ink); }
 
     /* Last page — About us & leadership */
     .last-page {
@@ -12297,7 +12784,7 @@ $tpdf15$
     .last-page-registered {
       margin: 0 0 28px;
       padding: 22px 22px 24px;
-      text-align: left;
+      text-align: center;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(125deg, rgba(12, 18, 32, 0.04) 0%, rgba(201, 162, 39, 0.07) 50%, var(--surface) 100%);
@@ -12323,13 +12810,13 @@ $tpdf15$
       display: flex;
       flex-direction: column;
       gap: 12px;
-      align-items: flex-start;
+      align-items: center;
       margin: 0;
     }
     .last-page-reg-row {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: baseline;
       gap: 8px 16px;
       max-width: 100%;
@@ -12597,6 +13084,14 @@ $tpdf15$
       </div>
     </section>
 
+    <footer class="footer">
+      <div>
+        <strong>{{AgencyName}}</strong>
+        · {{AgencyPhone}} · {{AgencyEmail}}
+        <span> · {{ManagingDirectorName}}</span>
+      </div>
+      <div>Prepared {{GeneratedDate}}</div>
+    </footer>
   </div>
 </body>
 </html>

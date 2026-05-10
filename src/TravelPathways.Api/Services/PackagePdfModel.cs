@@ -22,6 +22,13 @@ public sealed class PackagePdfModel
     /// <summary>Total CNB (Child No Bed) across all days. Shown in Package information when > 0.</summary>
     public int TotalCnbCount { get; init; }
     public required string TotalAmount { get; init; }
+
+    /// <summary>Same formatted value as <see cref="TotalAmount"/> (pre-discount package quote from DB).</summary>
+    public required string TotalPackagePrice { get; init; }
+
+    /// <summary>Formatted margin for PDF templates (e.g. "Rs. 5,000" or "–").</summary>
+    public required string MarginAmountDisplay { get; init; }
+
     public required string Discount { get; init; }
     public required string FinalAmount { get; init; }
     /// <summary>Per person cost = Final amount / (Adults + Children).</summary>

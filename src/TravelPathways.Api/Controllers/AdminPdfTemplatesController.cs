@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using TravelPathways.Api.Common;
 using TravelPathways.Api.Data;
 using TravelPathways.Api.Data.Entities;
+using TravelPathways.Api.Services;
 
 namespace TravelPathways.Api.Controllers;
 
@@ -13,10 +14,12 @@ namespace TravelPathways.Api.Controllers;
 public sealed class AdminPdfTemplatesController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IPdfTemplateHtmlCache _pdfTemplateHtmlCache;
 
-    public AdminPdfTemplatesController(AppDbContext db)
+    public AdminPdfTemplatesController(AppDbContext db, IPdfTemplateHtmlCache pdfTemplateHtmlCache)
     {
         _db = db;
+        _pdfTemplateHtmlCache = pdfTemplateHtmlCache;
     }
 
     public sealed class PdfTemplateDto
@@ -85,6 +88,7 @@ public sealed class AdminPdfTemplatesController : ControllerBase
         };
         _db.PdfTemplates.Add(entity);
         await _db.SaveChangesAsync(ct);
+        _pdfTemplateHtmlCache.Invalidate(entity.Key);
         return CreatedAtAction(nameof(GetTemplateById), new { id = entity.Id }, ApiResponse<PdfTemplateDto>.Ok(ToDto(entity)));
     }
 
@@ -94,6 +98,7 @@ public sealed class AdminPdfTemplatesController : ControllerBase
         var item = await _db.PdfTemplates.FirstOrDefaultAsync(t => t.Id == id, ct);
         if (item is null) return NotFound(ApiResponse<PdfTemplateDto>.Fail("Template not found"));
 
+        var previousKey = item.Key;
         var key = NormalizeKey(request.Key);
         var name = request.Name.Trim();
         if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(name))
@@ -112,6 +117,9 @@ public sealed class AdminPdfTemplatesController : ControllerBase
         item.HtmlTemplate = htmlTemplateUpdate;
 
         await _db.SaveChangesAsync(ct);
+        _pdfTemplateHtmlCache.Invalidate(previousKey);
+        if (!string.Equals(previousKey, key, StringComparison.Ordinal))
+            _pdfTemplateHtmlCache.Invalidate(key);
         return ApiResponse<PdfTemplateDto>.Ok(ToDto(item));
     }
 
@@ -121,10 +129,12 @@ public sealed class AdminPdfTemplatesController : ControllerBase
         var item = await _db.PdfTemplates.FirstOrDefaultAsync(t => t.Id == id, ct);
         if (item is null) return NotFound(ApiResponse<object>.Fail("Template not found"));
 
+        var key = item.Key;
         item.IsDeleted = true;
         item.DeletedAtUtc = DateTime.UtcNow;
         item.IsActive = false;
         await _db.SaveChangesAsync(ct);
+        _pdfTemplateHtmlCache.Invalidate(key);
         return ApiResponse<object>.Ok(new { });
     }
 

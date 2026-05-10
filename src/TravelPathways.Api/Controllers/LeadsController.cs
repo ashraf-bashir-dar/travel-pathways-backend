@@ -62,7 +62,6 @@ public sealed class LeadsController : TenantControllerBase
     public sealed class UpdateLeadRequestDto : CreateLeadRequestDto
     {
         public LeadStatus Status { get; set; } = LeadStatus.New;
-        public Guid? AssignedToUserId { get; set; }
     }
 
     public sealed class LeadFollowUpDto
@@ -132,10 +131,19 @@ public sealed class LeadsController : TenantControllerBase
             query = query.Where(l => l.Status == status.Value);
         if (source.HasValue)
             query = query.Where(l => l.LeadSource == source.Value);
+        // Use UTC day bounds — PostgreSQL does not translate l.CreatedAt.Date reliably in all EF versions.
         if (assignedFrom.HasValue)
-            query = query.Where(l => l.CreatedAt.Date >= assignedFrom.Value.Date);
+        {
+            var d = assignedFrom.Value.Date;
+            var startUtc = new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc);
+            query = query.Where(l => l.CreatedAt >= startUtc);
+        }
         if (assignedTo.HasValue)
-            query = query.Where(l => l.CreatedAt.Date <= assignedTo.Value.Date);
+        {
+            var d = assignedTo.Value.Date;
+            var endUtcExclusive = new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc).AddDays(1);
+            query = query.Where(l => l.CreatedAt < endUtcExclusive);
+        }
 
         var total = await query.CountAsync(ct);
         var leads = await query

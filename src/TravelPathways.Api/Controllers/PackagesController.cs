@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
@@ -22,13 +23,15 @@ public sealed class PackagesController : TenantControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IPackagePdfGenerator _pdfGenerator;
+    private readonly IPdfTemplateHtmlCache _pdfTemplateHtmlCache;
     private readonly IConfiguration _configuration;
     private readonly IWebHostEnvironment _env;
 
-    public PackagesController(AppDbContext db, TenantContext tenant, IPackagePdfGenerator pdfGenerator, IConfiguration configuration, IWebHostEnvironment env) : base(tenant)
+    public PackagesController(AppDbContext db, TenantContext tenant, IPackagePdfGenerator pdfGenerator, IPdfTemplateHtmlCache pdfTemplateHtmlCache, IConfiguration configuration, IWebHostEnvironment env) : base(tenant)
     {
         _db = db;
         _pdfGenerator = pdfGenerator;
+        _pdfTemplateHtmlCache = pdfTemplateHtmlCache;
         _configuration = configuration;
         _env = env;
     }
@@ -99,6 +102,7 @@ public sealed class PackagesController : TenantControllerBase
         public string? VehicleName { get; init; }
         public decimal? VehicleRate { get; init; }
         public required decimal TotalAmount { get; init; }
+        public decimal MarginAmount { get; init; }
         public decimal Discount { get; init; }
         public decimal FinalAmount { get; init; }
         public required decimal AdvanceAmount { get; init; }
@@ -152,6 +156,8 @@ public sealed class PackagesController : TenantControllerBase
         public List<CreateDayItineraryRequestDto> DayWiseItinerary { get; set; } = [];
         public List<string>? InclusionIds { get; set; }
         public decimal TotalAmount { get; set; }
+        /// <summary>Optional margin (INR) stored for PDF / reporting when using price override.</summary>
+        public decimal MarginAmount { get; set; }
         public decimal Discount { get; set; }
     }
 
@@ -324,7 +330,8 @@ public sealed class PackagesController : TenantControllerBase
         try
         {
             var pdfBytes = await GeneratePackagePdfWithTenantAssetsAsync(pkg, tenant, ct);
-            var filename = BuildPdfFilename(pkg);
+            var filename = ToSafeAsciiDownloadFileName(BuildPdfFilename(pkg));
+            Response.Headers.Append("X-Content-Type-Options", "nosniff");
             return File(pdfBytes, "application/pdf", filename);
         }
         catch (PdfTemplateConfigurationException ex)
@@ -369,7 +376,8 @@ public sealed class PackagesController : TenantControllerBase
         try
         {
             var pdfBytes = await GeneratePackagePdfWithTenantAssetsAsync(pkg, tenant, ct);
-            var filename = BuildPdfFilename(pkg);
+            var filename = ToSafeAsciiDownloadFileName(BuildPdfFilename(pkg));
+            Response.Headers.Append("X-Content-Type-Options", "nosniff");
             Response.Headers.ContentDisposition = $"inline; filename=\"{filename}\"";
             return File(pdfBytes, "application/pdf");
         }
@@ -424,6 +432,7 @@ public sealed class PackagesController : TenantControllerBase
             NumberOfChildren = request.NumberOfChildren,
             VehicleId = request.VehicleId,
             TotalAmount = totalAmount,
+            MarginAmount = request.MarginAmount,
             Discount = discount,
             AdvanceAmount = 0,
             BalanceAmount = finalAmount,
@@ -517,6 +526,7 @@ public sealed class PackagesController : TenantControllerBase
         pkg.NumberOfChildren = request.NumberOfChildren;
         pkg.VehicleId = request.VehicleId;
         pkg.TotalAmount = request.TotalAmount;
+        pkg.MarginAmount = request.MarginAmount;
         pkg.Discount = request.Discount;
         var finalAmount = Math.Max(0, pkg.TotalAmount - request.Discount);
         pkg.AdvanceAmount = request.AdvanceAmount;
@@ -589,13 +599,6 @@ public sealed class PackagesController : TenantControllerBase
         pkg.DeletedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
-    }
-
-    /// <summary>Shikara charge: 700 × ceil(adults/4). Always added into package total; not shown in PDF.</summary>
-    private static decimal GetShikaraCharge(int numberOfAdults)
-    {
-        var numShikaras = numberOfAdults <= 0 ? 0 : (numberOfAdults + 3) / 4;
-        return 700m * numShikaras;
     }
 
     private static DateTime NormalizeUtc(DateTime value)
@@ -720,11 +723,12 @@ public sealed class PackagesController : TenantControllerBase
         var firstDay = days.FirstOrDefault();
         string Fmt(decimal v) => v.ToString("N0", CultureInfo.GetCultureInfo("en-IN"));
         string FmtDate(DateTime dt) => dt.ToString("d MMM yyyy", CultureInfo.GetCultureInfo("en-IN"));
-        // Include Shikara (700 × ceil(adults/4)) in PDF totals so PDF matches packages list Final amount
-        var shikaraCharge = GetShikaraCharge(pkg.NumberOfAdults);
-        var totalWithShikara = pkg.TotalAmount + shikaraCharge;
-        var finalAmount = Math.Max(0, totalWithShikara - pkg.Discount);
-        var balanceWithShikara = Math.Max(0, finalAmount - pkg.AdvanceAmount);
+        // PDF totals use stored package amounts only (no automatic add-ons).
+        var totalForPdf = pkg.TotalAmount;
+        var totalPackagePriceStr = "Rs. " + Fmt(totalForPdf);
+        var marginDisplay = pkg.MarginAmount > 0 ? "Rs. " + Fmt(pkg.MarginAmount) : "–";
+        var finalAmount = Math.Max(0, totalForPdf - pkg.Discount);
+        var balanceForPdf = Math.Max(0, finalAmount - pkg.AdvanceAmount);
         var chargeablePax = pkg.NumberOfAdults + pkg.NumberOfChildren;
         var perPerson = chargeablePax > 0 ? finalAmount / chargeablePax : finalAmount;
 
@@ -760,12 +764,14 @@ public sealed class PackagesController : TenantControllerBase
             FirstDayRooms = firstDay?.NumberOfRooms ?? 1,
             TotalExtraBeds = days.Sum(d => d.ExtraBedCount ?? 0),
             TotalCnbCount = days.Sum(d => d.CnbCount ?? 0),
-            TotalAmount = "Rs. " + Fmt(totalWithShikara),
+            TotalAmount = totalPackagePriceStr,
+            TotalPackagePrice = totalPackagePriceStr,
+            MarginAmountDisplay = marginDisplay,
             Discount = pkg.Discount > 0 ? "Rs. " + Fmt(pkg.Discount) : "–",
             FinalAmount = "Rs. " + Fmt(finalAmount),
             PerPersonAmount = "Rs. " + Fmt(perPerson),
             AdvanceAmount = "Rs. " + Fmt(pkg.AdvanceAmount),
-            BalanceAmount = "Rs. " + Fmt(balanceWithShikara),
+            BalanceAmount = "Rs. " + Fmt(balanceForPdf),
             Days = pdfDays,
             Hotels = pdfHotels,
             CoverImageUrls = coverImageUrls,
@@ -874,7 +880,11 @@ public sealed class PackagesController : TenantControllerBase
             NumberOfChildren = model.NumberOfChildren,
             MealPlanLabel = model.MealPlanLabel,
             FirstDayRooms = model.FirstDayRooms,
+            TotalExtraBeds = model.TotalExtraBeds,
+            TotalCnbCount = model.TotalCnbCount,
             TotalAmount = model.TotalAmount,
+            TotalPackagePrice = model.TotalPackagePrice,
+            MarginAmountDisplay = model.MarginAmountDisplay,
             Discount = model.Discount,
             FinalAmount = model.FinalAmount,
             PerPersonAmount = model.PerPersonAmount,
@@ -927,16 +937,15 @@ public sealed class PackagesController : TenantControllerBase
             throw new PdfTemplateConfigurationException(
                 "This agency has no PDF template selected. Open the travel agency in Admin and assign a PDF template that includes HTML.");
 
-        var templateEntity = await _db.PdfTemplates.AsNoTracking()
-            .FirstOrDefaultAsync(t => t.Key == templateKey && !t.IsDeleted && t.IsActive, ct);
-        if (templateEntity is null)
+        var templateEntry = await _pdfTemplateHtmlCache.TryLoadActiveTemplateAsync(templateKey, ct).ConfigureAwait(false);
+        if (templateEntry is null)
             throw new PdfTemplateConfigurationException(
                 $"The assigned PDF template key \"{templateKey}\" does not exist or is inactive.");
 
-        var htmlBody = templateEntity.HtmlTemplate?.Trim();
+        var htmlBody = templateEntry.HtmlBody;
         if (string.IsNullOrWhiteSpace(htmlBody))
             throw new PdfTemplateConfigurationException(
-                $"The PDF template \"{templateEntity.Name}\" ({templateKey}) has no HTML saved. Edit it under Admin → PDF templates and paste or design the Html template.");
+                $"The PDF template \"{templateEntry.TemplateName}\" ({templateKey}) has no HTML saved. Edit it under Admin → PDF templates and paste or design the Html template.");
 
         model = new PackagePdfModel
         {
@@ -957,6 +966,8 @@ public sealed class PackagesController : TenantControllerBase
             TotalExtraBeds = model.TotalExtraBeds,
             TotalCnbCount = model.TotalCnbCount,
             TotalAmount = model.TotalAmount,
+            TotalPackagePrice = model.TotalPackagePrice,
+            MarginAmountDisplay = model.MarginAmountDisplay,
             Discount = model.Discount,
             FinalAmount = model.FinalAmount,
             PerPersonAmount = model.PerPersonAmount,
@@ -988,6 +999,7 @@ public sealed class PackagesController : TenantControllerBase
         };
         model = InlinePdfImagesFromDisk(model);
         var generatedPdf = await _pdfGenerator.GenerateAsync(model, ct);
+        generatedPdf = PackagePdfSanitizer.StripDangerousCatalogEntries(generatedPdf);
         return MergePdfWithTenantAssets(generatedPdf, tenant);
     }
 
@@ -1021,7 +1033,7 @@ public sealed class PackagesController : TenantControllerBase
         if (coverDoc is not null)
         {
             var coverBytes = TryReadTenantDocumentPdfBytes(coverDoc.Url, uploadsRoot);
-            if (coverBytes is not null) AppendPdfBytes(coverBytes);
+            if (coverBytes is not null) AppendPdfBytes(PackagePdfSanitizer.StripDangerousCatalogEntries(coverBytes));
         }
 
         AppendPdfBytes(generatedPdf);
@@ -1029,12 +1041,32 @@ public sealed class PackagesController : TenantControllerBase
         foreach (var appendix in appendixDocs)
         {
             var appendixBytes = TryReadTenantDocumentPdfBytes(appendix.Url, uploadsRoot);
-            if (appendixBytes is not null) AppendPdfBytes(appendixBytes);
+            if (appendixBytes is not null) AppendPdfBytes(PackagePdfSanitizer.StripDangerousCatalogEntries(appendixBytes));
         }
 
         using var ms = new MemoryStream();
         merged.Save(ms, false);
-        return ms.ToArray();
+        return PackagePdfSanitizer.StripDangerousCatalogEntries(ms.ToArray());
+    }
+
+    /// <summary>Chrome is stricter about download filenames with non-ASCII or odd punctuation; keep a short ASCII name for Content-Disposition.</summary>
+    private static string ToSafeAsciiDownloadFileName(string suggested)
+    {
+        var ext = ".pdf";
+        var baseName = Path.GetFileNameWithoutExtension(suggested);
+        if (string.IsNullOrWhiteSpace(baseName)) baseName = "TravelPathways-package";
+        var forbidden = @"<>:""/\|?*";
+        var sb = new StringBuilder(Math.Min(baseName.Length, 128));
+        foreach (var c in baseName.Trim())
+        {
+            if (forbidden.Contains(c)) continue;
+            if (c >= 0x20 && c < 0x7f) sb.Append(c);
+            else sb.Append('_');
+        }
+        var s = sb.ToString().Trim('_');
+        if (string.IsNullOrEmpty(s)) s = "TravelPathways-package";
+        if (s.Length > 120) s = s[..120];
+        return s + ext;
     }
 
     private string ResolveUploadsRoot()
@@ -1113,6 +1145,7 @@ public sealed class PackagesController : TenantControllerBase
             VehicleName = vehicleName,
             VehicleRate = null,
             TotalAmount = p.TotalAmount,
+            MarginAmount = p.MarginAmount,
             Discount = p.Discount,
             FinalAmount = Math.Max(0, p.TotalAmount - p.Discount),
             AdvanceAmount = p.AdvanceAmount,

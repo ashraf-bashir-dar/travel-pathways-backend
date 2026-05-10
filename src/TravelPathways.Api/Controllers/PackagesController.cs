@@ -864,6 +864,19 @@ public sealed class PackagesController : TenantControllerBase
         }).ToList();
         var inlinedCover = inlinedHotels.SelectMany(h => h.ImageUrls).Take(4).ToList();
 
+        var inlinedDays = model.Days.Select(d => new DayItem
+        {
+            DayNumber = d.DayNumber,
+            DateLabel = d.DateLabel,
+            HotelName = d.HotelName,
+            HotelLocation = d.HotelLocation,
+            DayImageUrl = ToDataUrl(d.DayImageUrl) ?? d.DayImageUrl,
+            Title = d.Title,
+            Description = d.Description,
+            ExtraBedCount = d.ExtraBedCount,
+            CnbCount = d.CnbCount
+        }).ToList();
+
         return new PackagePdfModel
         {
             PackageName = model.PackageName,
@@ -890,7 +903,7 @@ public sealed class PackagesController : TenantControllerBase
             PerPersonAmount = model.PerPersonAmount,
             AdvanceAmount = model.AdvanceAmount,
             BalanceAmount = model.BalanceAmount,
-            Days = model.Days,
+            Days = inlinedDays,
             Hotels = inlinedHotels,
             CoverImageUrls = inlinedCover,
             InclusionLabels = model.InclusionLabels,

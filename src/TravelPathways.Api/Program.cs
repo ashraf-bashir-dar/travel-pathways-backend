@@ -169,6 +169,14 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
+/* -------------------- Forwarded headers FIRST (ALB / reverse proxy: correct Scheme/Host for uploads + client-environment) -------------------- */
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
+    KnownNetworks = { },
+    KnownProxies = { }
+});
+
 if (allowedOrigins.Length > 0)
 {
   app.Logger.LogInformation(
@@ -179,14 +187,6 @@ if (allowedOrigins.Length > 0)
 
 if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
-
-/* -------------------- Forwarded headers (ALB / reverse proxy: correct Scheme/Host for PDF image URLs) -------------------- */
-app.UseForwardedHeaders(new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
-    KnownNetworks = { },
-    KnownProxies = { }
-});
 
 /* -------------------- CORS: handle preflight and add headers to all responses -------------------- */
 app.Use(async (context, next) =>
@@ -334,7 +334,17 @@ var uploadsPath = !string.IsNullOrEmpty(customUploadsPath)
     : Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads");
 if (!Directory.Exists(uploadsPath)) Directory.CreateDirectory(uploadsPath);
 var uploadsProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath);
-app.UseStaticFiles(new StaticFileOptions { FileProvider = uploadsProvider, RequestPath = "/uploads" });
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = uploadsProvider,
+    RequestPath = "/uploads",
+    OnPrepareResponse = ctx =>
+    {
+        // Allow the SPA on another origin to load uploaded images (<img>, PDF generation fallbacks).
+        ctx.Context.Response.Headers.Append("Cross-Origin-Resource-Policy", "cross-origin");
+        ctx.Context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+    }
+});
 
 /* -------------------- Global exception handler (returns JSON so frontend gets CORS + body) -------------------- */
 app.UseExceptionHandler(a => a.Run(async context =>

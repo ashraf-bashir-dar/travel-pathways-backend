@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using TravelPathways.Api.Common;
 using TravelPathways.Api.Data;
 using TravelPathways.Api.Data.Entities;
@@ -16,11 +17,82 @@ public sealed class HotelsController : TenantControllerBase
 {
     private readonly AppDbContext _db;
     private readonly FileStorage _storage;
+    private readonly IConfiguration _configuration;
 
-    public HotelsController(AppDbContext db, TenantContext tenant, FileStorage storage) : base(tenant)
+    public HotelsController(AppDbContext db, TenantContext tenant, FileStorage storage, IConfiguration configuration)
+        : base(tenant)
     {
         _db = db;
         _storage = storage;
+        _configuration = configuration;
+    }
+
+    private string? ResolvePublicApiBase() => PublicApiBaseResolver.Resolve(_configuration, HttpContext);
+
+    /// <summary>DB keeps /uploads/... relative paths; API JSON returns absolute URLs for browsers when a public base URL is configured.</summary>
+    private List<string> NormalizeImageUrlsForClient(IReadOnlyList<string>? urls)
+    {
+        if (urls is null || urls.Count == 0)
+            return [];
+
+        var baseUri = ResolvePublicApiBase();
+        if (string.IsNullOrEmpty(baseUri))
+        {
+            return urls
+                .Where(u => !string.IsNullOrWhiteSpace(u))
+                .Select(static u => u.Trim())
+                .ToList();
+        }
+
+        List<string> result = [];
+        foreach (var u in urls)
+        {
+            if (string.IsNullOrWhiteSpace(u)) continue;
+            var s = u.Trim();
+            if (s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                s.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                result.Add(s);
+                continue;
+            }
+
+            var path = s.StartsWith('/') ? s : "/" + s;
+            result.Add($"{baseUri}{path}");
+        }
+
+        return result;
+    }
+
+    /// <summary>Persist paths as /uploads/... even if the SPA round-tripped absolute URLs from GET.</summary>
+    private static List<string> NormalizeImageUrlsForStorage(IReadOnlyList<string>? urls)
+    {
+        if (urls is null || urls.Count == 0)
+            return [];
+
+        List<string> result = [];
+        foreach (var u in urls)
+        {
+            if (string.IsNullOrWhiteSpace(u)) continue;
+            var s = u.Trim();
+            if (s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                s.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    s = new Uri(s).AbsolutePath;
+                }
+                catch
+                {
+                    continue;
+                }
+            }
+
+            if (!s.StartsWith('/'))
+                s = "/" + s;
+            result.Add(s);
+        }
+
+        return result;
     }
 
     public sealed class AccommodationRateDto
@@ -143,7 +215,7 @@ public sealed class HotelsController : TenantControllerBase
             .Take(pageSize)
             .ToListAsync(ct);
 
-        var items = hotels.Select(ToDto).ToList();
+        var items = hotels.Select(ToHotelDto).ToList();
         var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
 
         return ApiResponse<PaginatedResponse<HotelDto>>.Ok(new PaginatedResponse<HotelDto>
@@ -164,7 +236,7 @@ public sealed class HotelsController : TenantControllerBase
             .Include(h => h.Area)
             .FirstOrDefaultAsync(h => h.Id == id && h.TenantId == TenantId, ct);
         if (hotel is null) return NotFound(ApiResponse<HotelDto>.Fail("Hotel not found"));
-        return ApiResponse<HotelDto>.Ok(ToDto(hotel));
+        return ApiResponse<HotelDto>.Ok(ToHotelDto(hotel));
     }
 
     [HttpPost]
@@ -187,7 +259,7 @@ public sealed class HotelsController : TenantControllerBase
             Description = request.Description?.Trim(),
             CheckInTime = request.CheckInTime?.Trim(),
             CheckOutTime = request.CheckOutTime?.Trim(),
-            ImageUrls = request.ImageUrls ?? []
+            ImageUrls = NormalizeImageUrlsForStorage(request.ImageUrls ?? [])
         };
 
         _db.Hotels.Add(hotel);
@@ -217,7 +289,7 @@ public sealed class HotelsController : TenantControllerBase
         }
 
         var created = await _db.Hotels.AsNoTracking().Include(h => h.Rates).Include(h => h.Area).FirstAsync(h => h.Id == hotel.Id, ct);
-        return CreatedAtAction(nameof(GetHotelById), new { id = hotel.Id }, ApiResponse<HotelDto>.Ok(ToDto(created)));
+        return CreatedAtAction(nameof(GetHotelById), new { id = hotel.Id }, ApiResponse<HotelDto>.Ok(ToHotelDto(created)));
     }
 
     [HttpPut("{id:guid}")]
@@ -241,7 +313,7 @@ public sealed class HotelsController : TenantControllerBase
         hotel.CheckInTime = request.CheckInTime?.Trim();
         hotel.CheckOutTime = request.CheckOutTime?.Trim();
         if (request.ImageUrls is not null)
-            hotel.ImageUrls = request.ImageUrls;
+            hotel.ImageUrls = NormalizeImageUrlsForStorage(request.ImageUrls);
 
         // If rates are provided, replace them; otherwise keep existing.
         if (request.Rates is not null)
@@ -272,7 +344,7 @@ public sealed class HotelsController : TenantControllerBase
         await _db.SaveChangesAsync(ct);
 
         var updated = await _db.Hotels.AsNoTracking().Include(h => h.Rates).Include(h => h.Area).FirstAsync(h => h.Id == hotel.Id, ct);
-        return ApiResponse<HotelDto>.Ok(ToDto(updated));
+        return ApiResponse<HotelDto>.Ok(ToHotelDto(updated));
     }
 
     [HttpDelete("{id:guid}")]
@@ -303,10 +375,10 @@ public sealed class HotelsController : TenantControllerBase
         }
         await _db.SaveChangesAsync(ct);
 
-        return ApiResponse<List<string>>.Ok(hotel.ImageUrls);
+        return ApiResponse<List<string>>.Ok(NormalizeImageUrlsForClient(hotel.ImageUrls));
     }
 
-    /// <summary>Remove one image URL from a hotel. Pass the full URL (e.g. from ImageUrls list).</summary>
+    /// <summary>Remove one image URL from a hotel. Pass stored path (/uploads/...) or absolute URL (browser may send either).</summary>
     [HttpDelete("{id:guid}/images")]
     public async Task<ActionResult<ApiResponse<List<string>>>> RemoveImage([FromRoute] Guid id, [FromQuery] string url, CancellationToken ct)
     {
@@ -315,10 +387,41 @@ public sealed class HotelsController : TenantControllerBase
         if (hotel is null) return NotFound(ApiResponse<List<string>>.Fail("Hotel not found"));
 
         hotel.ImageUrls ??= [];
-        hotel.ImageUrls.RemoveAll(u => string.Equals(u, url.Trim(), StringComparison.OrdinalIgnoreCase));
+        var target = NormalizeImagePathForMatch(url.Trim());
+        hotel.ImageUrls.RemoveAll(u => string.Equals(NormalizeImagePathForMatch(u), target, StringComparison.OrdinalIgnoreCase));
         await _db.SaveChangesAsync(ct);
 
-        return ApiResponse<List<string>>.Ok(hotel.ImageUrls);
+        return ApiResponse<List<string>>.Ok(NormalizeImageUrlsForClient(hotel.ImageUrls));
+    }
+
+    /// <summary>Match query <c>url</c> to DB entries: relative /uploads/... or full http(s) URL from clients.</summary>
+    private static string NormalizeImagePathForMatch(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return "";
+        try
+        {
+            url = Uri.UnescapeDataString(url.Trim());
+        }
+        catch
+        {
+            url = url.Trim();
+        }
+
+        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var path = new Uri(url).AbsolutePath;
+                return path.Length == 0 ? url : path;
+            }
+            catch
+            {
+                return url;
+            }
+        }
+
+        return url.StartsWith('/') ? url : "/" + url;
     }
 
     [HttpGet("{hotelId:guid}/rooms")]
@@ -337,7 +440,7 @@ public sealed class HotelsController : TenantControllerBase
         };
     }
 
-    private static HotelDto ToDto(Hotel h) =>
+    private HotelDto ToHotelDto(Hotel h) =>
         new()
         {
             Id = h.Id.ToString("D"),
@@ -356,7 +459,7 @@ public sealed class HotelsController : TenantControllerBase
             Description = h.Description,
             CheckInTime = h.CheckInTime,
             CheckOutTime = h.CheckOutTime,
-            ImageUrls = h.ImageUrls ?? [],
+            ImageUrls = NormalizeImageUrlsForClient(h.ImageUrls ?? []),
             Rates = (h.Rates ?? []).Select(r => new AccommodationRateDto
             {
                 Id = r.Id.ToString("D"),

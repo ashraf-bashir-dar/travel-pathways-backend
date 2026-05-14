@@ -51,3 +51,4 @@ Thumbs.db
 
 # Long paths that can break Windows
 **/publish/
+/temp-build

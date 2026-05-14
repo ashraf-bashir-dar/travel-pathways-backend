@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -15,8 +16,34 @@ public sealed class ClientEnvironmentController : ControllerBase
     public ActionResult<ClientEnvironmentDto> GetClientEnvironment([FromServices] IConfiguration configuration)
     {
         var resolved = PublicApiBaseResolver.Resolve(configuration, HttpContext);
-        return Ok(new ClientEnvironmentDto(resolved ?? string.Empty));
+        var asm = typeof(ClientEnvironmentController).Assembly;
+        var info =
+            asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? asm.GetName().Version?.ToString()
+            ?? "unknown";
+        var dllUtc = GetAssemblyFileWriteTimeUtcIso(asm);
+        return Ok(new ClientEnvironmentDto(resolved ?? string.Empty, info, dllUtc));
     }
 
-    public sealed record ClientEnvironmentDto(string PublicApiBaseUrl);
+    /// <summary>Verify deploys: <c>publicApiBaseUrl</c> + version / DLL timestamp of the running API.</summary>
+    public sealed record ClientEnvironmentDto(
+        string PublicApiBaseUrl,
+        string ApiAssemblyVersion,
+        string ApiDllLastWriteUtc);
+
+    private static string GetAssemblyFileWriteTimeUtcIso(Assembly asm)
+    {
+        try
+        {
+            var path = asm.Location;
+            if (!string.IsNullOrEmpty(path) && System.IO.File.Exists(path))
+                return System.IO.File.GetLastWriteTimeUtc(path).ToString("o");
+        }
+        catch
+        {
+            /* single-file publish has no Location, etc. */
+        }
+
+        return "";
+    }
 }

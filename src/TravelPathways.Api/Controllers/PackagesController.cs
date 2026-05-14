@@ -695,15 +695,26 @@ public sealed class PackagesController : TenantControllerBase
             };
         }).ToList();
 
-        var seenHotels = new Dictionary<Guid, (Hotel Hotel, string MealPlan, int Nights)>();
+        var seenHotels = new Dictionary<Guid, (Hotel Hotel, string MealPlan, int Nights, int MaxExtraBeds, int MaxCnb)>();
         foreach (var d in days)
         {
             if (d.HotelId is null || d.Hotel is null) continue;
             var meal = MealPlanLabel(d.MealPlan);
+            var eb = d.ExtraBedCount ?? 0;
+            var cnb = d.CnbCount ?? 0;
             if (seenHotels.TryGetValue(d.HotelId.Value, out var existing))
-                seenHotels[d.HotelId.Value] = (existing.Hotel, existing.MealPlan, existing.Nights + 1);
+            {
+                seenHotels[d.HotelId.Value] = (
+                    existing.Hotel,
+                    existing.MealPlan,
+                    existing.Nights + 1,
+                    Math.Max(existing.MaxExtraBeds, eb),
+                    Math.Max(existing.MaxCnb, cnb));
+            }
             else
-                seenHotels[d.HotelId.Value] = (d.Hotel, meal, 1);
+            {
+                seenHotels[d.HotelId.Value] = (d.Hotel, meal, 1, eb, cnb);
+            }
         }
 
         var pdfHotels = seenHotels.Values.Select(x => new HotelItem
@@ -713,6 +724,8 @@ public sealed class PackagesController : TenantControllerBase
             StarRating = x.Hotel.StarRating ?? 0,
             MealPlan = x.MealPlan,
             Nights = x.Nights,
+            ExtraBedCount = x.MaxExtraBeds,
+            CnbCount = x.MaxCnb,
             IsHouseboat = x.Hotel.IsHouseboat,
             Amenities = x.Hotel.Amenities ?? [],
             ImageUrls = (x.Hotel.ImageUrls ?? []).Select(ToAbsolute).Where(u => !string.IsNullOrEmpty(u)).ToList()
@@ -721,6 +734,10 @@ public sealed class PackagesController : TenantControllerBase
         var coverImageUrls = pdfHotels.SelectMany(h => h.ImageUrls).Take(4).ToList();
 
         var firstDay = days.FirstOrDefault();
+        var hotelNights = days.Where(d => d.HotelId is not null).ToList();
+        // Peak counts per night (not sum): agents usually enter the same nightly extra bed/CNB on each day; summing inflated PDF totals.
+        var peakExtraBeds = hotelNights.Count == 0 ? 0 : hotelNights.Max(d => d.ExtraBedCount ?? 0);
+        var peakCnb = hotelNights.Count == 0 ? 0 : hotelNights.Max(d => d.CnbCount ?? 0);
         string Fmt(decimal v) => v.ToString("N0", CultureInfo.GetCultureInfo("en-IN"));
         string FmtDate(DateTime dt) => dt.ToString("d MMM yyyy", CultureInfo.GetCultureInfo("en-IN"));
         // PDF totals use stored package amounts only (no automatic add-ons).
@@ -762,8 +779,8 @@ public sealed class PackagesController : TenantControllerBase
             NumberOfChildren = pkg.NumberOfChildren,
             MealPlanLabel = firstDay is not null ? MealPlanLabel(firstDay.MealPlan) : "–",
             FirstDayRooms = firstDay?.NumberOfRooms ?? 1,
-            TotalExtraBeds = days.Sum(d => d.ExtraBedCount ?? 0),
-            TotalCnbCount = days.Sum(d => d.CnbCount ?? 0),
+            TotalExtraBeds = peakExtraBeds,
+            TotalCnbCount = peakCnb,
             TotalAmount = totalPackagePriceStr,
             TotalPackagePrice = totalPackagePriceStr,
             MarginAmountDisplay = marginDisplay,
@@ -858,6 +875,8 @@ public sealed class PackagesController : TenantControllerBase
             StarRating = h.StarRating,
             MealPlan = h.MealPlan,
             Nights = h.Nights,
+            ExtraBedCount = h.ExtraBedCount,
+            CnbCount = h.CnbCount,
             IsHouseboat = h.IsHouseboat,
             Amenities = h.Amenities,
             ImageUrls = (h.ImageUrls ?? []).Take(maxImagesPerHotel).Select(ToDataUrl).Where(u => !string.IsNullOrEmpty(u)).Select(u => u!).ToList()

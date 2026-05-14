@@ -91,7 +91,7 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             if (h.StarRating > 0) hb.Append(" &bull; ").Append(RenderStars(h.StarRating));
             hb.Append(" &bull; ").Append(H(h.MealPlan)).Append(" &bull; ").Append(h.Nights.ToString()).Append(" Night(s)</div>");
             hb.Append("<div class=\"acc-divider\"></div>");
-            hb.Append("<div class=\"acc-meta\">Rooms: ").Append(m.FirstDayRooms).Append(" &bull; Extra bed: ").Append(m.TotalExtraBeds).Append(" &bull; CNB: ").Append(m.TotalCnbCount).Append("</div>");
+            hb.Append("<div class=\"acc-meta\">Rooms: ").Append(m.FirstDayRooms).Append(" &bull; Extra bed: ").Append(h.ExtraBedCount).Append(" &bull; CNB: ").Append(h.CnbCount).Append("</div>");
             if (h.ImageUrls?.Count > 0)
             {
                 hb.Append("<div class=\"acc-imgs\">");
@@ -108,7 +108,15 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             return hb.ToString();
         }));
         string daysHtml = string.Join("", (m.Days ?? []).Select(d =>
-            $"<div class=\"day-block\"><div class=\"day-head\"><span class=\"day-no\">{d.DayNumber}</span><span class=\"day-title\">{d.DayNumber} Day &bull; {H(d.Title)}</span></div><div class=\"day-desc\">{H(d.Description)}</div></div>"));
+        {
+            var paxParts = new List<string>();
+            if (d.ExtraBedCount > 0) paxParts.Add($"Extra bed: {d.ExtraBedCount}");
+            if (d.CnbCount > 0) paxParts.Add($"CNB: {d.CnbCount}");
+            var paxHtml = paxParts.Count == 0
+                ? ""
+                : "<div class=\"day-pax\">" + string.Join(" &bull; ", paxParts.Select(x => H(x))) + "</div>";
+            return $"<div class=\"day-block\"><div class=\"day-head\"><span class=\"day-no\">{d.DayNumber}</span><span class=\"day-title\">{d.DayNumber} Day &bull; {H(d.Title)}</span></div><div class=\"day-desc\">{H(d.Description)}</div>{paxHtml}</div>";
+        }));
         string accommodationHtml = string.Join("", (m.Days ?? [])
             .Where(d => !string.IsNullOrWhiteSpace(d.HotelName))
             .Select(d =>
@@ -123,7 +131,13 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             var dateHtml = string.IsNullOrWhiteSpace(d.DateLabel)
                 ? ""
                 : $"<span class=\"itv-date\">{H(d.DateLabel)}</span>";
-            return $"<div class=\"itv-card\"><div class=\"itv-head\"><span class=\"itv-day-pill\">Day {d.DayNumber}</span>{dateHtml}</div><div class=\"itv-desc\">{H(d.Description)}</div></div>";
+            var paxParts = new List<string>();
+            if (d.ExtraBedCount > 0) paxParts.Add($"Extra bed: {d.ExtraBedCount}");
+            if (d.CnbCount > 0) paxParts.Add($"CNB: {d.CnbCount}");
+            var paxHtml = paxParts.Count == 0
+                ? ""
+                : "<div class=\"itv-pax\">" + string.Join(" &bull; ", paxParts.Select(x => H(x))) + "</div>";
+            return $"<div class=\"itv-card\"><div class=\"itv-head\"><span class=\"itv-day-pill\">Day {d.DayNumber}</span>{dateHtml}</div><div class=\"itv-desc\">{H(d.Description)}</div>{paxHtml}</div>";
         }));
         string inclusionsHtml = string.Join("", (m.InclusionLabels ?? []).Select(x => $"<li>{H(x)}</li>"));
         string exclusionsHtml = string.Join("", (m.ExclusionLabels ?? []).Select(x => $"<li>{H(x)}</li>"));
@@ -160,9 +174,8 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             ["{{NumberOfAdults}}"] = H(m.NumberOfAdults.ToString()),
             ["{{NumberOfChildren}}"] = H(m.NumberOfChildren.ToString()),
             ["{{PaxSummary}}"] = H($"{m.NumberOfAdults} Adults{(m.NumberOfChildren > 0 ? $" + {m.NumberOfChildren} Children" : "")}"),
-            // Alias: Children above 5 -> extra bed count
+            // Legacy aliases: map to peak extra bed / CNB counts (not child headcount — use NumberOfChildren for that).
             ["{{ChildrenAbove5}}"] = H(m.TotalExtraBeds.ToString()),
-            // Alias: Children below 5 -> CNB count
             ["{{ChildrenBelow5}}"] = H(m.TotalCnbCount.ToString()),
             ["{{TotalExtraBeds}}"] = H(m.TotalExtraBeds.ToString()),
             ["{{TotalCnbCount}}"] = H(m.TotalCnbCount.ToString()),

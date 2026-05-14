@@ -17,9 +17,9 @@ public sealed class PackagePdfModel
     public int NumberOfChildren { get; init; }
     public string MealPlanLabel { get; init; } = "–";
     public int FirstDayRooms { get; init; } = 1;
-    /// <summary>Total extra beds across all days. Shown in Package information when > 0.</summary>
+    /// <summary>Peak extra beds on any hotel night (max per day where a hotel is assigned). Better for PDF than summing nightly repeats.</summary>
     public int TotalExtraBeds { get; init; }
-    /// <summary>Total CNB (Child No Bed) across all days. Shown in Package information when > 0.</summary>
+    /// <summary>Peak CNB (Child No Bed) on any hotel night.</summary>
     public int TotalCnbCount { get; init; }
     public required string TotalAmount { get; init; }
 
@@ -110,6 +110,10 @@ public sealed class HotelItem
     public int StarRating { get; init; }
     public string MealPlan { get; init; } = "";
     public int Nights { get; init; }
+    /// <summary>Max extra beds on any single night at this hotel (avoids summing the same nightly count across days).</summary>
+    public int ExtraBedCount { get; init; }
+    /// <summary>Max CNB on any single night at this hotel.</summary>
+    public int CnbCount { get; init; }
     public bool IsHouseboat { get; init; }
     public List<string> Amenities { get; init; } = [];
     public List<string> ImageUrls { get; init; } = [];

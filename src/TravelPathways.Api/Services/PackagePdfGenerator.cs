@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
-using PuppeteerSharp;
+﻿using PuppeteerSharp;
 using PuppeteerSharp.Media;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -60,6 +59,15 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
 
     private static string H(string? s) => string.IsNullOrEmpty(s) ? "" : System.Net.WebUtility.HtmlEncode(s);
 
+    private static string FormatHotelNameWithArea(string name, string? area)
+    {
+        var n = (name ?? "").Trim();
+        var a = (area ?? "").Trim();
+        if (a is "" or "–") return string.IsNullOrEmpty(n) ? "–" : n;
+        if (string.IsNullOrEmpty(n)) return a;
+        return $"{n}, {a}";
+    }
+
     private static string BuildCustomHtml(PackagePdfModel m)
     {
         var template = m.CustomHtmlTemplate ?? "";
@@ -86,9 +94,9 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
         string hotelsHtml = string.Join("", (m.Hotels ?? []).Select(h =>
         {
             var hb = new StringBuilder();
-            hb.Append("<div class=\"acc-item\"><div class=\"acc-head\"><div class=\"acc-name\">").Append(H(h.Name)).Append("</div><div class=\"pill\">").Append(h.IsHouseboat ? "Houseboat" : "Hotel").Append("</div></div>");
-            hb.Append("<div class=\"acc-meta\">").Append(H(h.Location));
-            if (h.StarRating > 0) hb.Append(" &bull; ").Append(RenderStars(h.StarRating));
+            hb.Append("<div class=\"acc-item\"><div class=\"acc-head\"><div class=\"acc-name\">").Append(H(FormatHotelNameWithArea(h.Name, h.Location))).Append("</div><div class=\"pill\">").Append(h.IsHouseboat ? "Houseboat" : "Hotel").Append("</div></div>");
+            hb.Append("<div class=\"acc-meta\">");
+            if (h.StarRating > 0) hb.Append(RenderStars(h.StarRating)).Append(" &bull; ");
             hb.Append(" &bull; ").Append(H(h.MealPlan)).Append(" &bull; ").Append(h.Nights.ToString()).Append(" Night(s)</div>");
             hb.Append("<div class=\"acc-divider\"></div>");
             hb.Append("<div class=\"acc-meta\">Rooms: ").Append(m.FirstDayRooms).Append(" &bull; Extra bed: ").Append(h.ExtraBedCount).Append(" &bull; CNB: ").Append(h.CnbCount).Append("</div>");
@@ -132,8 +140,8 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
                 ? ""
                 : $"<span class=\"itv-date\">{H(d.DateLabel)}</span>";
             var paxParts = new List<string>();
-            if (d.ExtraBedCount > 0) paxParts.Add($"Extra bed: {d.ExtraBedCount}");
-            if (d.CnbCount > 0) paxParts.Add($"CNB: {d.CnbCount}");
+            //if (d.ExtraBedCount > 0) paxParts.Add($"Extra bed: {d.ExtraBedCount}");
+            //if (d.CnbCount > 0) paxParts.Add($"CNB: {d.CnbCount}");
             var paxHtml = paxParts.Count == 0
                 ? ""
                 : "<div class=\"itv-pax\">" + string.Join(" &bull; ", paxParts.Select(x => H(x))) + "</div>";

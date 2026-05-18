@@ -34,6 +34,9 @@ public sealed class Tenant : EntityBase
 
     public bool IsActive { get; set; } = true;
 
+    /// <summary>When false, inbound webhooks and integration UI are disabled for this tenant (Super Admin control).</summary>
+    public bool InboundLeadsFeatureEnabled { get; set; }
+
     public List<TenantDocument> Documents { get; set; } = [];
     public List<TenantBankAccount> BankAccounts { get; set; } = [];
     public List<TenantQrCode> QrCodes { get; set; } = [];

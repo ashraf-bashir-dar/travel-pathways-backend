@@ -14,21 +14,10 @@ public sealed class EmailService : IEmailService
         _logger = logger;
     }
 
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(_config["Email:SmtpHost"]);
+
     public async Task<bool> SendWelcomeEmailAsync(string toEmail, string firstName, string tenantName, string loginEmail, string temporaryPassword, CancellationToken ct = default)
     {
-        var host = _config["Email:SmtpHost"];
-        if (string.IsNullOrWhiteSpace(host))
-        {
-            _logger.LogInformation("Email not configured (Email:SmtpHost). Welcome email skipped for {Email}. Login: {Login}, Password: [sent to user]", toEmail, loginEmail);
-            return true; // so user creation still succeeds
-        }
-
-        var from = _config["Email:From"] ?? "noreply@travelpathways.local";
-        var port = _config.GetValue<int>("Email:SmtpPort", 587);
-        var user = _config["Email:UserName"];
-        var password = _config["Email:Password"];
-        var enableSsl = _config.GetValue<bool>("Email:EnableSsl", true);
-
         var subject = "Your Travel Pathways account";
         var body = $@"
 Hello {firstName},
@@ -45,6 +34,36 @@ Best regards,
 Travel Pathways Team
 ".Trim();
 
+        if (!IsConfigured)
+        {
+            _logger.LogInformation(
+                "Email not configured (Email:SmtpHost). Welcome email skipped for {Email}. Login: {Login}",
+                toEmail,
+                loginEmail);
+            return true;
+        }
+
+        return await SendEmailAsync(toEmail, subject, body, ct);
+    }
+
+    public async Task<bool> SendEmailAsync(string toEmail, string subject, string body, CancellationToken ct = default)
+    {
+        if (!IsConfigured)
+        {
+            _logger.LogWarning("SendEmailAsync called but Email:SmtpHost is not configured.");
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(toEmail))
+            return false;
+
+        var from = _config["Email:From"] ?? "noreply@travelpathways.local";
+        var host = _config["Email:SmtpHost"]!;
+        var port = _config.GetValue<int>("Email:SmtpPort", 587);
+        var user = _config["Email:UserName"];
+        var password = _config["Email:Password"];
+        var enableSsl = _config.GetValue<bool>("Email:EnableSsl", true);
+
         try
         {
             using var client = new SmtpClient(host, port)
@@ -52,14 +71,14 @@ Travel Pathways Team
                 EnableSsl = enableSsl,
                 Credentials = string.IsNullOrWhiteSpace(user) ? null : new NetworkCredential(user, password)
             };
-            using var message = new MailMessage(from, toEmail, subject, body);
+            using var message = new MailMessage(from, toEmail.Trim(), subject, body);
             await client.SendMailAsync(message, ct);
-            _logger.LogInformation("Welcome email sent to {Email}", toEmail);
+            _logger.LogInformation("Email sent to {Email}, subject: {Subject}", toEmail, subject);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send welcome email to {Email}", toEmail);
+            _logger.LogError(ex, "Failed to send email to {Email}", toEmail);
             return false;
         }
     }

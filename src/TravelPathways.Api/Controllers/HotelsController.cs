@@ -182,6 +182,9 @@ public sealed class HotelsController : TenantControllerBase
         [FromQuery] string? searchTerm = null,
         [FromQuery] bool? isHouseboat = null,
         [FromQuery] int? starRating = null,
+        [FromQuery] Guid? areaId = null,
+        [FromQuery] decimal? minPrice = null,
+        [FromQuery] decimal? maxPrice = null,
         CancellationToken ct = default)
     {
         pageNumber = Math.Max(1, pageNumber);
@@ -200,12 +203,35 @@ public sealed class HotelsController : TenantControllerBase
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
             var s = searchTerm.Trim().ToLower();
-            query = query.Where(h => h.Name.ToLower().Contains(s) || h.City.ToLower().Contains(s) || h.Address.ToLower().Contains(s));
+            query = query.Where(h =>
+                h.Name.ToLower().Contains(s) ||
+                h.City.ToLower().Contains(s) ||
+                h.Address.ToLower().Contains(s) ||
+                (h.Area != null && h.Area.Name.ToLower().Contains(s)));
         }
 
         if (starRating is >= 1 and <= 5)
         {
             query = query.Where(h => h.StarRating != null && h.StarRating == starRating.Value);
+        }
+
+        if (areaId is not null && areaId != Guid.Empty)
+        {
+            query = query.Where(h => h.AreaId == areaId);
+        }
+
+        // Room cost filter: include hotel if ANY rate (any category / date range) matches.
+        // Max only → at least one rate with cost <= max. Min only → at least one rate with cost >= min.
+        // Both → at least one rate with min <= cost <= max.
+        if (minPrice is > 0 || maxPrice is > 0)
+        {
+            var min = minPrice is > 0 ? minPrice.Value : (decimal?)null;
+            var max = maxPrice is > 0 ? maxPrice.Value : (decimal?)null;
+            query = query.Where(h =>
+                _db.AccommodationRates.Any(r =>
+                    r.HotelId == h.Id &&
+                    (min == null || r.CostPrice >= min) &&
+                    (max == null || r.CostPrice <= max)));
         }
 
         var total = await query.CountAsync(ct);
@@ -348,6 +374,7 @@ public sealed class HotelsController : TenantControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteHotel([FromRoute] Guid id, CancellationToken ct)
     {
         var hotel = await _db.Hotels.FirstOrDefaultAsync(h => h.Id == id && h.TenantId == TenantId, ct);
@@ -380,6 +407,7 @@ public sealed class HotelsController : TenantControllerBase
 
     /// <summary>Remove one image URL from a hotel. Pass stored path (/uploads/...) or absolute URL (browser may send either).</summary>
     [HttpDelete("{id:guid}/images")]
+    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<List<string>>>> RemoveImage([FromRoute] Guid id, [FromQuery] string url, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(url)) return BadRequest(ApiResponse<List<string>>.Fail("url is required"));

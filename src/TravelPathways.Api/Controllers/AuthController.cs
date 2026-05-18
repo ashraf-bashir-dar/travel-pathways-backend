@@ -85,6 +85,13 @@ public sealed class AuthController : ControllerBase
         public string? SubscriptionStatus { get; init; }
         public DateTime? SubscriptionStartUtc { get; init; }
         public DateTime? SubscriptionEndUtc { get; init; }
+        public bool InboundLeadsFeatureEnabled { get; init; }
+    }
+
+    public sealed class SessionResponseDto
+    {
+        public required UserDto User { get; init; }
+        public required TenantDto Tenant { get; init; }
     }
 
     public sealed class LoginResponseDto
@@ -173,72 +180,8 @@ public sealed class AuthController : ControllerBase
             // For Super Admin, do NOT load any agency/tenant record here.
             // Super Admin should only see an agency name when they explicitly scope context via X-Tenant-Id.
 
-            var tenantDto = tenant is null
-                ? new TenantDto
-                {
-                    Id = string.Empty,
-                    Name = "Platform",
-                    Code = "PLATFORM",
-                    Email = string.Empty,
-                    Phone = string.Empty,
-                    Address = string.Empty,
-                    ContactPerson = null,
-                    LogoUrl = null,
-                    Documents = [],
-                    EnabledModules = [],
-                    TermsAndConditions = [],
-                    CancellationPolicy = [],
-                    SupplementCosts = [],
-                    IsActive = true,
-                    CreatedAt = user.CreatedAt
-                }
-                : new TenantDto
-                {
-                    Id = tenant.Id.ToString("D"),
-                    Name = tenant.Name,
-                    Code = tenant.Code,
-                    Email = tenant.Email,
-                    Phone = tenant.Phone,
-                    Address = tenant.Address,
-                    ContactPerson = tenant.ContactPerson,
-                    LogoUrl = tenant.LogoUrl,
-                    Documents = (tenant.Documents ?? []).Select(d => new TenantDocumentDto
-                    {
-                        Id = d.Id.ToString("D"),
-                        Type = d.Type,
-                        FileName = d.FileName,
-                        Url = d.Url
-                    }).ToList(),
-                    EnabledModules = (tenant.EnabledModules ?? []).ToList(),
-                    TermsAndConditions = tenant.TermsAndConditions ?? [],
-                    CancellationPolicy = tenant.CancellationPolicy ?? [],
-                    SupplementCosts = tenant.SupplementCosts ?? [],
-                    IsActive = tenant.IsActive,
-                    CreatedAt = tenant.CreatedAt,
-                    DefaultUserId = tenant.DefaultUserId?.ToString("D"),
-                    PlanId = tenant.PlanId?.ToString("D"),
-                    BillingCycle = tenant.BillingCycle?.ToString(),
-                    SeatsPurchased = tenant.SeatsPurchased,
-                    SubscriptionStatus = tenant.SubscriptionStatus.ToString(),
-                    SubscriptionStartUtc = tenant.SubscriptionStartUtc,
-                    SubscriptionEndUtc = tenant.SubscriptionEndUtc
-                };
-
-            var userDto = new UserDto
-            {
-                Id = user.Id.ToString("D"),
-                Email = user.Email,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
-                TenantId = user.TenantId?.ToString("D") ?? string.Empty,
-                Role = user.Role,
-                Department = user.Department,
-                AllowedModules = user.AllowedModules?.ToList() ?? [],
-                IsActive = user.IsActive,
-                CreatedAt = user.CreatedAt,
-                CanViewCostBifurcation = user.CanViewCostBifurcation,
-                CanPriceOverride = user.CanPriceOverride
-            };
+            var tenantDto = MapTenantDto(tenant, user.CreatedAt);
+            var userDto = MapUserDto(user);
 
             return Ok(new LoginResponseDto { Token = token, User = userDto, Tenant = tenantDto });
         }
@@ -253,6 +196,34 @@ public sealed class AuthController : ControllerBase
     {
         public string CurrentPassword { get; set; } = string.Empty;
         public string NewPassword { get; set; } = string.Empty;
+    }
+
+    /// <summary>Refresh current user and tenant (including enabled modules) without re-login.</summary>
+    [Authorize]
+    [HttpGet("session")]
+    public async Task<ActionResult<SessionResponseDto>> GetSession(CancellationToken ct)
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized();
+
+        var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted, ct);
+        if (user is null || !user.IsActive)
+            return Unauthorized();
+
+        Data.Entities.Tenant? tenant = null;
+        if (user.TenantId.HasValue)
+        {
+            tenant = await _db.Tenants.AsNoTracking()
+                .Include(t => t.Documents)
+                .FirstOrDefaultAsync(t => t.Id == user.TenantId.Value && !t.IsDeleted, ct);
+        }
+
+        return Ok(new SessionResponseDto
+        {
+            User = MapUserDto(user),
+            Tenant = MapTenantDto(tenant, user.CreatedAt)
+        });
     }
 
     [Authorize]
@@ -279,5 +250,76 @@ public sealed class AuthController : ControllerBase
 
         return Ok(new { message = "Password changed successfully." });
     }
+
+    private static UserDto MapUserDto(Data.Entities.AppUser user) =>
+        new()
+        {
+            Id = user.Id.ToString("D"),
+            Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            TenantId = user.TenantId?.ToString("D") ?? string.Empty,
+            Role = user.Role,
+            Department = user.Department,
+            AllowedModules = user.AllowedModules?.ToList() ?? [],
+            IsActive = user.IsActive,
+            CreatedAt = user.CreatedAt,
+            CanViewCostBifurcation = user.CanViewCostBifurcation,
+            CanPriceOverride = user.CanPriceOverride
+        };
+
+    private static TenantDto MapTenantDto(Data.Entities.Tenant? tenant, DateTime fallbackCreatedAt) =>
+        tenant is null
+            ? new TenantDto
+            {
+                Id = string.Empty,
+                Name = "Platform",
+                Code = "PLATFORM",
+                Email = string.Empty,
+                Phone = string.Empty,
+                Address = string.Empty,
+                ContactPerson = null,
+                LogoUrl = null,
+                Documents = [],
+                EnabledModules = [],
+                TermsAndConditions = [],
+                CancellationPolicy = [],
+                SupplementCosts = [],
+                IsActive = true,
+                CreatedAt = fallbackCreatedAt,
+                InboundLeadsFeatureEnabled = false
+            }
+            : new TenantDto
+            {
+                Id = tenant.Id.ToString("D"),
+                Name = tenant.Name,
+                Code = tenant.Code,
+                Email = tenant.Email,
+                Phone = tenant.Phone,
+                Address = tenant.Address,
+                ContactPerson = tenant.ContactPerson,
+                LogoUrl = tenant.LogoUrl,
+                Documents = (tenant.Documents ?? []).Select(d => new TenantDocumentDto
+                {
+                    Id = d.Id.ToString("D"),
+                    Type = d.Type,
+                    FileName = d.FileName,
+                    Url = d.Url
+                }).ToList(),
+                EnabledModules = (tenant.EnabledModules ?? []).ToList(),
+                TermsAndConditions = tenant.TermsAndConditions ?? [],
+                CancellationPolicy = tenant.CancellationPolicy ?? [],
+                SupplementCosts = tenant.SupplementCosts ?? [],
+                IsActive = tenant.IsActive,
+                CreatedAt = tenant.CreatedAt,
+                DefaultUserId = tenant.DefaultUserId?.ToString("D"),
+                PlanId = tenant.PlanId?.ToString("D"),
+                BillingCycle = tenant.BillingCycle?.ToString(),
+                SeatsPurchased = tenant.SeatsPurchased,
+                SubscriptionStatus = tenant.SubscriptionStatus.ToString(),
+                SubscriptionStartUtc = tenant.SubscriptionStartUtc,
+                SubscriptionEndUtc = tenant.SubscriptionEndUtc,
+                InboundLeadsFeatureEnabled = tenant.InboundLeadsFeatureEnabled
+            };
 }
 

@@ -19,5 +19,11 @@ public sealed class Lead : TenantEntityBase
     public AppUser? AssignedToUser { get; set; }
 
     public string CreatedBy { get; set; } = string.Empty;
+
+    /// <summary>Integration provider when created via inbound webhook (null for manual/import).</summary>
+    public InboundLeadProvider? InboundProvider { get; set; }
+
+    /// <summary>Provider-specific id for deduplication (e.g. Meta leadgen_id).</summary>
+    public string? InboundExternalId { get; set; }
 }
 

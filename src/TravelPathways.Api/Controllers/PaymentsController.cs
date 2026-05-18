@@ -220,6 +220,7 @@ public sealed class PaymentsController : TenantControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeletePayment(Guid id, CancellationToken ct)
     {
         var payment = await _db.Payments

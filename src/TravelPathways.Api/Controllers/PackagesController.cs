@@ -281,7 +281,8 @@ public sealed class PackagesController : TenantControllerBase
 
         var pkg = await _db.Packages.AsNoTracking()
             .Include(p => p.DayWiseItinerary!)
-            .ThenInclude(d => d.Hotel)
+            .ThenInclude(d => d.Hotel!)
+            .ThenInclude(h => h.Area)
             .Include(p => p.DayWiseItinerary!)
             .ThenInclude(d => d.ItineraryTemplate)
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
@@ -356,7 +357,8 @@ public sealed class PackagesController : TenantControllerBase
 
         var pkg = await _db.Packages.AsNoTracking()
             .Include(p => p.DayWiseItinerary!)
-            .ThenInclude(d => d.Hotel)
+            .ThenInclude(d => d.Hotel!)
+            .ThenInclude(h => h.Area)
             .Include(p => p.DayWiseItinerary!)
             .ThenInclude(d => d.ItineraryTemplate)
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
@@ -587,6 +589,7 @@ public sealed class PackagesController : TenantControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeletePackage([FromRoute] Guid id, CancellationToken ct)
     {
         var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
@@ -641,6 +644,14 @@ public sealed class PackagesController : TenantControllerBase
         return string.IsNullOrEmpty(loc) ? (h.Address?.Trim() ?? "–") : loc;
     }
 
+    /// <summary>Area name for PDF labels (matches UI "Name - Area"); falls back to city/state.</summary>
+    private static string GetHotelAreaString(Hotel h)
+    {
+        var area = h.Area?.Name?.Trim();
+        if (!string.IsNullOrEmpty(area)) return area;
+        return GetLocationString(h);
+    }
+
     private static string MealPlanLabel(AccommodationMealPlan? plan)
     {
         if (!plan.HasValue) return "–";
@@ -659,7 +670,7 @@ public sealed class PackagesController : TenantControllerBase
     {
         var days = (pkg.DayWiseItinerary ?? []).OrderBy(d => d.DayNumber).ToList();
         var nights = Math.Max(0, pkg.NumberOfDays - 1);
-        var daysLabel = $"{nights}N / {pkg.NumberOfDays}D";
+        var daysLabel = $"{nights} {(nights == 1 ? "Night" : "Nights")} / {pkg.NumberOfDays} {(pkg.NumberOfDays == 1 ? "Day" : "Days")}";
 
         var inclusionLabels = InclusionOptions.GetInclusionLabels(pkg.InclusionIds ?? []).ToList();
         var exclusionLabels = InclusionOptions.GetExclusionLabels(pkg.InclusionIds ?? []).ToList();
@@ -686,7 +697,7 @@ public sealed class PackagesController : TenantControllerBase
                 DayNumber = d.DayNumber,
                 DateLabel = d.Date.ToString("d MMM yyyy", indiaCulture),
                 HotelName = d.Hotel?.Name,
-                HotelLocation = d.Hotel is null ? null : GetLocationString(d.Hotel),
+                HotelLocation = d.Hotel is null ? null : GetHotelAreaString(d.Hotel),
                 DayImageUrl = d.Hotel?.ImageUrls?.Select(ToAbsolute).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
                 Title = title,
                 Description = description,
@@ -720,7 +731,7 @@ public sealed class PackagesController : TenantControllerBase
         var pdfHotels = seenHotels.Values.Select(x => new HotelItem
         {
             Name = x.Hotel.Name ?? "–",
-            Location = GetLocationString(x.Hotel),
+            Location = GetHotelAreaString(x.Hotel),
             StarRating = x.Hotel.StarRating ?? 0,
             MealPlan = x.MealPlan,
             Nights = x.Nights,

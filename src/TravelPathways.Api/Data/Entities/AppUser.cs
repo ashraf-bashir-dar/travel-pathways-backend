@@ -50,5 +50,14 @@ public sealed class AppUser : EntityBase
 
     /// <summary>Encrypted password for admin view. Null if never set or encryption unavailable.</summary>
     public string? PasswordEncrypted { get; set; }
+
+    /// <summary>Include this user in inbound lead auto-assignment (sales team).</summary>
+    public bool ParticipateInInboundAutoAssign { get; set; }
+
+    /// <summary>Max inbound leads auto-assigned per calendar day (UTC). Ignored when not participating.</summary>
+    public int InboundDailyLeadQuota { get; set; }
+
+    /// <summary>Lead sources this user may receive when auto-assigning. Empty = all sources.</summary>
+    public List<LeadSource> InboundAllowedLeadSources { get; set; } = [];
 }
 

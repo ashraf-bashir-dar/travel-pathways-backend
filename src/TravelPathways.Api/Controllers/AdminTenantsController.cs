@@ -61,6 +61,7 @@ public sealed class AdminTenantsController : ControllerBase
         public DateTime? SubscriptionStartUtc { get; init; }
         public DateTime? SubscriptionEndUtc { get; init; }
         public int? ActiveUserCount { get; init; }
+        public bool InboundLeadsFeatureEnabled { get; init; }
     }
 
     public class CreateTenantRequestDto
@@ -100,6 +101,7 @@ public sealed class AdminTenantsController : ControllerBase
         public SubscriptionStatus SubscriptionStatus { get; set; } = SubscriptionStatus.Active;
         public DateTime? SubscriptionStartUtc { get; set; }
         public DateTime? SubscriptionEndUtc { get; set; }
+        public bool InboundLeadsFeatureEnabled { get; set; }
     }
 
     [HttpGet]
@@ -435,6 +437,7 @@ public sealed class AdminTenantsController : ControllerBase
         tenant.TermsAndConditions = NormalizePolicyLines(request.TermsAndConditions);
         tenant.CancellationPolicy = NormalizePolicyLines(request.CancellationPolicy);
         tenant.SupplementCosts = NormalizePolicyLines(request.SupplementCosts);
+        tenant.InboundLeadsFeatureEnabled = request.InboundLeadsFeatureEnabled;
     }
 
     private static List<string> NormalizePolicyLines(List<string>? lines) =>
@@ -482,7 +485,8 @@ public sealed class AdminTenantsController : ControllerBase
             SubscriptionStatus = t.SubscriptionStatus.ToString(),
             SubscriptionStartUtc = t.SubscriptionStartUtc,
             SubscriptionEndUtc = t.SubscriptionEndUtc,
-            ActiveUserCount = activeUserCount
+            ActiveUserCount = activeUserCount,
+            InboundLeadsFeatureEnabled = t.InboundLeadsFeatureEnabled
         };
 }
 

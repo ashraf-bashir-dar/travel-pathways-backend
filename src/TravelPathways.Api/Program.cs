@@ -12,6 +12,7 @@ using TravelPathways.Api.Data;
 using TravelPathways.Api.Data.Entities;
 using TravelPathways.Api.MultiTenancy;
 using TravelPathways.Api.Storage;
+using TravelPathways.Api.Hubs;
 using TravelPathways.Api.Swagger;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,6 +27,8 @@ builder.Services.AddControllers()
         o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         o.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
+
+builder.Services.AddSignalR();
 
 /* -------------------- Swagger -------------------- */
 builder.Services.AddEndpointsApiExplorer();
@@ -113,6 +116,19 @@ builder.Services.AddScoped<TravelPathways.Api.Services.IPdfTemplateHtmlCache, Tr
 builder.Services.AddSingleton<TravelPathways.Api.Services.IChromiumBrowserProvider, TravelPathways.Api.Services.ChromiumBrowserProvider>();
 builder.Services.AddHostedService<TravelPathways.Api.Services.ChromiumBrowserHostedService>();
 builder.Services.AddScoped<TravelPathways.Api.Services.IPackagePdfGenerator, TravelPathways.Api.Services.PackagePdfGenerator>();
+builder.Services.AddScoped<TravelPathways.Api.Services.ILeadExcelImportService,
+    TravelPathways.Api.Services.LeadExcelImportService>();
+builder.Services.Configure<TravelPathways.Api.Services.Inbound.MetaOptions>(
+    builder.Configuration.GetSection("Meta"));
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<TravelPathways.Api.Services.Inbound.ITenantLeadIntegrationResolver,
+    TravelPathways.Api.Services.Inbound.TenantLeadIntegrationResolver>();
+builder.Services.AddScoped<TravelPathways.Api.Services.Inbound.ILeadAutoAssignmentService,
+    TravelPathways.Api.Services.Inbound.LeadAutoAssignmentService>();
+builder.Services.AddScoped<TravelPathways.Api.Services.Inbound.IInboundLeadProcessor,
+    TravelPathways.Api.Services.Inbound.InboundLeadProcessor>();
+builder.Services.AddScoped<TravelPathways.Api.Services.Inbound.IMetaLeadAdsService,
+    TravelPathways.Api.Services.Inbound.MetaLeadAdsService>();
 builder.Services.AddScoped<TravelPathways.Api.Services.IEmailService,
                           TravelPathways.Api.Services.EmailService>();
 builder.Services.AddSingleton<TravelPathways.Api.Services.IPasswordEncryption,
@@ -155,6 +171,18 @@ builder.Services
                 Encoding.UTF8.GetBytes(jwt.SigningKey)
             ),
             ClockSkew = TimeSpan.FromMinutes(2)
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                    context.Token = accessToken;
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -246,6 +274,102 @@ using (var scope = app.Services.CreateScope())
         // Same for package margin (PDF / price override); avoids 42703 if migrations were not applied to this DB.
         await db.Database.ExecuteSqlRawAsync(
             "ALTER TABLE \"Packages\" ADD COLUMN IF NOT EXISTS \"MarginAmount\" numeric(18,2) NOT NULL DEFAULT 0;");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "ChatGroups" (
+                "Id" uuid NOT NULL,
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                "Name" character varying(200) NOT NULL,
+                "Description" character varying(500),
+                "CreatedByUserId" uuid NOT NULL,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone,
+                CONSTRAINT "PK_ChatGroups" PRIMARY KEY ("Id"),
+                CONSTRAINT "FK_ChatGroups_Users_CreatedByUserId" FOREIGN KEY ("CreatedByUserId") REFERENCES "Users" ("Id") ON DELETE RESTRICT,
+                CONSTRAINT "FK_ChatGroups_Tenants_TenantId" FOREIGN KEY ("TenantId") REFERENCES "Tenants" ("Id") ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS "ChatGroupMembers" (
+                "GroupId" uuid NOT NULL,
+                "UserId" uuid NOT NULL,
+                "JoinedAt" timestamp with time zone NOT NULL,
+                "AddedByUserId" uuid,
+                "LastReadAtUtc" timestamp with time zone,
+                CONSTRAINT "PK_ChatGroupMembers" PRIMARY KEY ("GroupId", "UserId"),
+                CONSTRAINT "FK_ChatGroupMembers_ChatGroups_GroupId" FOREIGN KEY ("GroupId") REFERENCES "ChatGroups" ("Id") ON DELETE CASCADE,
+                CONSTRAINT "FK_ChatGroupMembers_Users_UserId" FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE RESTRICT
+            );
+            CREATE TABLE IF NOT EXISTS "ChatMessages" (
+                "Id" uuid NOT NULL,
+                "GroupId" uuid NOT NULL,
+                "SenderUserId" uuid NOT NULL,
+                "Body" character varying(4000) NOT NULL,
+                "SentAtUtc" timestamp with time zone NOT NULL,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone,
+                CONSTRAINT "PK_ChatMessages" PRIMARY KEY ("Id"),
+                CONSTRAINT "FK_ChatMessages_ChatGroups_GroupId" FOREIGN KEY ("GroupId") REFERENCES "ChatGroups" ("Id") ON DELETE CASCADE,
+                CONSTRAINT "FK_ChatMessages_Users_SenderUserId" FOREIGN KEY ("SenderUserId") REFERENCES "Users" ("Id") ON DELETE RESTRICT
+            );
+            CREATE INDEX IF NOT EXISTS "IX_ChatGroups_TenantId" ON "ChatGroups" ("TenantId");
+            CREATE INDEX IF NOT EXISTS "IX_ChatMessages_GroupId_SentAtUtc" ON "ChatMessages" ("GroupId", "SentAtUtc");
+            ALTER TABLE "ChatGroups" ADD COLUMN IF NOT EXISTS "IsDirect" boolean NOT NULL DEFAULT false;
+            ALTER TABLE "ChatGroups" ADD COLUMN IF NOT EXISTS "DirectPairKey" character varying(100);
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_ChatGroups_TenantId_DirectPairKey"
+                ON "ChatGroups" ("TenantId", "DirectPairKey")
+                WHERE "IsDirect" = true AND "DirectPairKey" IS NOT NULL;
+            ALTER TABLE "ChatMessages" ADD COLUMN IF NOT EXISTS "MentionedUserIds" text NOT NULL DEFAULT '[]';
+            ALTER TABLE "ChatMessages" ADD COLUMN IF NOT EXISTS "ImageUrls" text NOT NULL DEFAULT '[]';
+            ALTER TABLE "Tenants" ADD COLUMN IF NOT EXISTS "InboundLeadsFeatureEnabled" boolean NOT NULL DEFAULT false;
+            ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "ParticipateInInboundAutoAssign" boolean NOT NULL DEFAULT false;
+            ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "InboundDailyLeadQuota" integer NOT NULL DEFAULT 0;
+            ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "InboundAllowedLeadSources" text NOT NULL DEFAULT '[]';
+            ALTER TABLE "Leads" ADD COLUMN IF NOT EXISTS "InboundProvider" text;
+            ALTER TABLE "Leads" ADD COLUMN IF NOT EXISTS "InboundExternalId" text;
+            CREATE TABLE IF NOT EXISTS "TenantLeadIntegrations" (
+                "Id" uuid NOT NULL,
+                "InboundKey" text NOT NULL,
+                "IsInboundEnabled" boolean NOT NULL DEFAULT false,
+                "AutoAssignEnabled" boolean NOT NULL DEFAULT false,
+                "MetaPageId" text,
+                "MetaPageAccessTokenEncrypted" text,
+                "MetaConnectionVerified" boolean NOT NULL DEFAULT false,
+                "MetaLastWebhookAtUtc" timestamp with time zone,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone,
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                CONSTRAINT "PK_TenantLeadIntegrations" PRIMARY KEY ("Id")
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_TenantLeadIntegrations_InboundKey" ON "TenantLeadIntegrations" ("InboundKey");
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_TenantLeadIntegrations_TenantId" ON "TenantLeadIntegrations" ("TenantId");
+            CREATE TABLE IF NOT EXISTS "InboundLeadEvents" (
+                "Id" uuid NOT NULL,
+                "Provider" text NOT NULL,
+                "ExternalId" text,
+                "Status" text NOT NULL,
+                "RawPayload" text,
+                "ErrorMessage" text,
+                "LeadId" uuid,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone,
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                CONSTRAINT "PK_InboundLeadEvents" PRIMARY KEY ("Id")
+            );
+            CREATE INDEX IF NOT EXISTS "IX_InboundLeadEvents_TenantId_CreatedAt" ON "InboundLeadEvents" ("TenantId", "CreatedAt");
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_Leads_TenantId_InboundProvider_InboundExternalId"
+                ON "Leads" ("TenantId", "InboundProvider", "InboundExternalId")
+                WHERE "InboundExternalId" IS NOT NULL;
+            """);
 
         var superAdminEnabled = app.Configuration.GetValue<bool>("SuperAdmin:Enabled", true);
         if (superAdminEnabled)
@@ -297,7 +421,9 @@ using (var scope = app.Services.CreateScope())
                 Phone = "0000000000",
                 Address = "Default Address",
                 ContactPerson = "Admin",
-                EnabledModules = Enum.GetValues<AppModuleKey>().ToList(),
+                EnabledModules = Enum.GetValues<AppModuleKey>()
+                    .Where(m => m != AppModuleKey.LeadIntegrations)
+                    .ToList(),
                 IsActive = true
             });
 
@@ -385,6 +511,7 @@ app.UseAuthorization();
 
 app.UseStaticFiles();
 app.MapControllers();
+app.MapHub<ChatHub>("/hubs/chat");
 
 /* -------------------- Root URL (avoid 404 on base URL) -------------------- */
 app.MapGet("/", () => Results.Ok(new

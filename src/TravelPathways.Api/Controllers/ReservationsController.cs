@@ -626,6 +626,7 @@ public sealed class ReservationsController : TenantControllerBase
 
     /// <summary>Remove a payment screenshot. Reservation role can only delete from reservations assigned to them.</summary>
     [HttpDelete("{id:guid}/screenshots/{screenshotId:guid}")]
+    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteScreenshot(Guid id, Guid screenshotId, CancellationToken ct = default)
     {
         var check = await EnsureReservationsModuleAsync(ct);

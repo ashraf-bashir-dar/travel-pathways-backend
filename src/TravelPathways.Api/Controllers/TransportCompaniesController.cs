@@ -186,6 +186,7 @@ public sealed class TransportCompaniesController : TenantControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteCompany([FromRoute] Guid id, CancellationToken ct)
     {
         var company = await _db.TransportCompanies.FirstOrDefaultAsync(c => c.Id == id && c.TenantId == TenantId, ct);

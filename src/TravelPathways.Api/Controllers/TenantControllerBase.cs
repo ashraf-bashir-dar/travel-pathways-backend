@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using TravelPathways.Api.Common;
 using TravelPathways.Api.MultiTenancy;
 
 namespace TravelPathways.Api.Controllers;
@@ -26,5 +27,11 @@ public abstract class TenantControllerBase : ControllerBase
               : "Tenant context is missing. Your session may have no tenant; try logging in again.");
     }
   }
+
+  /// <summary>True for tenant Admin or Super Admin.</summary>
+  protected bool IsTenantAdmin() => ControllerAuthorization.IsTenantAdmin(User);
+
+  /// <summary>Returns Forbid() when the current user is not a tenant admin.</summary>
+  protected ActionResult? DenyUnlessTenantAdmin() => IsTenantAdmin() ? null : Forbid();
 }
 

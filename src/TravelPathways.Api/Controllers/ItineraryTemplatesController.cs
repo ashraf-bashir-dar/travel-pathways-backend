@@ -107,6 +107,7 @@ public sealed class ItineraryTemplatesController : TenantControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> Delete([FromRoute] Guid id, CancellationToken ct = default)
     {
         var entity = await _db.ItineraryTemplates

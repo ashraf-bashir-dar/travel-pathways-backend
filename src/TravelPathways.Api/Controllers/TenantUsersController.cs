@@ -55,6 +55,9 @@ public sealed class TenantUsersController : ControllerBase
         public string? EmergencyContactName { get; init; }
         public string? EmergencyContactPhone { get; init; }
         public string? ProfilePhotoUrl { get; init; }
+        public bool ParticipateInInboundAutoAssign { get; init; }
+        public int InboundDailyLeadQuota { get; init; }
+        public List<LeadSource> InboundAllowedLeadSources { get; init; } = [];
     }
 
     public sealed class CreateTenantUserRequestDto
@@ -77,6 +80,9 @@ public sealed class TenantUsersController : ControllerBase
         public string? EmergencyContactName { get; set; }
         public string? EmergencyContactPhone { get; set; }
         public string? ProfilePhotoUrl { get; set; }
+        public bool ParticipateInInboundAutoAssign { get; set; }
+        public int InboundDailyLeadQuota { get; set; }
+        public List<LeadSource>? InboundAllowedLeadSources { get; set; }
     }
 
     public sealed class UpdateTenantUserRequestDto
@@ -99,6 +105,9 @@ public sealed class TenantUsersController : ControllerBase
         public string? EmergencyContactName { get; set; }
         public string? EmergencyContactPhone { get; set; }
         public string? ProfilePhotoUrl { get; set; }
+        public bool ParticipateInInboundAutoAssign { get; set; }
+        public int InboundDailyLeadQuota { get; set; }
+        public List<LeadSource>? InboundAllowedLeadSources { get; set; }
     }
 
     /// <summary>
@@ -235,7 +244,12 @@ public sealed class TenantUsersController : ControllerBase
             Address = request.Address?.Trim(),
             EmergencyContactName = request.EmergencyContactName?.Trim(),
             EmergencyContactPhone = request.EmergencyContactPhone?.Trim(),
-            ProfilePhotoUrl = request.ProfilePhotoUrl?.Trim()
+            ProfilePhotoUrl = request.ProfilePhotoUrl?.Trim(),
+            ParticipateInInboundAutoAssign = request.Department == UserDepartment.Sales && request.ParticipateInInboundAutoAssign,
+            InboundDailyLeadQuota = request.Department == UserDepartment.Sales ? Math.Max(0, request.InboundDailyLeadQuota) : 0,
+            InboundAllowedLeadSources = request.Department == UserDepartment.Sales
+                ? request.InboundAllowedLeadSources?.ToList() ?? []
+                : []
         };
         _db.Users.Add(user);
         await _db.SaveChangesAsync(ct);
@@ -306,6 +320,18 @@ public sealed class TenantUsersController : ControllerBase
         user.EmergencyContactName = request.EmergencyContactName?.Trim();
         user.EmergencyContactPhone = request.EmergencyContactPhone?.Trim();
         user.ProfilePhotoUrl = request.ProfilePhotoUrl?.Trim();
+        if (request.Department == UserDepartment.Sales)
+        {
+            user.ParticipateInInboundAutoAssign = request.ParticipateInInboundAutoAssign;
+            user.InboundDailyLeadQuota = Math.Max(0, request.InboundDailyLeadQuota);
+            user.InboundAllowedLeadSources = request.InboundAllowedLeadSources?.ToList() ?? [];
+        }
+        else
+        {
+            user.ParticipateInInboundAutoAssign = false;
+            user.InboundDailyLeadQuota = 0;
+            user.InboundAllowedLeadSources = [];
+        }
         if (!string.IsNullOrWhiteSpace(request.Password))
         {
             user.PasswordHash = PasswordHasher.Hash(request.Password);
@@ -368,6 +394,9 @@ public sealed class TenantUsersController : ControllerBase
             Address = u.Address,
             EmergencyContactName = u.EmergencyContactName,
             EmergencyContactPhone = u.EmergencyContactPhone,
-            ProfilePhotoUrl = u.ProfilePhotoUrl
+            ProfilePhotoUrl = u.ProfilePhotoUrl,
+            ParticipateInInboundAutoAssign = u.ParticipateInInboundAutoAssign,
+            InboundDailyLeadQuota = u.InboundDailyLeadQuota,
+            InboundAllowedLeadSources = u.InboundAllowedLeadSources ?? []
         };
 }

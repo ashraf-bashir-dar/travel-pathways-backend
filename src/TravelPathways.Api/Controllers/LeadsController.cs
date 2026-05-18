@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -7,6 +8,7 @@ using TravelPathways.Api.Common;
 using TravelPathways.Api.Data;
 using TravelPathways.Api.Data.Entities;
 using TravelPathways.Api.MultiTenancy;
+using TravelPathways.Api.Services;
 
 namespace TravelPathways.Api.Controllers;
 
@@ -16,10 +18,18 @@ namespace TravelPathways.Api.Controllers;
 public sealed class LeadsController : TenantControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IEmailService _emailService;
+    private readonly ILeadExcelImportService _leadImportService;
 
-    public LeadsController(AppDbContext db, TenantContext tenant) : base(tenant)
+    public LeadsController(
+        AppDbContext db,
+        TenantContext tenant,
+        IEmailService emailService,
+        ILeadExcelImportService leadImportService) : base(tenant)
     {
         _db = db;
+        _emailService = emailService;
+        _leadImportService = leadImportService;
     }
 
     public sealed class LeadDto
@@ -90,32 +100,58 @@ public sealed class LeadsController : TenantControllerBase
         if (isAdmin || isSuperAdmin)
             return (null, true);
 
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
-            return (null, false);
-        return (userId, false);
+        return (GetCurrentUserId(), false);
     }
 
-    [HttpGet]
-    public async Task<ActionResult<ApiResponse<PaginatedResponse<LeadDto>>>> GetLeads(
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 50,
-        [FromQuery] string? searchTerm = null,
-        [FromQuery] LeadStatus? status = null,
-        [FromQuery] LeadSource? source = null,
-        [FromQuery] Guid? assignedToUserId = null,
-        [FromQuery] DateTime? assignedFrom = null,
-        [FromQuery] DateTime? assignedTo = null,
-        CancellationToken ct = default)
+    private bool CanManageLeadAssignment() => GetCurrentUserLeadScope().CanSeeAllLeads;
+
+    private Guid? GetCurrentUserId()
     {
-        pageNumber = Math.Max(1, pageNumber);
-        pageSize = Math.Clamp(pageSize, 1, 200);
+        var claim = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        return Guid.TryParse(claim, out var id) ? id : null;
+    }
 
-        var (currentUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
-        var query = _db.Leads.AsNoTracking().Where(l => l.TenantId == TenantId);
+    private string? GetCurrentUserEmail()
+    {
+        var email = User.FindFirstValue(ClaimTypes.Email)
+            ?? User.FindFirstValue(JwtRegisteredClaimNames.Email);
+        return string.IsNullOrWhiteSpace(email) ? null : email.Trim();
+    }
 
-        if (!canSeeAllLeads && currentUserId.HasValue)
-            query = query.Where(l => l.AssignedToUserId == currentUserId.Value);
+    private IQueryable<Lead> BuildLeadsQuery(
+        Guid? currentUserId,
+        bool canSeeAllLeads,
+        string? searchTerm,
+        LeadStatus? status,
+        LeadSource? source,
+        Guid? assignedToUserId,
+        bool unassignedOnly,
+        DateTime? assignedFrom,
+        DateTime? assignedTo,
+        string? currentUserEmail = null)
+    {
+        var query = _db.Leads.Where(l => l.TenantId == TenantId);
+
+        if (!canSeeAllLeads)
+        {
+            var uid = currentUserId;
+            var email = currentUserEmail?.Trim();
+            if (!uid.HasValue && string.IsNullOrEmpty(email))
+            {
+                query = query.Where(_ => false);
+            }
+            else
+            {
+                // Sales see leads assigned to them, or leads they created (legacy / self-service).
+                query = query.Where(l =>
+                    (uid.HasValue && l.AssignedToUserId == uid.Value) ||
+                    (!string.IsNullOrEmpty(email) &&
+                     l.CreatedBy.ToLower() == email!.ToLower()));
+            }
+        }
+        else if (unassignedOnly)
+            query = query.Where(l => l.AssignedToUserId == null);
         else if (assignedToUserId.HasValue)
             query = query.Where(l => l.AssignedToUserId == assignedToUserId.Value);
 
@@ -131,7 +167,6 @@ public sealed class LeadsController : TenantControllerBase
             query = query.Where(l => l.Status == status.Value);
         if (source.HasValue)
             query = query.Where(l => l.LeadSource == source.Value);
-        // Use UTC day bounds — PostgreSQL does not translate l.CreatedAt.Date reliably in all EF versions.
         if (assignedFrom.HasValue)
         {
             var d = assignedFrom.Value.Date;
@@ -144,6 +179,55 @@ public sealed class LeadsController : TenantControllerBase
             var endUtcExclusive = new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc).AddDays(1);
             query = query.Where(l => l.CreatedAt < endUtcExclusive);
         }
+
+        return query;
+    }
+
+    private async Task<bool> IsAssignableTenantUserAsync(Guid userId, CancellationToken ct) =>
+        await _db.Users.AsNoTracking()
+            .AnyAsync(u => u.Id == userId && u.TenantId == TenantId && u.IsActive, ct);
+
+    private static bool CanAccessLead(Lead lead, bool canSeeAllLeads, Guid? userId, string? email)
+    {
+        if (canSeeAllLeads) return true;
+        if (userId.HasValue && lead.AssignedToUserId == userId.Value) return true;
+        if (!string.IsNullOrWhiteSpace(email) && !string.IsNullOrWhiteSpace(lead.CreatedBy) &&
+            string.Equals(lead.CreatedBy.Trim(), email.Trim(), StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<LeadDto>>>> GetLeads(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] LeadStatus? status = null,
+        [FromQuery] LeadSource? source = null,
+        [FromQuery] Guid? assignedToUserId = null,
+        [FromQuery] bool unassignedOnly = false,
+        [FromQuery] DateTime? assignedFrom = null,
+        [FromQuery] DateTime? assignedTo = null,
+        CancellationToken ct = default)
+    {
+        pageNumber = Math.Max(1, pageNumber);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+
+        var (scopeUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
+        var currentUserId = scopeUserId ?? GetCurrentUserId();
+        var currentUserEmail = GetCurrentUserEmail();
+        var query = BuildLeadsQuery(
+                currentUserId,
+                canSeeAllLeads,
+                searchTerm,
+                status,
+                source,
+                assignedToUserId,
+                unassignedOnly && canSeeAllLeads,
+                assignedFrom,
+                assignedTo,
+                currentUserEmail)
+            .AsNoTracking();
 
         var total = await query.CountAsync(ct);
         var leads = await query
@@ -218,8 +302,7 @@ public sealed class LeadsController : TenantControllerBase
             .FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
 
-        var (currentUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
-        if (!canSeeAllLeads && (!currentUserId.HasValue || lead.AssignedToUserId != currentUserId.Value))
+        if (!CanAccessLead(lead, GetCurrentUserLeadScope().CanSeeAllLeads, GetCurrentUserId(), GetCurrentUserEmail()))
             return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
 
         var hasReservationForLead = await _db.Reservations.AsNoTracking()
@@ -242,6 +325,27 @@ public sealed class LeadsController : TenantControllerBase
     public async Task<ActionResult<ApiResponse<LeadDto>>> CreateLead([FromBody] CreateLeadRequestDto request, CancellationToken ct)
     {
         var createdBy = User.FindFirstValue(ClaimTypes.Email) ?? User.Identity?.Name ?? "system";
+        var (scopeUserId, canManageAssignment) = GetCurrentUserLeadScope();
+        var currentUserId = scopeUserId ?? GetCurrentUserId();
+
+        Guid? assignee = null;
+        if (canManageAssignment)
+        {
+            if (request.AssignedToUserId.HasValue)
+            {
+                if (!await IsAssignableTenantUserAsync(request.AssignedToUserId.Value, ct))
+                    return BadRequest(ApiResponse<LeadDto>.Fail("Assigned user not found or inactive."));
+                assignee = request.AssignedToUserId;
+            }
+        }
+        else if (currentUserId.HasValue)
+        {
+            assignee = currentUserId;
+        }
+        else
+        {
+            return BadRequest(ApiResponse<LeadDto>.Fail("Could not determine your user account. Please sign in again."));
+        }
 
         var lead = new Lead
         {
@@ -256,7 +360,7 @@ public sealed class LeadsController : TenantControllerBase
             Notes = request.Notes?.Trim(),
             Status = LeadStatus.New,
             CreatedBy = createdBy,
-            AssignedToUserId = request.AssignedToUserId
+            AssignedToUserId = assignee
         };
 
         _db.Leads.Add(lead);
@@ -271,8 +375,8 @@ public sealed class LeadsController : TenantControllerBase
         var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
 
-        var (currentUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
-        if (!canSeeAllLeads && (!currentUserId.HasValue || lead.AssignedToUserId != currentUserId.Value))
+        var (_, canSeeAllLeads) = GetCurrentUserLeadScope();
+        if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId(), GetCurrentUserEmail()))
             return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
 
         // Once any package for this lead has a reservation, Tour Manager should not edit lead/package details.
@@ -311,7 +415,18 @@ public sealed class LeadsController : TenantControllerBase
         lead.LeadSource = request.LeadSource;
         lead.Notes = request.Notes?.Trim();
         lead.Status = request.Status;
-        lead.AssignedToUserId = request.AssignedToUserId;
+
+        if (canSeeAllLeads)
+        {
+            if (request.AssignedToUserId.HasValue)
+            {
+                if (!await IsAssignableTenantUserAsync(request.AssignedToUserId.Value, ct))
+                    return BadRequest(ApiResponse<LeadDto>.Fail("Assigned user not found or inactive."));
+                lead.AssignedToUserId = request.AssignedToUserId;
+            }
+            else
+                lead.AssignedToUserId = null;
+        }
 
         await _db.SaveChangesAsync(ct);
 
@@ -352,13 +467,14 @@ public sealed class LeadsController : TenantControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteLead([FromRoute] Guid id, CancellationToken ct)
     {
         var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<object>.Fail("Lead not found"));
 
-        var (currentUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
-        if (!canSeeAllLeads && (!currentUserId.HasValue || lead.AssignedToUserId != currentUserId.Value))
+        var (_, canSeeAllLeads) = GetCurrentUserLeadScope();
+        if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId(), GetCurrentUserEmail()))
             return NotFound(ApiResponse<object>.Fail("Lead not found"));
 
         lead.IsDeleted = true;
@@ -373,8 +489,8 @@ public sealed class LeadsController : TenantControllerBase
         var lead = await _db.Leads.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<List<LeadFollowUpDto>>.Fail("Lead not found"));
 
-        var (currentUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
-        if (!canSeeAllLeads && (!currentUserId.HasValue || lead.AssignedToUserId != currentUserId.Value))
+        var (_, canSeeAllLeads) = GetCurrentUserLeadScope();
+        if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId(), GetCurrentUserEmail()))
             return NotFound(ApiResponse<List<LeadFollowUpDto>>.Fail("Lead not found"));
 
         var list = await _db.LeadFollowUps.AsNoTracking()
@@ -402,8 +518,8 @@ public sealed class LeadsController : TenantControllerBase
         var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<LeadFollowUpDto>.Fail("Lead not found"));
 
-        var (currentUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
-        if (!canSeeAllLeads && (!currentUserId.HasValue || lead.AssignedToUserId != currentUserId.Value))
+        var (_, canSeeAllLeads) = GetCurrentUserLeadScope();
+        if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId(), GetCurrentUserEmail()))
             return NotFound(ApiResponse<LeadFollowUpDto>.Fail("Lead not found"));
 
         var createdBy = User.FindFirstValue(ClaimTypes.Email) ?? User.Identity?.Name ?? "system";
@@ -431,6 +547,366 @@ public sealed class LeadsController : TenantControllerBase
             CreatedBy = followUp.CreatedBy
         };
         return CreatedAtAction(nameof(GetFollowUps), new { id }, ApiResponse<LeadFollowUpDto>.Ok(dto));
+    }
+
+    public sealed class BulkAssignLeadsRequest
+    {
+        public List<string> LeadIds { get; set; } = [];
+        public Guid AssignedToUserId { get; set; }
+        /// <summary>When true, assign all leads matching filter fields (admin only). LeadIds is ignored.</summary>
+        public bool UseCurrentFilters { get; set; }
+        public string? SearchTerm { get; set; }
+        public LeadStatus? Status { get; set; }
+        public LeadSource? Source { get; set; }
+        public Guid? FilterAssignedToUserId { get; set; }
+        public bool UnassignedOnly { get; set; }
+        public DateTime? AssignedFrom { get; set; }
+        public DateTime? AssignedTo { get; set; }
+    }
+
+    public sealed class BulkAssignLeadsResult
+    {
+        public required int UpdatedCount { get; init; }
+    }
+
+    [HttpPost("bulk-assign")]
+    public async Task<ActionResult<ApiResponse<BulkAssignLeadsResult>>> BulkAssignLeads(
+        [FromBody] BulkAssignLeadsRequest request,
+        CancellationToken ct)
+    {
+        if (!CanManageLeadAssignment())
+            return Forbid();
+
+        if (!await IsAssignableTenantUserAsync(request.AssignedToUserId, ct))
+            return BadRequest(ApiResponse<BulkAssignLeadsResult>.Fail("Assigned user not found or inactive."));
+
+        int updated;
+        if (request.UseCurrentFilters)
+        {
+            var query = BuildLeadsQuery(
+                null,
+                canSeeAllLeads: true,
+                request.SearchTerm,
+                request.Status,
+                request.Source,
+                request.FilterAssignedToUserId,
+                request.UnassignedOnly,
+                request.AssignedFrom,
+                request.AssignedTo);
+
+            updated = await query.ExecuteUpdateAsync(
+                s => s.SetProperty(l => l.AssignedToUserId, request.AssignedToUserId)
+                    .SetProperty(l => l.UpdatedAt, DateTime.UtcNow),
+                ct);
+        }
+        else
+        {
+            if (request.LeadIds is null || request.LeadIds.Count == 0)
+                return BadRequest(ApiResponse<BulkAssignLeadsResult>.Fail("Select at least one lead or use filter-based assignment."));
+
+            var ids = new List<Guid>();
+            foreach (var raw in request.LeadIds.Distinct())
+            {
+                if (Guid.TryParse(raw, out var id)) ids.Add(id);
+            }
+            if (ids.Count == 0)
+                return BadRequest(ApiResponse<BulkAssignLeadsResult>.Fail("No valid lead ids provided."));
+
+            updated = await _db.Leads
+                .Where(l => l.TenantId == TenantId && ids.Contains(l.Id))
+                .ExecuteUpdateAsync(
+                    s => s.SetProperty(l => l.AssignedToUserId, request.AssignedToUserId)
+                        .SetProperty(l => l.UpdatedAt, DateTime.UtcNow),
+                    ct);
+        }
+
+        return ApiResponse<BulkAssignLeadsResult>.Ok(new BulkAssignLeadsResult { UpdatedCount = updated });
+    }
+
+    public sealed class BulkDeleteLeadsRequest
+    {
+        public List<string> LeadIds { get; set; } = [];
+        public bool UseCurrentFilters { get; set; }
+        public string? SearchTerm { get; set; }
+        public LeadStatus? Status { get; set; }
+        public LeadSource? Source { get; set; }
+        public Guid? FilterAssignedToUserId { get; set; }
+        public bool UnassignedOnly { get; set; }
+        public DateTime? AssignedFrom { get; set; }
+        public DateTime? AssignedTo { get; set; }
+    }
+
+    public sealed class BulkDeleteLeadsResult
+    {
+        public required int DeletedCount { get; init; }
+    }
+
+    [HttpPost("bulk-delete")]
+    [Authorize(Policy = "TenantAdminOnly")]
+    public async Task<ActionResult<ApiResponse<BulkDeleteLeadsResult>>> BulkDeleteLeads(
+        [FromBody] BulkDeleteLeadsRequest request,
+        CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        int deleted;
+        if (request.UseCurrentFilters)
+        {
+            var query = BuildLeadsQuery(
+                null,
+                canSeeAllLeads: true,
+                request.SearchTerm,
+                request.Status,
+                request.Source,
+                request.FilterAssignedToUserId,
+                request.UnassignedOnly,
+                request.AssignedFrom,
+                request.AssignedTo);
+
+            deleted = await query.ExecuteUpdateAsync(
+                s => s.SetProperty(l => l.IsDeleted, true)
+                    .SetProperty(l => l.DeletedAtUtc, now)
+                    .SetProperty(l => l.UpdatedAt, now),
+                ct);
+        }
+        else
+        {
+            if (request.LeadIds is null || request.LeadIds.Count == 0)
+                return BadRequest(ApiResponse<BulkDeleteLeadsResult>.Fail("Select at least one lead or use filter-based delete."));
+
+            var ids = new List<Guid>();
+            foreach (var raw in request.LeadIds.Distinct())
+            {
+                if (Guid.TryParse(raw, out var id)) ids.Add(id);
+            }
+            if (ids.Count == 0)
+                return BadRequest(ApiResponse<BulkDeleteLeadsResult>.Fail("No valid lead ids provided."));
+
+            deleted = await _db.Leads
+                .Where(l => l.TenantId == TenantId && ids.Contains(l.Id))
+                .ExecuteUpdateAsync(
+                    s => s.SetProperty(l => l.IsDeleted, true)
+                        .SetProperty(l => l.DeletedAtUtc, now)
+                        .SetProperty(l => l.UpdatedAt, now),
+                    ct);
+        }
+
+        return ApiResponse<BulkDeleteLeadsResult>.Ok(new BulkDeleteLeadsResult { DeletedCount = deleted });
+    }
+
+    public sealed class BulkEmailGreetingRequest
+    {
+        public List<string> LeadIds { get; set; } = [];
+        public bool UseCurrentFilters { get; set; }
+        public string? SearchTerm { get; set; }
+        public LeadStatus? Status { get; set; }
+        public LeadSource? Source { get; set; }
+        public Guid? FilterAssignedToUserId { get; set; }
+        public bool UnassignedOnly { get; set; }
+        public DateTime? AssignedFrom { get; set; }
+        public DateTime? AssignedTo { get; set; }
+        public string? Subject { get; set; }
+        public string? Message { get; set; }
+    }
+
+    public sealed class BulkEmailGreetingResult
+    {
+        public required int SentCount { get; init; }
+        public required int SkippedNoEmailCount { get; init; }
+        public required int FailedCount { get; init; }
+        public List<string> Errors { get; init; } = [];
+    }
+
+    public sealed class LeadImportResultDto
+    {
+        public required int ImportedCount { get; init; }
+        public required int SkippedCount { get; init; }
+        public required int FailedCount { get; init; }
+        public List<LeadImportRowErrorDto> Errors { get; init; } = [];
+    }
+
+    public sealed class LeadImportRowErrorDto
+    {
+        public required int RowNumber { get; init; }
+        public required string Message { get; init; }
+    }
+
+    [HttpGet("import-template")]
+    [Authorize(Policy = "TenantAdminOnly")]
+    public IActionResult DownloadImportTemplate()
+    {
+        if (!CanManageLeadAssignment())
+            return Forbid();
+
+        var bytes = _leadImportService.BuildTemplate();
+        return File(
+            bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "leads-import-template.xlsx");
+    }
+
+    [HttpPost("import")]
+    [Authorize(Policy = "TenantAdminOnly")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(10_485_760)]
+    public async Task<ActionResult<ApiResponse<LeadImportResultDto>>> ImportLeads(IFormFile? file, CancellationToken ct)
+    {
+        if (!CanManageLeadAssignment())
+            return Forbid();
+
+        if (file is null || file.Length == 0)
+            return BadRequest(ApiResponse<LeadImportResultDto>.Fail("Please upload an Excel file (.xlsx)."));
+
+        var ext = Path.GetExtension(file.FileName);
+        if (!string.Equals(ext, ".xlsx", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(ApiResponse<LeadImportResultDto>.Fail("Only .xlsx files are supported. Download the template and save as Excel Workbook (.xlsx)."));
+
+        if (file.Length > 10_485_760)
+            return BadRequest(ApiResponse<LeadImportResultDto>.Fail("File is too large. Maximum size is 10 MB."));
+
+        var createdBy = User.FindFirstValue(ClaimTypes.Email) ?? User.Identity?.Name ?? "import";
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            var result = await _leadImportService.ImportAsync(stream, TenantId, createdBy, ct);
+            var dto = new LeadImportResultDto
+            {
+                ImportedCount = result.ImportedCount,
+                SkippedCount = result.SkippedCount,
+                FailedCount = result.FailedCount,
+                Errors = result.Errors.Select(e => new LeadImportRowErrorDto
+                {
+                    RowNumber = e.RowNumber,
+                    Message = e.Message
+                }).ToList()
+            };
+
+            var summary = result.ImportedCount > 0
+                ? $"Imported {result.ImportedCount} lead(s)."
+                : result.FailedCount > 0
+                    ? "No leads were imported. See row errors below."
+                    : "No data rows found in the file.";
+
+            if (result.FailedCount > 0 && result.ImportedCount > 0)
+                summary += $" {result.FailedCount} row(s) failed.";
+
+            return ApiResponse<LeadImportResultDto>.Ok(dto, summary);
+        }
+        catch (Exception)
+        {
+            return BadRequest(ApiResponse<LeadImportResultDto>.Fail(
+                "Could not read the Excel file. Use the downloaded template and ensure the file is a valid .xlsx workbook."));
+        }
+    }
+
+    [HttpPost("bulk-email-greeting")]
+    public async Task<ActionResult<ApiResponse<BulkEmailGreetingResult>>> BulkEmailGreeting(
+        [FromBody] BulkEmailGreetingRequest request,
+        CancellationToken ct)
+    {
+        if (!_emailService.IsConfigured)
+            return BadRequest(ApiResponse<BulkEmailGreetingResult>.Fail(
+                "Email is not configured on the server. Ask your administrator to set Email:SmtpHost and related settings in appsettings."));
+
+        var (userId, canSeeAllLeads) = GetCurrentUserLeadScope();
+        var userEmail = GetCurrentUserEmail();
+
+        List<Lead> leads;
+        if (request.UseCurrentFilters)
+        {
+            if (!canSeeAllLeads)
+                return Forbid();
+
+            leads = await BuildLeadsQuery(
+                    null,
+                    canSeeAllLeads: true,
+                    request.SearchTerm,
+                    request.Status,
+                    request.Source,
+                    request.FilterAssignedToUserId,
+                    request.UnassignedOnly,
+                    request.AssignedFrom,
+                    request.AssignedTo)
+                .ToListAsync(ct);
+        }
+        else
+        {
+            if (request.LeadIds is null || request.LeadIds.Count == 0)
+                return BadRequest(ApiResponse<BulkEmailGreetingResult>.Fail("Select at least one lead."));
+
+            var ids = new List<Guid>();
+            foreach (var raw in request.LeadIds.Distinct())
+            {
+                if (Guid.TryParse(raw, out var id)) ids.Add(id);
+            }
+            if (ids.Count == 0)
+                return BadRequest(ApiResponse<BulkEmailGreetingResult>.Fail("No valid lead ids provided."));
+
+            leads = await _db.Leads
+                .Where(l => l.TenantId == TenantId && ids.Contains(l.Id))
+                .ToListAsync(ct);
+
+            if (!canSeeAllLeads)
+                leads = leads.Where(l => CanAccessLead(l, false, userId, userEmail)).ToList();
+        }
+
+        if (leads.Count == 0)
+            return BadRequest(ApiResponse<BulkEmailGreetingResult>.Fail("No accessible leads found for this request."));
+
+        const int maxPerRequest = 100;
+        if (leads.Count > maxPerRequest)
+            return BadRequest(ApiResponse<BulkEmailGreetingResult>.Fail($"Send at most {maxPerRequest} emails per request. You selected {leads.Count} leads."));
+
+        var tenant = await _db.Tenants.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == TenantId, ct);
+        var tenantName = tenant?.Name?.Trim() ?? "Travel Pathways";
+
+        var subjectTemplate = string.IsNullOrWhiteSpace(request.Subject)
+            ? "Thank you for your interest in our travel services"
+            : request.Subject.Trim();
+
+        var messageTemplate = string.IsNullOrWhiteSpace(request.Message)
+            ? "Hello {{ClientName}},\n\nThank you for your interest in our travel services. How can we assist you today?\n\nBest regards,\n{{TenantName}}"
+            : request.Message.Trim();
+
+        var sent = 0;
+        var skippedNoEmail = 0;
+        var failed = 0;
+        var errors = new List<string>();
+
+        foreach (var lead in leads)
+        {
+            var to = lead.ClientEmail?.Trim();
+            if (string.IsNullOrWhiteSpace(to) || !to.Contains('@'))
+            {
+                skippedNoEmail++;
+                continue;
+            }
+
+            var name = string.IsNullOrWhiteSpace(lead.ClientName) ? "there" : lead.ClientName.Trim();
+            var subject = subjectTemplate.Replace("{{ClientName}}", name, StringComparison.OrdinalIgnoreCase)
+                .Replace("{{TenantName}}", tenantName, StringComparison.OrdinalIgnoreCase);
+            var body = messageTemplate.Replace("{{ClientName}}", name, StringComparison.OrdinalIgnoreCase)
+                .Replace("{{TenantName}}", tenantName, StringComparison.OrdinalIgnoreCase);
+
+            var ok = await _emailService.SendEmailAsync(to, subject, body, ct);
+            if (ok)
+                sent++;
+            else
+            {
+                failed++;
+                if (errors.Count < 5)
+                    errors.Add($"{name} ({to}): send failed");
+            }
+        }
+
+        return ApiResponse<BulkEmailGreetingResult>.Ok(new BulkEmailGreetingResult
+        {
+            SentCount = sent,
+            SkippedNoEmailCount = skippedNoEmail,
+            FailedCount = failed,
+            Errors = errors
+        });
     }
 
     private static LeadDto ToDto(Lead l) =>

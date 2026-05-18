@@ -1,10 +1,39 @@
-bin/
-obj/
-**/.dockerignore
-**/.env
-**/.git
-**/.vs
-**/*.user
+# Build artifacts
+**/bin/
+**/obj/
+
+# Visual Studio
+.vs/
+**/.vs/
+*.user
+*.suo
+
+# Git
+.git/
+.gitignore
+
+# Node
 **/node_modules/
+
+# Environment files
+**/.env
+.env.*
+
+# Logs
+*.log
+
+# Docker
+.dockerignore
+Dockerfile*
+
+# Uploads/temp
 wwwroot/uploads/*
+tmp/
+temp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
 *.md

@@ -26,6 +26,8 @@ public sealed class AppDbContext : DbContext
 
     public DbSet<Lead> Leads => Set<Lead>();
     public DbSet<LeadFollowUp> LeadFollowUps => Set<LeadFollowUp>();
+    public DbSet<TenantLeadIntegration> TenantLeadIntegrations => Set<TenantLeadIntegration>();
+    public DbSet<InboundLeadEvent> InboundLeadEvents => Set<InboundLeadEvent>();
 
     public DbSet<Hotel> Hotels => Set<Hotel>();
     public DbSet<AccommodationRate> AccommodationRates => Set<AccommodationRate>();
@@ -50,6 +52,10 @@ public sealed class AppDbContext : DbContext
     public DbSet<EmployeeCompensation> EmployeeCompensations => Set<EmployeeCompensation>();
     public DbSet<Attendance> Attendances => Set<Attendance>();
     public DbSet<Leave> Leaves => Set<Leave>();
+
+    public DbSet<ChatGroup> ChatGroups => Set<ChatGroup>();
+    public DbSet<ChatGroupMember> ChatGroupMembers => Set<ChatGroupMember>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -84,6 +90,33 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<LeadFollowUp>()
             .Property(f => f.Status)
             .HasConversion(new FollowUpStatusConverter());
+
+        modelBuilder.Entity<Lead>()
+            .Property(l => l.InboundProvider)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<Lead>()
+            .HasIndex(l => new { l.TenantId, l.InboundProvider, l.InboundExternalId })
+            .IsUnique()
+            .HasFilter("\"InboundExternalId\" IS NOT NULL");
+
+        modelBuilder.Entity<AppUser>()
+            .Property(u => u.InboundAllowedLeadSources)
+            .HasConversion(new JsonValueConverter<List<LeadSource>>());
+        modelBuilder.Entity<AppUser>()
+            .Property(u => u.InboundAllowedLeadSources)
+            .Metadata.SetValueComparer(new JsonValueComparer<List<LeadSource>, LeadSource>());
+
+        modelBuilder.Entity<TenantLeadIntegration>()
+            .HasIndex(i => i.InboundKey)
+            .IsUnique();
+        modelBuilder.Entity<TenantLeadIntegration>()
+            .HasIndex(i => i.TenantId)
+            .IsUnique();
+
+        modelBuilder.Entity<InboundLeadEvent>()
+            .Property(e => e.Provider)
+            .HasConversion<string>();
 
         modelBuilder.Entity<Hotel>()
             .Property(h => h.Amenities)
@@ -371,6 +404,55 @@ public sealed class AppDbContext : DbContext
             .HasForeignKey(l => l.UserId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        modelBuilder.Entity<ChatGroup>()
+            .HasOne(g => g.CreatedByUser)
+            .WithMany()
+            .HasForeignKey(g => g.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<ChatGroup>()
+            .HasIndex(g => new { g.TenantId, g.DirectPairKey })
+            .IsUnique()
+            .HasFilter("\"IsDirect\" = true AND \"DirectPairKey\" IS NOT NULL");
+
+        modelBuilder.Entity<ChatGroupMember>()
+            .HasKey(m => new { m.GroupId, m.UserId });
+
+        modelBuilder.Entity<ChatGroupMember>()
+            .HasOne(m => m.Group)
+            .WithMany(g => g.Members)
+            .HasForeignKey(m => m.GroupId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ChatGroupMember>()
+            .HasOne(m => m.User)
+            .WithMany()
+            .HasForeignKey(m => m.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<ChatMessage>()
+            .HasOne(m => m.Group)
+            .WithMany(g => g.Messages)
+            .HasForeignKey(m => m.GroupId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ChatMessage>()
+            .HasOne(m => m.SenderUser)
+            .WithMany()
+            .HasForeignKey(m => m.SenderUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<ChatMessage>()
+            .HasIndex(m => new { m.GroupId, m.SentAtUtc });
+
+        modelBuilder.Entity<ChatMessage>()
+            .Property(m => m.MentionedUserIds)
+            .HasConversion(new JsonValueConverter<List<Guid>>());
+
+        modelBuilder.Entity<ChatMessage>()
+            .Property(m => m.ImageUrls)
+            .HasConversion(new JsonValueConverter<List<string>>());
+
         // ---------- Multi-tenancy and soft-delete query filters ----------
         ConfigureTenantFilters(modelBuilder);
     }
@@ -396,6 +478,18 @@ public sealed class AppDbContext : DbContext
                 : e.TenantId == _tenant.TenantId));
 
         modelBuilder.Entity<LeadFollowUp>().HasQueryFilter(f => _tenant.IsSuperAdmin || Set<Lead>().Any(l => l.Id == f.LeadId));
+
+        modelBuilder.Entity<TenantLeadIntegration>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<InboundLeadEvent>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
 
         modelBuilder.Entity<Hotel>().HasQueryFilter(e =>
             !e.IsDeleted &&
@@ -532,6 +626,19 @@ public sealed class AppDbContext : DbContext
 
         modelBuilder.Entity<Plan>().HasQueryFilter(p => !p.IsDeleted);
         modelBuilder.Entity<PdfTemplate>().HasQueryFilter(t => !t.IsDeleted);
+
+        modelBuilder.Entity<ChatGroup>().HasQueryFilter(g =>
+            !g.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || g.TenantId == _tenant.TenantId)
+                : g.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<ChatGroupMember>().HasQueryFilter(m =>
+            Set<ChatGroup>().Any(g => g.Id == m.GroupId));
+
+        modelBuilder.Entity<ChatMessage>().HasQueryFilter(m =>
+            !m.IsDeleted &&
+            Set<ChatGroup>().Any(g => g.Id == m.GroupId));
     }
 
     public override int SaveChanges()

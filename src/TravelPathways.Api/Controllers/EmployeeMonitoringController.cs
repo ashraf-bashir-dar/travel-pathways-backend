@@ -357,6 +357,7 @@ public sealed class EmployeeMonitoringController : TenantControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteTask([FromRoute] Guid id, CancellationToken ct = default)
     {
         var check = await EnsureTimeSheetOrEmployeeManagementModuleAsync(ct);

@@ -46,7 +46,11 @@ public enum AppModuleKey
     /// <summary>TimeSheet only: daily tasks (add what you did for the day). Can be assigned without full Employee Management.</summary>
     TimeSheet = 15,
     /// <summary>Reservations: assign confirmed packages to reservation manager, track pending/completed, upload advance payment screenshots.</summary>
-    Reservations = 16
+    Reservations = 16,
+    /// <summary>Internal team chat (groups). Super Admin enables per tenant; tenant admin manages groups and membership.</summary>
+    TeamChat = 17,
+    /// <summary>Inbound leads: Meta/webhooks, auto-assign rules. Requires InboundLeadsFeatureEnabled on tenant.</summary>
+    LeadIntegrations = 18
 }
 
 /// <summary>Status of a reservation (package assigned to reservation manager).</summary>

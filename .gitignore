@@ -52,3 +52,6 @@ Thumbs.db
 # Long paths that can break Windows
 **/publish/
 /temp-build
+/build-check
+/build-out/appsettings.Development.json
+/build-out

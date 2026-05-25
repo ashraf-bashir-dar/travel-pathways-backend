@@ -118,6 +118,8 @@ builder.Services.AddHostedService<TravelPathways.Api.Services.ChromiumBrowserHos
 builder.Services.AddScoped<TravelPathways.Api.Services.IPackagePdfGenerator, TravelPathways.Api.Services.PackagePdfGenerator>();
 builder.Services.AddScoped<TravelPathways.Api.Services.ILeadExcelImportService,
     TravelPathways.Api.Services.LeadExcelImportService>();
+builder.Services.AddScoped<TravelPathways.Api.Services.ILeadExcelExportService,
+    TravelPathways.Api.Services.LeadExcelExportService>();
 builder.Services.Configure<TravelPathways.Api.Services.Inbound.MetaOptions>(
     builder.Configuration.GetSection("Meta"));
 builder.Services.AddHttpClient();

@@ -39,16 +39,90 @@ public sealed class ReservationsController : TenantControllerBase
         return null;
     }
 
+    /// <summary>Tenant Admin or Super Admin — see all confirmed packages / reservations in tenant.</summary>
+    private bool IsReservationAdmin() => IsTenantAdmin();
+
     /// <summary>Current user id, email (for CreatedBy), and role flags. Admin sees all; Reservation sees only assigned; Agent (Tour Manager) sees own packages.</summary>
     private (Guid? UserId, string? Email, bool IsAdmin, bool IsReservationRole) GetCurrentUserReservationScope()
     {
         var role = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
-        var isAdmin = string.Equals(role, UserRole.Admin.ToString(), StringComparison.OrdinalIgnoreCase);
+        var isAdmin = IsReservationAdmin();
         var isReservation = string.Equals(role, UserRole.Reservation.ToString(), StringComparison.OrdinalIgnoreCase);
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         Guid? userId = Guid.TryParse(userIdClaim, out var uid) ? uid : null;
         var email = User.FindFirstValue(ClaimTypes.Email)?.Trim();
         return (userId, email, isAdmin, isReservation);
+    }
+
+    private static bool IsPackageCreator(TourPackage package, string? email) =>
+        !string.IsNullOrWhiteSpace(email) &&
+        string.Equals(package.CreatedBy.Trim(), email.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Package is confirmed, or its lead is confirmed (covers lead updated before package status synced).</summary>
+    private IQueryable<TourPackage> WhereReadyForReservation(IQueryable<TourPackage> query, Guid tenantId) =>
+        query.Where(p =>
+            p.Status == PackageStatus.Confirmed ||
+            (p.LeadId != null &&
+             _db.Leads.Any(l =>
+                 l.Id == p.LeadId &&
+                 l.TenantId == tenantId &&
+                 !l.IsDeleted &&
+                 l.Status == LeadStatus.Confirmed)));
+
+    private IQueryable<TourPackage> ApplyPackageOwnershipFilter(
+        IQueryable<TourPackage> query,
+        bool isAdmin,
+        string? email,
+        Guid? userId,
+        Guid tenantId)
+    {
+        if (isAdmin) return query;
+        if (!userId.HasValue && string.IsNullOrEmpty(email))
+            return query.Where(_ => false);
+
+        return query.Where(p =>
+            (!string.IsNullOrEmpty(email) && p.CreatedBy.ToLower() == email!.ToLower()) ||
+            (userId.HasValue &&
+             p.LeadId != null &&
+             _db.Leads.Any(l =>
+                 l.Id == p.LeadId &&
+                 l.TenantId == tenantId &&
+                 !l.IsDeleted &&
+                 l.AssignedToUserId == userId.Value)));
+    }
+
+    private async Task<bool> CanUserAccessPackageAsync(
+        TourPackage package,
+        bool isAdmin,
+        string? email,
+        Guid? userId,
+        Guid tenantId,
+        CancellationToken ct)
+    {
+        if (isAdmin) return true;
+        if (IsPackageCreator(package, email)) return true;
+        if (!userId.HasValue || !package.LeadId.HasValue) return false;
+        return await _db.Leads.AsNoTracking().AnyAsync(
+            l => l.Id == package.LeadId &&
+                 l.TenantId == tenantId &&
+                 !l.IsDeleted &&
+                 l.AssignedToUserId == userId.Value,
+            ct);
+    }
+
+    private async Task EnsurePackageConfirmedAsync(TourPackage package, Guid tenantId, CancellationToken ct)
+    {
+        if (package.Status == PackageStatus.Confirmed) return;
+        if (!package.LeadId.HasValue) return;
+        var leadConfirmed = await _db.Leads.AsNoTracking().AnyAsync(
+            l => l.Id == package.LeadId &&
+                 l.TenantId == tenantId &&
+                 !l.IsDeleted &&
+                 l.Status == LeadStatus.Confirmed,
+            ct);
+        if (!leadConfirmed) return;
+        package.Status = PackageStatus.Confirmed;
+        await _db.SaveChangesAsync(ct);
     }
 
     public sealed class ReservationScreenshotDto
@@ -156,7 +230,7 @@ public sealed class ReservationsController : TenantControllerBase
         public string? AssignedToUserName { get; init; }
     }
 
-    /// <summary>Tour Manager: list of my confirmed packages with reservation status. Date filter on package StartDate (optional).</summary>
+    /// <summary>Confirmed packages with reservation status. Admin: all in tenant; others: packages they own or leads assigned to them.</summary>
     [HttpGet("my-confirmed-packages")]
     public async Task<ActionResult<ApiResponse<List<MyConfirmedPackageDto>>>> GetMyConfirmedPackages(
         [FromQuery] DateTime? dateFrom = null,
@@ -165,18 +239,28 @@ public sealed class ReservationsController : TenantControllerBase
     {
         var check = await EnsureReservationsModuleAsync(ct);
         if (check != null) return check;
-        var (_, email, isAdmin, _) = GetCurrentUserReservationScope();
+        var (userId, email, isAdmin, _) = GetCurrentUserReservationScope();
         var tenantId = TenantId;
 
-        var query = _db.Packages.AsNoTracking()
-            .Where(p => p.TenantId == tenantId && p.Status == PackageStatus.Confirmed);
-        if (!isAdmin && !string.IsNullOrEmpty(email))
-            query = query.Where(p => p.CreatedBy == email);
+        var query = ApplyPackageOwnershipFilter(
+            WhereReadyForReservation(_db.Packages.AsNoTracking(), tenantId),
+            isAdmin,
+            email,
+            userId,
+            tenantId);
 
         if (dateFrom.HasValue)
-            query = query.Where(p => p.StartDate.Date >= dateFrom.Value.Date);
+        {
+            var d = dateFrom.Value.Date;
+            var startUtc = new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc);
+            query = query.Where(p => p.StartDate >= startUtc);
+        }
         if (dateTo.HasValue)
-            query = query.Where(p => p.StartDate.Date <= dateTo.Value.Date);
+        {
+            var d = dateTo.Value.Date;
+            var endUtcExclusive = new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc).AddDays(1);
+            query = query.Where(p => p.StartDate < endUtcExclusive);
+        }
 
         var packages = await query.OrderByDescending(p => p.CreatedAt).ToListAsync(ct);
         var packageIds = packages.Select(p => p.Id).ToList();
@@ -241,9 +325,17 @@ public sealed class ReservationsController : TenantControllerBase
         if (dateFrom.HasValue || dateTo.HasValue)
         {
             if (dateFrom.HasValue)
-                query = query.Where(r => r.Package.StartDate.Date >= dateFrom.Value.Date);
+            {
+                var d = dateFrom.Value.Date;
+                var startUtc = new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc);
+                query = query.Where(r => r.Package.StartDate >= startUtc);
+            }
             if (dateTo.HasValue)
-                query = query.Where(r => r.Package.StartDate.Date <= dateTo.Value.Date);
+            {
+                var d = dateTo.Value.Date;
+                var endUtcExclusive = new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc).AddDays(1);
+                query = query.Where(r => r.Package.StartDate < endUtcExclusive);
+            }
         }
 
         var list = await query
@@ -292,12 +384,13 @@ public sealed class ReservationsController : TenantControllerBase
         return ApiResponse<List<ReservationListItemDto>>.Ok(items);
     }
 
-    /// <summary>Confirmed packages that do not yet have a reservation (for "Assign to reservation manager" dropdown). Tour Manager and Admin see all such packages in the tenant.</summary>
+    /// <summary>Confirmed packages without a reservation. Admins see all in tenant; others see only packages they created.</summary>
     [HttpGet("confirmed-packages")]
     public async Task<ActionResult<ApiResponse<List<ConfirmedPackageForReservationDto>>>> GetConfirmedPackagesWithoutReservation(CancellationToken ct = default)
     {
         var check = await EnsureReservationsModuleAsync(ct);
         if (check != null) return check;
+        var (userId, email, isAdmin, _) = GetCurrentUserReservationScope();
         var tenantId = TenantId;
 
         var reservedPackageIds = await _db.Reservations
@@ -305,8 +398,13 @@ public sealed class ReservationsController : TenantControllerBase
             .Select(r => r.PackageId)
             .ToListAsync(ct);
 
-        var query = _db.Packages.AsNoTracking()
-            .Where(p => p.TenantId == tenantId && p.Status == PackageStatus.Confirmed && !reservedPackageIds.Contains(p.Id));
+        var query = ApplyPackageOwnershipFilter(
+            WhereReadyForReservation(_db.Packages.AsNoTracking(), tenantId)
+                .Where(p => !reservedPackageIds.Contains(p.Id)),
+            isAdmin,
+            email,
+            userId,
+            tenantId);
 
         var packages = await query
             .OrderByDescending(p => p.CreatedAt)
@@ -451,10 +549,19 @@ public sealed class ReservationsController : TenantControllerBase
         var tenantId = TenantId;
 
         var package = await _db.Packages
-            .Where(p => p.TenantId == tenantId && p.Id == dto.PackageId && p.Status == PackageStatus.Confirmed)
+            .Where(p => p.TenantId == tenantId && p.Id == dto.PackageId)
             .FirstOrDefaultAsync(ct);
         if (package == null)
-            return BadRequest(ApiResponse<ReservationDetailDto>.Fail("Package not found or not confirmed."));
+            return BadRequest(ApiResponse<ReservationDetailDto>.Fail("Package not found."));
+
+        var (currentUserId, email, isAdmin, _) = GetCurrentUserReservationScope();
+        if (!await CanUserAccessPackageAsync(package, isAdmin, email, currentUserId, tenantId, ct))
+            return Forbid();
+
+        await EnsurePackageConfirmedAsync(package, tenantId, ct);
+        if (package.Status != PackageStatus.Confirmed)
+            return BadRequest(ApiResponse<ReservationDetailDto>.Fail(
+                "Package is not confirmed. Mark the lead or package as Confirmed before sending for reservation."));
 
         var existing = await _db.Reservations
             .Where(r => r.TenantId == tenantId && r.PackageId == dto.PackageId)
@@ -468,7 +575,6 @@ public sealed class ReservationsController : TenantControllerBase
         if (user == null)
             return BadRequest(ApiResponse<ReservationDetailDto>.Fail("Assigned user not found or inactive."));
 
-        var (currentUserId, _, _, _) = GetCurrentUserReservationScope();
         var status = dto.Status ?? ReservationStatus.Pending;
         var reservation = new Reservation
         {

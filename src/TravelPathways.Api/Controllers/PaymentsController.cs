@@ -76,6 +76,7 @@ public sealed class PaymentsController : TenantControllerBase
     public async Task<ActionResult<ApiResponse<PaginatedResponse<PaymentDto>>>> GetPayments(
         [FromQuery] PaymentType? paymentType = null,
         [FromQuery] PaymentPayeeCategory? payeeCategory = null,
+        [FromQuery] bool vendorAccommodationOnly = false,
         [FromQuery] Guid? leadId = null,
         [FromQuery] Guid? hotelId = null,
         [FromQuery] Guid? transportCompanyId = null,
@@ -90,36 +91,29 @@ public sealed class PaymentsController : TenantControllerBase
         pageNumber = Math.Max(1, pageNumber);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var query = _db.Payments
-            .AsNoTracking()
+        var filtered = ApplyPaymentListFilters(
+            _db.Payments.AsNoTracking().Where(p => p.TenantId == TenantId),
+            paymentType,
+            payeeCategory,
+            vendorAccommodationOnly,
+            leadId,
+            hotelId,
+            transportCompanyId,
+            userId,
+            employeePaymentKind,
+            dateFrom,
+            dateTo);
+
+        var total = await filtered.CountAsync(ct);
+        var totalAmount = total > 0 ? await filtered.SumAsync(p => p.Amount, ct) : 0m;
+
+        var list = await filtered
             .Include(p => p.Lead)
             .Include(p => p.Package)
             .Include(p => p.Hotel)
             .Include(p => p.TransportCompany)
             .Include(p => p.User)
-            .Where(p => p.TenantId == TenantId);
-
-        if (paymentType.HasValue)
-            query = query.Where(p => p.PaymentType == paymentType.Value);
-        if (payeeCategory.HasValue)
-            query = query.Where(p => p.PayeeCategory == payeeCategory.Value);
-        if (leadId.HasValue)
-            query = query.Where(p => p.LeadId == leadId.Value);
-        if (hotelId.HasValue)
-            query = query.Where(p => p.HotelId == hotelId.Value);
-        if (transportCompanyId.HasValue)
-            query = query.Where(p => p.TransportCompanyId == transportCompanyId.Value);
-        if (userId.HasValue)
-            query = query.Where(p => p.UserId == userId.Value);
-        if (employeePaymentKind.HasValue)
-            query = query.Where(p => p.EmployeePaymentKind == employeePaymentKind.Value);
-        if (dateFrom.HasValue)
-            query = query.Where(p => p.PaymentDate.Date >= dateFrom.Value.Date);
-        if (dateTo.HasValue)
-            query = query.Where(p => p.PaymentDate.Date <= dateTo.Value.Date);
-
-        var total = await query.CountAsync(ct);
-        var list = await query
+            .AsSplitQuery()
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.CreatedAt)
             .Skip((pageNumber - 1) * pageSize)
@@ -135,8 +129,57 @@ public sealed class PaymentsController : TenantControllerBase
             TotalCount = total,
             PageNumber = pageNumber,
             PageSize = pageSize,
-            TotalPages = totalPages
+            TotalPages = totalPages,
+            TotalAmount = totalAmount
         });
+    }
+
+    private static IQueryable<Payment> ApplyPaymentListFilters(
+        IQueryable<Payment> query,
+        PaymentType? paymentType,
+        PaymentPayeeCategory? payeeCategory,
+        bool vendorAccommodationOnly,
+        Guid? leadId,
+        Guid? hotelId,
+        Guid? transportCompanyId,
+        Guid? userId,
+        EmployeePaymentType? employeePaymentKind,
+        DateTime? dateFrom,
+        DateTime? dateTo)
+    {
+        if (paymentType.HasValue)
+            query = query.Where(p => p.PaymentType == paymentType.Value);
+        if (vendorAccommodationOnly)
+            query = query.Where(p =>
+                p.PayeeCategory == PaymentPayeeCategory.VendorHotel
+                || p.PayeeCategory == PaymentPayeeCategory.VendorHouseboat
+                || (p.HotelId != null && p.PayeeCategory == null));
+        else if (payeeCategory.HasValue)
+            query = query.Where(p => p.PayeeCategory == payeeCategory.Value);
+        if (leadId.HasValue)
+            query = query.Where(p => p.LeadId == leadId.Value);
+        if (hotelId.HasValue)
+            query = query.Where(p => p.HotelId == hotelId.Value);
+        if (transportCompanyId.HasValue)
+            query = query.Where(p => p.TransportCompanyId == transportCompanyId.Value);
+        if (userId.HasValue)
+            query = query.Where(p => p.UserId == userId.Value);
+        if (employeePaymentKind.HasValue)
+            query = query.Where(p => p.EmployeePaymentKind == employeePaymentKind.Value);
+        if (dateFrom.HasValue)
+        {
+            var d = dateFrom.Value.Date;
+            var startUtc = new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc);
+            query = query.Where(p => p.PaymentDate >= startUtc);
+        }
+        if (dateTo.HasValue)
+        {
+            var d = dateTo.Value.Date;
+            var endUtcExclusive = new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc).AddDays(1);
+            query = query.Where(p => p.PaymentDate < endUtcExclusive);
+        }
+
+        return query;
     }
 
     [HttpGet("{id:guid}")]
@@ -169,7 +212,7 @@ public sealed class PaymentsController : TenantControllerBase
             TenantId = TenantId,
             PaymentType = dto.PaymentType,
             Amount = dto.Amount,
-            PaymentDate = dto.PaymentDate,
+            PaymentDate = NormalizeUtc(dto.PaymentDate),
             Reference = dto.Reference?.Trim(),
             Notes = dto.Notes?.Trim(),
             LeadId = dto.LeadId,
@@ -202,7 +245,7 @@ public sealed class PaymentsController : TenantControllerBase
 
         payment.PaymentType = dto.PaymentType;
         payment.Amount = dto.Amount;
-        payment.PaymentDate = dto.PaymentDate;
+        payment.PaymentDate = NormalizeUtc(dto.PaymentDate);
         payment.Reference = dto.Reference?.Trim();
         payment.Notes = dto.Notes?.Trim();
         payment.LeadId = dto.LeadId;
@@ -313,6 +356,15 @@ public sealed class PaymentsController : TenantControllerBase
                 return (false, "Invalid payee category.");
         }
     }
+
+    /// <summary>Npgsql rejects Kind=Unspecified for timestamptz; JSON date strings deserialize as Unspecified.</summary>
+    private static DateTime NormalizeUtc(DateTime value) =>
+        value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
 
     private static PaymentDto ToDto(Payment p)
     {

@@ -344,7 +344,11 @@ public sealed class HotelsController : TenantControllerBase
         // If rates are provided, replace them; otherwise keep existing.
         if (request.Rates is not null)
         {
-            var existing = await _db.AccommodationRates.Where(r => r.HotelId == hotel.Id && r.TenantId == TenantId).ToListAsync(ct);
+            hotel.Rates.Clear();
+            var existing = await _db.AccommodationRates
+                .IgnoreQueryFilters()
+                .Where(r => r.HotelId == hotel.Id && r.TenantId == TenantId)
+                .ToListAsync(ct);
             _db.AccommodationRates.RemoveRange(existing);
 
             foreach (var r in request.Rates)

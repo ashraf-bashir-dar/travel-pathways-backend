@@ -21,5 +21,7 @@ public sealed class PaginatedResponse<T>
     public required int PageNumber { get; init; }
     public required int PageSize { get; init; }
     public required int TotalPages { get; init; }
+    /// <summary>When set (e.g. payments list), sum of a numeric field across the full filtered result, not just the current page.</summary>
+    public decimal? TotalAmount { get; init; }
 }
 

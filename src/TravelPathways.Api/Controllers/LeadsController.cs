@@ -20,16 +20,21 @@ public sealed class LeadsController : TenantControllerBase
     private readonly AppDbContext _db;
     private readonly IEmailService _emailService;
     private readonly ILeadExcelImportService _leadImportService;
+    private readonly ILeadExcelExportService _leadExportService;
+
+    private const int MaxExportLeads = 5000;
 
     public LeadsController(
         AppDbContext db,
         TenantContext tenant,
         IEmailService emailService,
-        ILeadExcelImportService leadImportService) : base(tenant)
+        ILeadExcelImportService leadImportService,
+        ILeadExcelExportService leadExportService) : base(tenant)
     {
         _db = db;
         _emailService = emailService;
         _leadImportService = leadImportService;
+        _leadExportService = leadExportService;
     }
 
     public sealed class LeadDto
@@ -91,32 +96,62 @@ public sealed class LeadsController : TenantControllerBase
         public string? Notes { get; set; }
     }
 
-    /// <summary>Returns (current user id, can see all leads in tenant). Sales/Viewer can only see their own assigned leads.</summary>
-    private (Guid? UserId, bool CanSeeAllLeads) GetCurrentUserLeadScope()
+    private async Task<List<AppModuleKey>> GetEffectiveAllowedModulesForCurrentUserAsync(CancellationToken ct)
+    {
+        var tenantModules = await _db.Tenants.AsNoTracking()
+            .Where(t => t.Id == TenantId)
+            .Select(t => t.EnabledModules)
+            .FirstOrDefaultAsync(ct) ?? [];
+
+        var role = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
+        var isSuperAdmin = string.Equals(role, UserRole.SuperAdmin.ToString(), StringComparison.OrdinalIgnoreCase);
+        if (isSuperAdmin)
+            return ModuleAccess.GetEffectiveModules(tenantModules, []);
+
+        var userId = GetCurrentUserId();
+        if (!userId.HasValue)
+            return [];
+
+        var userModules = await _db.Users.AsNoTracking()
+            .Where(u => u.Id == userId.Value && u.TenantId == TenantId)
+            .Select(u => u.AllowedModules)
+            .FirstOrDefaultAsync(ct) ?? [];
+
+        return ModuleAccess.GetEffectiveModules(tenantModules, userModules);
+    }
+
+    private async Task<ActionResult?> EnsureLeadsModuleAsync(CancellationToken ct)
+    {
+        if (!HasTenantId)
+            return BadRequest(ApiResponse<object>.Fail("Tenant context is missing."));
+
+        var effective = await GetEffectiveAllowedModulesForCurrentUserAsync(ct);
+        if (!ModuleAccess.HasModule(effective, AppModuleKey.Leads))
+            return StatusCode(403, ApiResponse<object>.Fail("Leads module is not available for your account."));
+
+        return null;
+    }
+
+    /// <summary>Returns (current user id, can see all leads in tenant). Tenant admins with Leads module see all; others see assigned only.</summary>
+    private async Task<(Guid? UserId, bool CanSeeAllLeads)> GetCurrentUserLeadScopeAsync(CancellationToken ct)
     {
         var role = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
         var isAdmin = string.Equals(role, UserRole.Admin.ToString(), StringComparison.OrdinalIgnoreCase);
         var isSuperAdmin = string.Equals(role, UserRole.SuperAdmin.ToString(), StringComparison.OrdinalIgnoreCase);
-        if (isAdmin || isSuperAdmin)
+        if (isSuperAdmin)
+            return (null, true);
+
+        if (isAdmin)
             return (null, true);
 
         return (GetCurrentUserId(), false);
     }
-
-    private bool CanManageLeadAssignment() => GetCurrentUserLeadScope().CanSeeAllLeads;
 
     private Guid? GetCurrentUserId()
     {
         var claim = User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
         return Guid.TryParse(claim, out var id) ? id : null;
-    }
-
-    private string? GetCurrentUserEmail()
-    {
-        var email = User.FindFirstValue(ClaimTypes.Email)
-            ?? User.FindFirstValue(JwtRegisteredClaimNames.Email);
-        return string.IsNullOrWhiteSpace(email) ? null : email.Trim();
     }
 
     private IQueryable<Lead> BuildLeadsQuery(
@@ -128,27 +163,16 @@ public sealed class LeadsController : TenantControllerBase
         Guid? assignedToUserId,
         bool unassignedOnly,
         DateTime? assignedFrom,
-        DateTime? assignedTo,
-        string? currentUserEmail = null)
+        DateTime? assignedTo)
     {
         var query = _db.Leads.Where(l => l.TenantId == TenantId);
 
         if (!canSeeAllLeads)
         {
-            var uid = currentUserId;
-            var email = currentUserEmail?.Trim();
-            if (!uid.HasValue && string.IsNullOrEmpty(email))
-            {
+            if (!currentUserId.HasValue)
                 query = query.Where(_ => false);
-            }
             else
-            {
-                // Sales see leads assigned to them, or leads they created (legacy / self-service).
-                query = query.Where(l =>
-                    (uid.HasValue && l.AssignedToUserId == uid.Value) ||
-                    (!string.IsNullOrEmpty(email) &&
-                     l.CreatedBy.ToLower() == email!.ToLower()));
-            }
+                query = query.Where(l => l.AssignedToUserId == currentUserId.Value);
         }
         else if (unassignedOnly)
             query = query.Where(l => l.AssignedToUserId == null);
@@ -187,14 +211,10 @@ public sealed class LeadsController : TenantControllerBase
         await _db.Users.AsNoTracking()
             .AnyAsync(u => u.Id == userId && u.TenantId == TenantId && u.IsActive, ct);
 
-    private static bool CanAccessLead(Lead lead, bool canSeeAllLeads, Guid? userId, string? email)
+    private static bool CanAccessLead(Lead lead, bool canSeeAllLeads, Guid? userId)
     {
         if (canSeeAllLeads) return true;
-        if (userId.HasValue && lead.AssignedToUserId == userId.Value) return true;
-        if (!string.IsNullOrWhiteSpace(email) && !string.IsNullOrWhiteSpace(lead.CreatedBy) &&
-            string.Equals(lead.CreatedBy.Trim(), email.Trim(), StringComparison.OrdinalIgnoreCase))
-            return true;
-        return false;
+        return userId.HasValue && lead.AssignedToUserId == userId.Value;
     }
 
     [HttpGet]
@@ -210,12 +230,14 @@ public sealed class LeadsController : TenantControllerBase
         [FromQuery] DateTime? assignedTo = null,
         CancellationToken ct = default)
     {
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
         pageNumber = Math.Max(1, pageNumber);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var (scopeUserId, canSeeAllLeads) = GetCurrentUserLeadScope();
+        var (scopeUserId, canSeeAllLeads) = await GetCurrentUserLeadScopeAsync(ct);
         var currentUserId = scopeUserId ?? GetCurrentUserId();
-        var currentUserEmail = GetCurrentUserEmail();
         var query = BuildLeadsQuery(
                 currentUserId,
                 canSeeAllLeads,
@@ -225,8 +247,7 @@ public sealed class LeadsController : TenantControllerBase
                 assignedToUserId,
                 unassignedOnly && canSeeAllLeads,
                 assignedFrom,
-                assignedTo,
-                currentUserEmail)
+                assignedTo)
             .AsNoTracking();
 
         var total = await query.CountAsync(ct);
@@ -254,9 +275,11 @@ public sealed class LeadsController : TenantControllerBase
     [HttpGet("assignment-summary")]
     public async Task<ActionResult<ApiResponse<List<LeadAssignmentSummaryDto>>>> GetAssignmentSummary(CancellationToken ct)
     {
-        var (_, canSeeAllLeads) = GetCurrentUserLeadScope();
-        if (!canSeeAllLeads)
-            return Forbid();
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
+        var adminDenied = DenyUnlessTenantAdmin();
+        if (adminDenied != null) return adminDenied;
 
         var grouped = await _db.Leads
             .Where(l => l.TenantId == TenantId)
@@ -294,15 +317,121 @@ public sealed class LeadsController : TenantControllerBase
         public required int LeadCount { get; init; }
     }
 
+    /// <summary>Export leads in the assignment date range to Excel (includes follow-up history columns).</summary>
+    [HttpGet("export")]
+    [Authorize(Policy = "TenantAdminOnly")]
+    public async Task<IActionResult> ExportLeads(
+        [FromQuery] DateTime assignedFrom,
+        [FromQuery] DateTime assignedTo,
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] LeadStatus? status = null,
+        [FromQuery] LeadSource? source = null,
+        [FromQuery] Guid? assignedToUserId = null,
+        [FromQuery] bool unassignedOnly = false,
+        CancellationToken ct = default)
+    {
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
+        var adminDenied = DenyUnlessTenantAdmin();
+        if (adminDenied != null) return adminDenied;
+
+        var fromDate = assignedFrom.Date;
+        var toDate = assignedTo.Date;
+        if (toDate < fromDate)
+            return BadRequest(ApiResponse<object>.Fail("Assigned To Date must be on or after Assigned From Date."));
+
+        var query = BuildLeadsQuery(
+                null,
+                canSeeAllLeads: true,
+                searchTerm,
+                status,
+                source,
+                assignedToUserId,
+                unassignedOnly,
+                fromDate,
+                toDate)
+            .AsNoTracking();
+
+        var total = await query.CountAsync(ct);
+        if (total == 0)
+            return BadRequest(ApiResponse<object>.Fail("No leads found for the selected date range and filters."));
+
+        if (total > MaxExportLeads)
+            return BadRequest(ApiResponse<object>.Fail(
+                $"Too many leads to export ({total}). Narrow the date range or filters (maximum {MaxExportLeads})."));
+
+        var leads = await query
+            .Include(l => l.AssignedToUser)
+            .OrderByDescending(l => l.CreatedAt)
+            .ToListAsync(ct);
+
+        var leadIds = leads.Select(l => l.Id).ToList();
+        var followUps = await _db.LeadFollowUps.AsNoTracking()
+            .Where(f => leadIds.Contains(f.LeadId))
+            .OrderBy(f => f.FollowUpDate)
+            .ThenBy(f => f.CreatedAt)
+            .ToListAsync(ct);
+
+        var followUpsByLeadId = followUps
+            .GroupBy(f => f.LeadId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var rows = leads.Select(l => new LeadExcelExportRow
+        {
+            ClientName = l.ClientName,
+            PhoneNumber = l.PhoneNumber,
+            LeadSourceLabel = LeadExcelExportService.FormatLeadSource(l.LeadSource),
+            StatusLabel = LeadExcelExportService.FormatLeadStatus(l.Status),
+            AssignedToName = l.AssignedToUser != null
+                ? $"{l.AssignedToUser.FirstName} {l.AssignedToUser.LastName}".Trim()
+                : "Unassigned",
+            AssignmentDateUtc = l.CreatedAt,
+            FollowUps = (followUpsByLeadId.GetValueOrDefault(l.Id) ?? [])
+                .Select(f => new LeadExcelFollowUpCell
+                {
+                    FollowUpDateUtc = f.FollowUpDate,
+                    Notes = f.Notes
+                })
+                .ToList()
+        }).ToList();
+
+        var bytes = _leadExportService.BuildWorkbook(rows);
+        var fileName =
+            $"leads-{LeadExcelExportService.FormatDateForFileName(fromDate)}-to-{LeadExcelExportService.FormatDateForFileName(toDate)}.xlsx";
+        return File(
+            bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            fileName);
+    }
+
+    [HttpGet("import-template")]
+    [Authorize(Policy = "TenantAdminOnly")]
+    public async Task<IActionResult> DownloadImportTemplate(CancellationToken ct)
+    {
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
+        var bytes = _leadImportService.BuildTemplate();
+        return File(
+            bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "leads-import-template.xlsx");
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<LeadDto>>> GetLeadById([FromRoute] Guid id, CancellationToken ct)
     {
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
         var lead = await _db.Leads.AsNoTracking()
             .Include(l => l.AssignedToUser)
             .FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
 
-        if (!CanAccessLead(lead, GetCurrentUserLeadScope().CanSeeAllLeads, GetCurrentUserId(), GetCurrentUserEmail()))
+        var (_, canSeeAllLeads) = await GetCurrentUserLeadScopeAsync(ct);
+        if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId()))
             return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
 
         var hasReservationForLead = await _db.Reservations.AsNoTracking()
@@ -324,8 +453,11 @@ public sealed class LeadsController : TenantControllerBase
     [HttpPost]
     public async Task<ActionResult<ApiResponse<LeadDto>>> CreateLead([FromBody] CreateLeadRequestDto request, CancellationToken ct)
     {
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
         var createdBy = User.FindFirstValue(ClaimTypes.Email) ?? User.Identity?.Name ?? "system";
-        var (scopeUserId, canManageAssignment) = GetCurrentUserLeadScope();
+        var (scopeUserId, canManageAssignment) = await GetCurrentUserLeadScopeAsync(ct);
         var currentUserId = scopeUserId ?? GetCurrentUserId();
 
         Guid? assignee = null;
@@ -372,11 +504,14 @@ public sealed class LeadsController : TenantControllerBase
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<LeadDto>>> UpdateLead([FromRoute] Guid id, [FromBody] UpdateLeadRequestDto request, CancellationToken ct)
     {
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
         var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
 
-        var (_, canSeeAllLeads) = GetCurrentUserLeadScope();
-        if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId(), GetCurrentUserEmail()))
+        var (_, canSeeAllLeads) = await GetCurrentUserLeadScopeAsync(ct);
+        if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId()))
             return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
 
         // Once any package for this lead has a reservation, Tour Manager should not edit lead/package details.
@@ -470,11 +605,14 @@ public sealed class LeadsController : TenantControllerBase
     [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteLead([FromRoute] Guid id, CancellationToken ct)
     {
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
         var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<object>.Fail("Lead not found"));
 
-        var (_, canSeeAllLeads) = GetCurrentUserLeadScope();
-        if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId(), GetCurrentUserEmail()))
+        var (_, canSeeAllLeads) = await GetCurrentUserLeadScopeAsync(ct);
+        if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId()))
             return NotFound(ApiResponse<object>.Fail("Lead not found"));
 
         lead.IsDeleted = true;
@@ -486,11 +624,14 @@ public sealed class LeadsController : TenantControllerBase
     [HttpGet("{id:guid}/follow-ups")]
     public async Task<ActionResult<ApiResponse<List<LeadFollowUpDto>>>> GetFollowUps([FromRoute] Guid id, CancellationToken ct)
     {
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
         var lead = await _db.Leads.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<List<LeadFollowUpDto>>.Fail("Lead not found"));
 
-        var (_, canSeeAllLeads) = GetCurrentUserLeadScope();
-        if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId(), GetCurrentUserEmail()))
+        var (_, canSeeAllLeads) = await GetCurrentUserLeadScopeAsync(ct);
+        if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId()))
             return NotFound(ApiResponse<List<LeadFollowUpDto>>.Fail("Lead not found"));
 
         var list = await _db.LeadFollowUps.AsNoTracking()
@@ -515,11 +656,14 @@ public sealed class LeadsController : TenantControllerBase
     [HttpPost("{id:guid}/follow-ups")]
     public async Task<ActionResult<ApiResponse<LeadFollowUpDto>>> AddFollowUp([FromRoute] Guid id, [FromBody] CreateFollowUpRequestDto request, CancellationToken ct)
     {
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
         var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<LeadFollowUpDto>.Fail("Lead not found"));
 
-        var (_, canSeeAllLeads) = GetCurrentUserLeadScope();
-        if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId(), GetCurrentUserEmail()))
+        var (_, canSeeAllLeads) = await GetCurrentUserLeadScopeAsync(ct);
+        if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId()))
             return NotFound(ApiResponse<LeadFollowUpDto>.Fail("Lead not found"));
 
         var createdBy = User.FindFirstValue(ClaimTypes.Email) ?? User.Identity?.Name ?? "system";
@@ -570,12 +714,13 @@ public sealed class LeadsController : TenantControllerBase
     }
 
     [HttpPost("bulk-assign")]
+    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<BulkAssignLeadsResult>>> BulkAssignLeads(
         [FromBody] BulkAssignLeadsRequest request,
         CancellationToken ct)
     {
-        if (!CanManageLeadAssignment())
-            return Forbid();
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
 
         if (!await IsAssignableTenantUserAsync(request.AssignedToUserId, ct))
             return BadRequest(ApiResponse<BulkAssignLeadsResult>.Fail("Assigned user not found or inactive."));
@@ -647,6 +792,9 @@ public sealed class LeadsController : TenantControllerBase
         [FromBody] BulkDeleteLeadsRequest request,
         CancellationToken ct)
     {
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
         var now = DateTime.UtcNow;
         int deleted;
         if (request.UseCurrentFilters)
@@ -730,28 +878,14 @@ public sealed class LeadsController : TenantControllerBase
         public required string Message { get; init; }
     }
 
-    [HttpGet("import-template")]
-    [Authorize(Policy = "TenantAdminOnly")]
-    public IActionResult DownloadImportTemplate()
-    {
-        if (!CanManageLeadAssignment())
-            return Forbid();
-
-        var bytes = _leadImportService.BuildTemplate();
-        return File(
-            bytes,
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "leads-import-template.xlsx");
-    }
-
     [HttpPost("import")]
     [Authorize(Policy = "TenantAdminOnly")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(10_485_760)]
     public async Task<ActionResult<ApiResponse<LeadImportResultDto>>> ImportLeads(IFormFile? file, CancellationToken ct)
     {
-        if (!CanManageLeadAssignment())
-            return Forbid();
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
 
         if (file is null || file.Length == 0)
             return BadRequest(ApiResponse<LeadImportResultDto>.Fail("Please upload an Excel file (.xlsx)."));
@@ -808,8 +942,10 @@ public sealed class LeadsController : TenantControllerBase
             return BadRequest(ApiResponse<BulkEmailGreetingResult>.Fail(
                 "Email is not configured on the server. Ask your administrator to set Email:SmtpHost and related settings in appsettings."));
 
-        var (userId, canSeeAllLeads) = GetCurrentUserLeadScope();
-        var userEmail = GetCurrentUserEmail();
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
+        var (userId, canSeeAllLeads) = await GetCurrentUserLeadScopeAsync(ct);
 
         List<Lead> leads;
         if (request.UseCurrentFilters)
@@ -847,7 +983,7 @@ public sealed class LeadsController : TenantControllerBase
                 .ToListAsync(ct);
 
             if (!canSeeAllLeads)
-                leads = leads.Where(l => CanAccessLead(l, false, userId, userEmail)).ToList();
+                leads = leads.Where(l => CanAccessLead(l, false, userId)).ToList();
         }
 
         if (leads.Count == 0)

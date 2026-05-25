@@ -44,16 +44,42 @@ public sealed class PackagesController : TenantControllerBase
         return Math.Max(1, days);
     }
 
-    /// <summary>Returns (current user email for CreatedBy match, can see all packages in tenant). Only Admin sees all; others see only their own packages.</summary>
+    /// <summary>Returns (current user email for CreatedBy match, can see all packages in tenant). Only Admin/SuperAdmin sees all.</summary>
     private (string? CurrentUserEmail, bool CanSeeAllPackages) GetCurrentUserPackageScope()
     {
-        var role = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
-        var isAdmin = string.Equals(role, UserRole.Admin.ToString(), StringComparison.OrdinalIgnoreCase);
-        if (isAdmin)
+        if (IsTenantAdmin())
             return (null, true);
 
         var email = User.FindFirstValue(ClaimTypes.Email);
         return (string.IsNullOrWhiteSpace(email) ? null : email.Trim(), false);
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(claim, out var id) ? id : null;
+    }
+
+    /// <summary>Packages the user created or packages for leads assigned to them (sales, reservation, tour manager).</summary>
+    private IQueryable<TourPackage> ApplyPackageOwnershipFilter(
+        IQueryable<TourPackage> query,
+        bool canSeeAll,
+        string? email,
+        Guid? userId)
+    {
+        if (canSeeAll) return query;
+        if (!userId.HasValue && string.IsNullOrEmpty(email))
+            return query.Where(_ => false);
+
+        return query.Where(p =>
+            (!string.IsNullOrEmpty(email) && p.CreatedBy.ToLower() == email!.ToLower()) ||
+            (userId.HasValue &&
+             p.LeadId != null &&
+             _db.Leads.Any(l =>
+                 l.Id == p.LeadId &&
+                 l.TenantId == TenantId &&
+                 !l.IsDeleted &&
+                 l.AssignedToUserId == userId.Value)));
     }
 
     public sealed class DayItineraryDto
@@ -184,14 +210,16 @@ public sealed class PackagesController : TenantControllerBase
         pageSize = Math.Clamp(pageSize, 1, 200);
 
         var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+        var userId = GetCurrentUserId();
 
-        var query = _db.Packages.AsNoTracking()
-            .Include(p => p.DayWiseItinerary)
-            .Include(p => p.Vehicle)
-            .Where(p => p.TenantId == TenantId);
-
-        if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail))
-            query = query.Where(p => p.CreatedBy == currentUserEmail);
+        var query = ApplyPackageOwnershipFilter(
+            _db.Packages.AsNoTracking()
+                .Include(p => p.DayWiseItinerary)
+                .Include(p => p.Vehicle)
+                .Where(p => p.TenantId == TenantId),
+            canSeeAllPackages,
+            currentUserEmail,
+            userId);
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
@@ -206,9 +234,17 @@ public sealed class PackagesController : TenantControllerBase
             query = query.Where(p => p.Status == status.Value);
 
         if (arrivalDateFrom.HasValue)
-            query = query.Where(p => p.StartDate.Date >= arrivalDateFrom.Value.Date);
+        {
+            var d = arrivalDateFrom.Value.Date;
+            var startUtc = new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc);
+            query = query.Where(p => p.StartDate >= startUtc);
+        }
         if (arrivalDateTo.HasValue)
-            query = query.Where(p => p.StartDate.Date <= arrivalDateTo.Value.Date);
+        {
+            var d = arrivalDateTo.Value.Date;
+            var endUtcExclusive = new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc).AddDays(1);
+            query = query.Where(p => p.StartDate < endUtcExclusive);
+        }
 
         var total = await query.CountAsync(ct);
         var list = await query
@@ -243,8 +279,22 @@ public sealed class PackagesController : TenantControllerBase
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
 
         if (pkg is null) return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
-        if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail) && pkg.CreatedBy != currentUserEmail)
-            return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
+        if (!canSeeAllPackages)
+        {
+            var isCreator = !string.IsNullOrWhiteSpace(currentUserEmail) &&
+                            string.Equals(pkg.CreatedBy.Trim(), currentUserEmail.Trim(), StringComparison.OrdinalIgnoreCase);
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isLeadAssignee = Guid.TryParse(userIdClaim, out var uid) &&
+                                 pkg.LeadId.HasValue &&
+                                 await _db.Leads.AsNoTracking().AnyAsync(
+                                     l => l.Id == pkg.LeadId &&
+                                          l.TenantId == TenantId &&
+                                          !l.IsDeleted &&
+                                          l.AssignedToUserId == uid,
+                                     ct);
+            if (!isCreator && !isLeadAssignee)
+                return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
+        }
         var hasReservation = await _db.Reservations.AsNoTracking()
             .AnyAsync(r => r.TenantId == TenantId && r.PackageId == pkg.Id, ct);
         var dto = ToDto(pkg);
@@ -256,14 +306,16 @@ public sealed class PackagesController : TenantControllerBase
     public async Task<ActionResult<ApiResponse<List<PackageDto>>>> GetByLead([FromRoute] Guid leadId, CancellationToken ct)
     {
         var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+        var userId = GetCurrentUserId();
 
-        var query = _db.Packages.AsNoTracking()
-            .Include(p => p.DayWiseItinerary)
-            .Include(p => p.Vehicle)
-            .Where(p => p.TenantId == TenantId && p.LeadId == leadId);
-
-        if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail))
-            query = query.Where(p => p.CreatedBy == currentUserEmail);
+        var query = ApplyPackageOwnershipFilter(
+            _db.Packages.AsNoTracking()
+                .Include(p => p.DayWiseItinerary)
+                .Include(p => p.Vehicle)
+                .Where(p => p.TenantId == TenantId && p.LeadId == leadId),
+            canSeeAllPackages,
+            currentUserEmail,
+            userId);
 
         var pkgs = await query.OrderByDescending(p => p.CreatedAt).ToListAsync(ct);
         var dtos = pkgs.Select(ToDto).ToList(); // HasReservation left default (false) for this list.
@@ -488,13 +540,32 @@ public sealed class PackagesController : TenantControllerBase
 
         var pkg = await _db.Packages.Include(p => p.DayWiseItinerary).FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
         if (pkg is null) return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
-        if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail) && pkg.CreatedBy != currentUserEmail)
-            return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
+        if (!canSeeAllPackages)
+        {
+            var isCreator = !string.IsNullOrWhiteSpace(currentUserEmail) &&
+                            string.Equals(pkg.CreatedBy.Trim(), currentUserEmail.Trim(), StringComparison.OrdinalIgnoreCase);
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isLeadAssignee = Guid.TryParse(userIdClaim, out var uid) &&
+                                 pkg.LeadId.HasValue &&
+                                 await _db.Leads.AsNoTracking().AnyAsync(
+                                     l => l.Id == pkg.LeadId &&
+                                          l.TenantId == TenantId &&
+                                          !l.IsDeleted &&
+                                          l.AssignedToUserId == uid,
+                                     ct);
+            if (!isCreator && !isLeadAssignee)
+                return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
+        }
 
-        // Once a reservation exists for this package, Tour Manager (Agent) cannot edit this package anymore.
+        if (request.LeadId == Guid.Empty)
+            return BadRequest(ApiResponse<PackageDto>.Fail("Please select a lead for this package."));
+
+        // Once sent for reservation, creator (tour manager or reservation user) cannot edit package details here.
         var role = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
-        var isTourManager = string.Equals(role, UserRole.Agent.ToString(), StringComparison.OrdinalIgnoreCase);
-        if (isTourManager)
+        var isSalesSideRole = string.Equals(role, UserRole.Agent.ToString(), StringComparison.OrdinalIgnoreCase)
+            || string.Equals(role, UserRole.Reservation.ToString(), StringComparison.OrdinalIgnoreCase);
+        if (isSalesSideRole && !string.IsNullOrWhiteSpace(currentUserEmail) &&
+            string.Equals(pkg.CreatedBy.Trim(), currentUserEmail.Trim(), StringComparison.OrdinalIgnoreCase))
         {
             var hasAnyReservation = await _db.Reservations.AsNoTracking()
                 .AnyAsync(r => r.TenantId == TenantId && r.PackageId == pkg.Id, ct);
@@ -555,13 +626,15 @@ public sealed class PackagesController : TenantControllerBase
 
         foreach (var d in request.DayWiseItinerary)
         {
+            var hotelId = d.HotelId is { } hid && hid != Guid.Empty ? hid : (Guid?)null;
+            var templateId = d.ItineraryTemplateId is { } tid && tid != Guid.Empty ? tid : (Guid?)null;
             _db.DayItineraries.Add(new DayItinerary
             {
                 TenantId = TenantId,
                 PackageId = pkg.Id,
                 DayNumber = d.DayNumber,
                 Date = NormalizeUtc(d.Date),
-                HotelId = d.HotelId,
+                HotelId = hotelId,
                 RoomType = d.RoomType?.Trim(),
                 NumberOfRooms = d.NumberOfRooms,
                 CheckInTime = d.CheckInTime?.Trim(),
@@ -572,7 +645,7 @@ public sealed class PackagesController : TenantControllerBase
                 Activities = d.Activities ?? [],
                 Meals = d.Meals ?? [],
                 Notes = d.Notes?.Trim(),
-                ItineraryTemplateId = d.ItineraryTemplateId,
+                ItineraryTemplateId = templateId,
                 HotelCost = d.HotelCost
             });
         }

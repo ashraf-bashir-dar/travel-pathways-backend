@@ -642,6 +642,9 @@ namespace TravelPathways.Api.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("LeadSource")
                         .IsRequired()
                         .HasColumnType("text");
@@ -933,6 +936,9 @@ namespace TravelPathways.Api.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
@@ -995,6 +1001,150 @@ namespace TravelPathways.Api.Migrations
                     b.HasIndex("ReservationId");
 
                     b.ToTable("ReservationDayCompletions");
+                });
+
+            modelBuilder.Entity("TravelPathways.Api.Data.Entities.ReservationHotelBooking", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("AdvancePaid")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("BalanceAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("BookingDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("CheckInDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("CheckOutDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ConfirmationNumber")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CnbCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DayNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ExtraBedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("HotelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("HotelName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsHouseboat")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<int>("NumberOfPersons")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("NumberOfRooms")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("RatePerNight")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("ReservationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RoomType")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HotelId");
+
+                    b.HasIndex("ReservationId", "DayNumber");
+
+                    b.ToTable("ReservationHotelBookings");
+                });
+
+            modelBuilder.Entity("TravelPathways.Api.Data.Entities.ReservationHotelBookingDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("FileUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("PaymentDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ReservationHotelBookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReservationHotelBookingId");
+
+                    b.ToTable("ReservationHotelBookingDocuments");
                 });
 
             modelBuilder.Entity("TravelPathways.Api.Data.Entities.ReservationPaymentScreenshot", b =>
@@ -1383,6 +1533,9 @@ namespace TravelPathways.Api.Migrations
                     b.Property<string>("PackageName")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("timestamp with time zone");
@@ -1795,6 +1948,34 @@ namespace TravelPathways.Api.Migrations
                     b.Navigation("Reservation");
                 });
 
+            modelBuilder.Entity("TravelPathways.Api.Data.Entities.ReservationHotelBooking", b =>
+                {
+                    b.HasOne("TravelPathways.Api.Data.Entities.Hotel", "Hotel")
+                        .WithMany()
+                        .HasForeignKey("HotelId");
+
+                    b.HasOne("TravelPathways.Api.Data.Entities.Reservation", "Reservation")
+                        .WithMany("HotelBookings")
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Hotel");
+
+                    b.Navigation("Reservation");
+                });
+
+            modelBuilder.Entity("TravelPathways.Api.Data.Entities.ReservationHotelBookingDocument", b =>
+                {
+                    b.HasOne("TravelPathways.Api.Data.Entities.ReservationHotelBooking", "ReservationHotelBooking")
+                        .WithMany("Documents")
+                        .HasForeignKey("ReservationHotelBookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ReservationHotelBooking");
+                });
+
             modelBuilder.Entity("TravelPathways.Api.Data.Entities.ReservationPaymentScreenshot", b =>
                 {
                     b.HasOne("TravelPathways.Api.Data.Entities.Reservation", "Reservation")
@@ -1907,7 +2088,14 @@ namespace TravelPathways.Api.Migrations
                 {
                     b.Navigation("DayCompletions");
 
+                    b.Navigation("HotelBookings");
+
                     b.Navigation("PaymentScreenshots");
+                });
+
+            modelBuilder.Entity("TravelPathways.Api.Data.Entities.ReservationHotelBooking", b =>
+                {
+                    b.Navigation("Documents");
                 });
 
             modelBuilder.Entity("TravelPathways.Api.Data.Entities.State", b =>

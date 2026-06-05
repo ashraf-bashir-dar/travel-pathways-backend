@@ -62,6 +62,20 @@ public enum ReservationStatus
     InProcess = 2
 }
 
+public enum ReservationHotelBookingStatus
+{
+    Pending = 0,
+    AdvancePaid = 1,
+    Confirmed = 2,
+    Cancelled = 3
+}
+
+public enum ReservationHotelBookingDocumentType
+{
+    PaymentProof = 0,
+    ConfirmationProof = 1
+}
+
 /// <summary>Payment direction: received from client or made to vendor/employee/other.</summary>
 public enum PaymentType
 {
@@ -184,6 +198,12 @@ public enum PackageStatus
     Followup = 6,
     AlreadyBooked = 7,
     New = 8
+}
+
+public enum PackageLogAction
+{
+    Created = 0,
+    Updated = 1
 }
 
 /// <summary>Billing cycle for subscription pricing. All amounts in INR.</summary>

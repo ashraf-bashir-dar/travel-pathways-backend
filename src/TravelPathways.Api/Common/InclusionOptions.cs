@@ -1,3 +1,5 @@
+using TravelPathways.Api.Localization;
+
 namespace TravelPathways.Api.Common;
 
 /// <summary>Fixed list of inclusion options. Selected = Inclusions in PDF; unselected = Exclusions. Must match frontend INCLUSION_OPTIONS.</summary>
@@ -19,15 +21,22 @@ public static class InclusionOptions
         ("union_cabs_pony", "Local cabs in Gulmarg, Sonmarg, Pahalgam and pony rides")
     };
 
-    public static IReadOnlyList<string> GetInclusionLabels(IEnumerable<string> selectedIds)
+    public static IReadOnlyList<string> GetInclusionLabels(IEnumerable<string> selectedIds, string? language = null) =>
+        GetLabels(selectedIds, included: true, language);
+
+    public static IReadOnlyList<string> GetExclusionLabels(IEnumerable<string> selectedIds, string? language = null) =>
+        GetLabels(selectedIds, included: false, language);
+
+    private static IReadOnlyList<string> GetLabels(IEnumerable<string> selectedIds, bool included, string? language)
     {
         var set = new HashSet<string>(selectedIds ?? [], StringComparer.OrdinalIgnoreCase);
-        return All.Where(x => set.Contains(x.Id)).Select(x => x.Label).ToList();
+        var items = All.Where(x => set.Contains(x.Id) == included);
+        return items.Select(x => ResolveLabel(x.Id, x.Label, language)).ToList();
     }
 
-    public static IReadOnlyList<string> GetExclusionLabels(IEnumerable<string> selectedIds)
+    private static string ResolveLabel(string id, string englishLabel, string? language)
     {
-        var set = new HashSet<string>(selectedIds ?? [], StringComparer.OrdinalIgnoreCase);
-        return All.Where(x => !set.Contains(x.Id)).Select(x => x.Label).ToList();
+        var translated = InclusionTranslations.GetLabel(id, language);
+        return translated ?? englishLabel;
     }
 }

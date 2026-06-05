@@ -1,8 +1,11 @@
+using TravelPathways.Api.Localization;
+
 namespace TravelPathways.Api.Services;
 
 /// <summary>Data required to render the package PDF (HTML template input).</summary>
 public sealed class PackagePdfModel
 {
+    public PdfLocalizedStrings Labels { get; init; } = PdfLocalizedStrings.English();
     public required string PackageName { get; init; }
     public required string ClientName { get; init; }
     public string? ClientPhone { get; init; }
@@ -48,6 +51,12 @@ public sealed class PackagePdfModel
     public string? AgencyLogoUrl { get; init; }
     /// <summary>Managing director name (from tenant Contact Person).</summary>
     public string? ManagingDirectorName { get; init; }
+    /// <summary>Optional sales head line (defaults to contact person when set).</summary>
+    public string? SalesHeadName { get; init; }
+    /// <summary>HTML for registered office address block (tenant address or localized default).</summary>
+    public string? RegisteredOfficeAddressHtml { get; init; }
+    /// <summary>Derived from tenant email domain when no website field exists.</summary>
+    public string? AgencyWebsite { get; init; }
     public string GeneratedDate { get; init; } = "";
     /// <summary>Bank accounts to show for payment (from tenant).</summary>
     public List<BankAccountItem> BankAccounts { get; init; } = [];

@@ -21,6 +21,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<TenantQrCode> TenantQrCodes => Set<TenantQrCode>();
     public DbSet<PdfTemplate> PdfTemplates => Set<PdfTemplate>();
     public DbSet<AppUser> Users => Set<AppUser>();
+    public DbSet<CallLog> CallLogs => Set<CallLog>();
     public DbSet<Plan> Plans => Set<Plan>();
     public DbSet<PlanPrice> PlanPrices => Set<PlanPrice>();
 
@@ -37,6 +38,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<VehiclePricing> VehiclePricing => Set<VehiclePricing>();
 
     public DbSet<TourPackage> Packages => Set<TourPackage>();
+    public DbSet<PackageLog> PackageLogs => Set<PackageLog>();
     public DbSet<DayItinerary> DayItineraries => Set<DayItinerary>();
     public DbSet<ItineraryTemplate> ItineraryTemplates => Set<ItineraryTemplate>();
 
@@ -48,6 +50,8 @@ public sealed class AppDbContext : DbContext
     public DbSet<Reservation> Reservations => Set<Reservation>();
     public DbSet<ReservationDayCompletion> ReservationDayCompletions => Set<ReservationDayCompletion>();
     public DbSet<ReservationPaymentScreenshot> ReservationPaymentScreenshots => Set<ReservationPaymentScreenshot>();
+    public DbSet<ReservationHotelBooking> ReservationHotelBookings => Set<ReservationHotelBooking>();
+    public DbSet<ReservationHotelBookingDocument> ReservationHotelBookingDocuments => Set<ReservationHotelBookingDocument>();
     public DbSet<EmployeeDailyTask> EmployeeDailyTasks => Set<EmployeeDailyTask>();
     public DbSet<EmployeeCompensation> EmployeeCompensations => Set<EmployeeCompensation>();
     public DbSet<Attendance> Attendances => Set<Attendance>();
@@ -206,6 +210,38 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<TourPackage>()
             .Property(p => p.InclusionIds)
             .Metadata.SetValueComparer(new JsonValueComparer<List<string>, string>());
+
+        modelBuilder.Entity<PackageLog>()
+            .Property(l => l.FinalAmount)
+            .HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<PackageLog>()
+            .Property(l => l.MarginAmount)
+            .HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<PackageLog>()
+            .Property(l => l.Action)
+            .HasConversion<string>();
+        modelBuilder.Entity<PackageLog>()
+            .Property(l => l.Status)
+            .HasConversion(new PackageStatusConverter());
+        modelBuilder.Entity<PackageLog>()
+            .HasOne(l => l.Lead)
+            .WithMany()
+            .HasForeignKey(l => l.LeadId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<PackageLog>()
+            .HasOne(l => l.Package)
+            .WithMany()
+            .HasForeignKey(l => l.PackageId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<PackageLog>()
+            .HasOne(l => l.ChangedByUser)
+            .WithMany()
+            .HasForeignKey(l => l.ChangedByUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+        modelBuilder.Entity<PackageLog>()
+            .HasIndex(l => new { l.LeadId, l.CreatedAt });
+        modelBuilder.Entity<PackageLog>()
+            .HasIndex(l => new { l.PackageId, l.CreatedAt });
 
         modelBuilder.Entity<DayItinerary>()
             .Property(d => d.MealPlan)
@@ -366,6 +402,40 @@ public sealed class AppDbContext : DbContext
             .OnDelete(DeleteBehavior.Restrict)
             .IsRequired(false);
 
+        modelBuilder.Entity<Reservation>()
+            .HasMany(r => r.HotelBookings)
+            .WithOne(b => b.Reservation)
+            .HasForeignKey(b => b.ReservationId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<ReservationHotelBooking>()
+            .HasIndex(b => new { b.ReservationId, b.DayNumber });
+        modelBuilder.Entity<ReservationHotelBooking>()
+            .Property(b => b.Status)
+            .HasConversion<string>();
+        modelBuilder.Entity<ReservationHotelBooking>()
+            .Property(b => b.RatePerNight)
+            .HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<ReservationHotelBooking>()
+            .Property(b => b.TotalAmount)
+            .HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<ReservationHotelBooking>()
+            .Property(b => b.AdvancePaid)
+            .HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<ReservationHotelBooking>()
+            .Property(b => b.BalanceAmount)
+            .HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<ReservationHotelBookingDocument>()
+            .HasOne(d => d.ReservationHotelBooking)
+            .WithMany(b => b.Documents)
+            .HasForeignKey(d => d.ReservationHotelBookingId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<ReservationHotelBookingDocument>()
+            .Property(d => d.Type)
+            .HasConversion<string>();
+        modelBuilder.Entity<ReservationHotelBookingDocument>()
+            .Property(d => d.Amount)
+            .HasColumnType("decimal(18,2)");
+
         modelBuilder.Entity<EmployeeDailyTask>()
             .ToTable("Tasks");
         modelBuilder.Entity<EmployeeDailyTask>()
@@ -453,6 +523,45 @@ public sealed class AppDbContext : DbContext
             .Property(m => m.ImageUrls)
             .HasConversion(new JsonValueConverter<List<string>>());
 
+        modelBuilder.Entity<CallLog>()
+            .ToTable("CallLogs");
+
+        modelBuilder.Entity<CallLog>()
+            .Property(l => l.Direction)
+            .HasMaxLength(16);
+
+        modelBuilder.Entity<CallLog>()
+            .Property(l => l.Provider)
+            .HasMaxLength(64);
+
+        modelBuilder.Entity<CallLog>()
+            .Property(l => l.ProviderCallId)
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<CallLog>()
+            .Property(l => l.FromNumber)
+            .HasMaxLength(48);
+
+        modelBuilder.Entity<CallLog>()
+            .Property(l => l.ToNumber)
+            .HasMaxLength(48);
+
+        modelBuilder.Entity<CallLog>()
+            .Property(l => l.Status)
+            .HasMaxLength(64);
+
+        modelBuilder.Entity<CallLog>()
+            .HasOne(l => l.User)
+            .WithMany()
+            .HasForeignKey(l => l.UserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<CallLog>()
+            .HasIndex(l => new { l.TenantId, l.CreatedAt });
+
+        modelBuilder.Entity<CallLog>()
+            .HasIndex(l => new { l.UserId, l.CreatedAt });
+
         // ---------- Multi-tenancy and soft-delete query filters ----------
         ConfigureTenantFilters(modelBuilder);
     }
@@ -522,6 +631,12 @@ public sealed class AppDbContext : DbContext
                 : e.TenantId == _tenant.TenantId));
 
         modelBuilder.Entity<TourPackage>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<PackageLog>().HasQueryFilter(e =>
             !e.IsDeleted &&
             (_tenant.IsSuperAdmin
                 ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
@@ -626,6 +741,12 @@ public sealed class AppDbContext : DbContext
 
         modelBuilder.Entity<Plan>().HasQueryFilter(p => !p.IsDeleted);
         modelBuilder.Entity<PdfTemplate>().HasQueryFilter(t => !t.IsDeleted);
+
+        modelBuilder.Entity<CallLog>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
 
         modelBuilder.Entity<ChatGroup>().HasQueryFilter(g =>
             !g.IsDeleted &&

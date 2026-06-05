@@ -13,6 +13,7 @@ public sealed class Lead : TenantEntityBase
     public string Address { get; set; } = string.Empty;
     public LeadSource LeadSource { get; set; } = LeadSource.Other;
     public LeadStatus Status { get; set; } = LeadStatus.New;
+    public bool IsLocked { get; set; }
     public string? Notes { get; set; }
 
     public Guid? AssignedToUserId { get; set; }

@@ -2,6 +2,7 @@
 using PuppeteerSharp.Media;
 using System.Text;
 using System.Text.RegularExpressions;
+using TravelPathways.Api.Localization;
 
 namespace TravelPathways.Api.Services;
 
@@ -76,9 +77,10 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
 
         template = RemoveLegacySectionHeadings(template);
 
+        var labels = m.Labels ?? PdfLocalizedStrings.English();
         var primaryCss = SanitizeCssColor(m.PrimaryColor) ?? "#3366cc";
         var secondaryCss = SanitizeCssColor(m.SecondaryColor) ?? "#6699ff";
-        var coverTitleDisplay = string.IsNullOrWhiteSpace(m.CoverTitle) ? "Holiday Quote" : m.CoverTitle.Trim();
+        var coverTitleDisplay = string.IsNullOrWhiteSpace(m.CoverTitle) ? labels.HolidayQuote : m.CoverTitle.Trim();
 
         static string SafeImgSrc(string? url)
         {
@@ -94,12 +96,12 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
         string hotelsHtml = string.Join("", (m.Hotels ?? []).Select(h =>
         {
             var hb = new StringBuilder();
-            hb.Append("<div class=\"acc-item\"><div class=\"acc-head\"><div class=\"acc-name\">").Append(H(FormatHotelNameWithArea(h.Name, h.Location))).Append("</div><div class=\"pill\">").Append(h.IsHouseboat ? "Houseboat" : "Hotel").Append("</div></div>");
+            hb.Append("<div class=\"acc-item\"><div class=\"acc-head\"><div class=\"acc-name\">").Append(H(FormatHotelNameWithArea(h.Name, h.Location))).Append("</div><div class=\"pill\">").Append(h.IsHouseboat ? labels.Houseboat : labels.Hotel).Append("</div></div>");
             hb.Append("<div class=\"acc-meta\">");
             if (h.StarRating > 0) hb.Append(RenderStars(h.StarRating)).Append(" &bull; ");
-            hb.Append(" &bull; ").Append(H(h.MealPlan)).Append(" &bull; ").Append(h.Nights.ToString()).Append(" Night(s)</div>");
+            hb.Append(" &bull; ").Append(H(h.MealPlan)).Append(" &bull; ").Append(h.Nights.ToString()).Append(' ').Append(H(labels.NightLabel(h.Nights))).Append("</div>");
             hb.Append("<div class=\"acc-divider\"></div>");
-            hb.Append("<div class=\"acc-meta\">Rooms: ").Append(m.FirstDayRooms).Append(" &bull; Extra bed: ").Append(h.ExtraBedCount).Append(" &bull; CNB: ").Append(h.CnbCount).Append("</div>");
+            hb.Append("<div class=\"acc-meta\">").Append(H(labels.Rooms)).Append(": ").Append(m.FirstDayRooms).Append(" &bull; ").Append(H(labels.ExtraBed)).Append(": ").Append(h.ExtraBedCount).Append(" &bull; ").Append(H(labels.Cnb)).Append(": ").Append(h.CnbCount).Append("</div>");
             if (h.ImageUrls?.Count > 0)
             {
                 hb.Append("<div class=\"acc-imgs\">");
@@ -118,19 +120,19 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
         string daysHtml = string.Join("", (m.Days ?? []).Select(d =>
         {
             var paxParts = new List<string>();
-            if (d.ExtraBedCount > 0) paxParts.Add($"Extra bed: {d.ExtraBedCount}");
-            if (d.CnbCount > 0) paxParts.Add($"CNB: {d.CnbCount}");
+            if (d.ExtraBedCount > 0) paxParts.Add($"{labels.ExtraBed}: {d.ExtraBedCount}");
+            if (d.CnbCount > 0) paxParts.Add($"{labels.Cnb}: {d.CnbCount}");
             var paxHtml = paxParts.Count == 0
                 ? ""
                 : "<div class=\"day-pax\">" + string.Join(" &bull; ", paxParts.Select(x => H(x))) + "</div>";
-            return $"<div class=\"day-block\"><div class=\"day-head\"><span class=\"day-no\">{d.DayNumber}</span><span class=\"day-title\">{d.DayNumber} Day &bull; {H(d.Title)}</span></div><div class=\"day-desc\">{H(d.Description)}</div>{paxHtml}</div>";
+            return $"<div class=\"day-block\"><div class=\"day-head\"><span class=\"day-no\">{d.DayNumber}</span><span class=\"day-title\">{labels.Day} {d.DayNumber} &bull; {H(d.Title)}</span></div><div class=\"day-desc\">{H(d.Description)}</div>{paxHtml}</div>";
         }));
         string accommodationHtml = string.Join("", (m.Days ?? [])
             .Where(d => !string.IsNullOrWhiteSpace(d.HotelName))
             .Select(d =>
             {
                 var dateText = string.IsNullOrWhiteSpace(d.DateLabel) ? "" : $" - {H(d.DateLabel)}";
-                return $"<div class=\"acc-day-line\"><strong>Day {d.DayNumber}{dateText}</strong><div>Hotel name: {H(d.HotelName)}</div><div>Hotel area: {H(d.HotelLocation)}</div></div>";
+                return $"<div class=\"acc-day-line\"><strong>{labels.Day} {d.DayNumber}{dateText}</strong><div>{H(labels.HotelName)}: {H(d.HotelName)}</div><div>{H(labels.HotelArea)}: {H(d.HotelLocation)}</div></div>";
             }));
         // Itinerary overview: day + description only (no accommodation block, no hotel images).
         // Structure: .itv-head with .itv-day-pill + optional .itv-date — styled per HtmlTemplate.
@@ -145,7 +147,7 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             var paxHtml = paxParts.Count == 0
                 ? ""
                 : "<div class=\"itv-pax\">" + string.Join(" &bull; ", paxParts.Select(x => H(x))) + "</div>";
-            return $"<div class=\"itv-card\"><div class=\"itv-head\"><span class=\"itv-day-pill\">Day {d.DayNumber}</span>{dateHtml}</div><div class=\"itv-desc\">{H(d.Description)}</div>{paxHtml}</div>";
+            return $"<div class=\"itv-card\"><div class=\"itv-head\"><span class=\"itv-day-pill\">{labels.Day} {d.DayNumber}</span>{dateHtml}</div><div class=\"itv-desc\">{H(d.Description)}</div>{paxHtml}</div>";
         }));
         string inclusionsHtml = string.Join("", (m.InclusionLabels ?? []).Select(x => $"<li>{H(x)}</li>"));
         string exclusionsHtml = string.Join("", (m.ExclusionLabels ?? []).Select(x => $"<li>{H(x)}</li>"));
@@ -178,10 +180,10 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             ["{{MealPlan}}"] = H(m.MealPlanLabel),
             ["{{PickUpLocation}}"] = H(m.PickUpLocation),
             ["{{DropLocation}}"] = H(m.DropLocation),
-            ["{{DestinationLine}}"] = H(m.DropLocation ?? m.PickUpLocation ?? "Jammu & Kashmir"),
+            ["{{DestinationLine}}"] = H(m.DropLocation ?? m.PickUpLocation ?? labels.DefaultDestination),
             ["{{NumberOfAdults}}"] = H(m.NumberOfAdults.ToString()),
             ["{{NumberOfChildren}}"] = H(m.NumberOfChildren.ToString()),
-            ["{{PaxSummary}}"] = H($"{m.NumberOfAdults} Adults{(m.NumberOfChildren > 0 ? $" + {m.NumberOfChildren} Children" : "")}"),
+            ["{{PaxSummary}}"] = H(labels.PaxSummary(m.NumberOfAdults, m.NumberOfChildren)),
             // Legacy aliases: map to peak extra bed / CNB counts (not child headcount — use NumberOfChildren for that).
             ["{{ChildrenAbove5}}"] = H(m.TotalExtraBeds.ToString()),
             ["{{ChildrenBelow5}}"] = H(m.TotalCnbCount.ToString()),
@@ -213,7 +215,11 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             ["{{QrHtml}}"] = qrHtml
         };
 
+        // Localize template phrases while {{ClientName}} / {{AgencyName}} tokens are still present.
+        // If placeholders are filled first, "Dear Ashraf," no longer matches "Dear {{ClientName}},".
+        template = PdfTemplateLocalizer.Localize(template, labels);
         template = ApplyPlaceholders(template, replacements);
+        template = PdfTemplatePostProcessor.Apply(template, m);
 
         return template;
     }

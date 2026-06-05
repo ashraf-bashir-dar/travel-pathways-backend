@@ -9,8 +9,11 @@ using TravelPathways.Api.Common;
 using TravelPathways.Api.Data;
 using TravelPathways.Api.Data.Entities;
 using TravelPathways.Api.MultiTenancy;
+using TravelPathways.Api.Localization;
 using TravelPathways.Api.Services;
 using System.Globalization;
+using System.Text.Json;
+using Npgsql;
 using PdfSharpCore.Pdf;
 using PdfSharpCore.Pdf.IO;
 
@@ -21,6 +24,11 @@ namespace TravelPathways.Api.Controllers;
 [Route("api/packages")]
 public sealed class PackagesController : TenantControllerBase
 {
+    private static readonly JsonSerializerOptions PackageLogJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private readonly AppDbContext _db;
     private readonly IPackagePdfGenerator _pdfGenerator;
     private readonly IPdfTemplateHtmlCache _pdfTemplateHtmlCache;
@@ -134,6 +142,7 @@ public sealed class PackagesController : TenantControllerBase
         public required decimal AdvanceAmount { get; init; }
         public required decimal BalanceAmount { get; init; }
         public required PackageStatus Status { get; init; }
+        public bool IsLocked { get; init; }
         public List<string>? InclusionIds { get; init; }
         public List<DayItineraryDto>? DayWiseItinerary { get; init; }
         public required string TenantId { get; init; }
@@ -265,6 +274,34 @@ public sealed class PackagesController : TenantControllerBase
         });
     }
 
+    /// <summary>Package change history for a lead (auto-logged on create/update).</summary>
+    [HttpGet("logs/by-lead/{leadId:guid}")]
+    public async Task<ActionResult<ApiResponse<List<PackageLogDto>>>> GetPackageLogsByLead(
+        [FromRoute] Guid leadId,
+        CancellationToken ct = default)
+    {
+        if (!await CanViewLeadPackageLogsAsync(leadId, ct))
+            return NotFound(ApiResponse<List<PackageLogDto>>.Fail("Lead not found."));
+
+        try
+        {
+            var logs = await _db.PackageLogs.AsNoTracking()
+                .Where(l => l.TenantId == TenantId && l.LeadId == leadId)
+                .OrderByDescending(l => l.CreatedAt)
+                .ToListAsync(ct);
+
+            return ApiResponse<List<PackageLogDto>>.Ok(logs.Select(ToPackageLogDto).ToList());
+        }
+        catch (PostgresException ex) when (IsPackageLogSchemaException(ex))
+        {
+            return ApiResponse<List<PackageLogDto>>.Ok([]);
+        }
+        catch (Exception)
+        {
+            return ApiResponse<List<PackageLogDto>>.Ok([]);
+        }
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<PackageDto>>> GetPackageById([FromRoute] Guid id, CancellationToken ct)
     {
@@ -322,12 +359,225 @@ public sealed class PackagesController : TenantControllerBase
         return ApiResponse<List<PackageDto>>.Ok(dtos);
     }
 
+    public sealed class PackageLogDto
+    {
+        public required string Id { get; init; }
+        public required string LeadId { get; init; }
+        public required string PackageId { get; init; }
+        public required PackageLogAction Action { get; init; }
+        public required string PackageName { get; init; }
+        public required decimal FinalAmount { get; init; }
+        public required decimal MarginAmount { get; init; }
+        public required PackageStatus Status { get; init; }
+        public required DateTime LoggedAt { get; init; }
+        public string? ChangedByUserId { get; init; }
+        public required string ChangedByDisplayName { get; init; }
+        public PackageLogSnapshot? Snapshot { get; init; }
+    }
+
+    private async Task<bool> CanViewLeadPackageLogsAsync(Guid leadId, CancellationToken ct)
+    {
+        if (!await TenantModuleResolver.HasModuleAsync(_db, User, TenantId, AppModuleKey.Leads, ct))
+            return false;
+
+        var lead = await _db.Leads.AsNoTracking()
+            .FirstOrDefaultAsync(l => l.Id == leadId && l.TenantId == TenantId && !l.IsDeleted, ct);
+        if (lead is null) return false;
+
+        if (IsTenantAdmin()) return true;
+
+        var userId = GetCurrentUserId();
+        return userId.HasValue && lead.AssignedToUserId == userId.Value;
+    }
+
+    private async Task AppendPackageLogAsync(
+        TourPackage pkg,
+        PackageLogAction action,
+        CancellationToken ct)
+    {
+        if (!pkg.LeadId.HasValue) return;
+
+        var leadRowExists = await _db.Leads.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(l => l.Id == pkg.LeadId.Value && l.TenantId == TenantId, ct);
+        if (!leadRowExists) return;
+
+        try
+        {
+            var userId = GetCurrentUserId();
+            var email = User.FindFirstValue(ClaimTypes.Email);
+            var changedBy = await ResolveChangedByDisplayNameAsync(userId, email, ct);
+            var snapshotJson = await BuildPackageLogSnapshotJsonAsync(pkg, ct);
+
+            _db.PackageLogs.Add(new PackageLog
+            {
+                TenantId = TenantId,
+                LeadId = pkg.LeadId.Value,
+                PackageId = pkg.Id,
+                Action = action,
+                PackageName = pkg.PackageName,
+                FinalAmount = Math.Max(0, pkg.TotalAmount - pkg.Discount),
+                MarginAmount = pkg.MarginAmount,
+                Status = pkg.Status,
+                ChangedByUserId = userId,
+                ChangedByDisplayName = changedBy,
+                SnapshotJson = snapshotJson
+            });
+        }
+        catch (Exception)
+        {
+            // Do not block package save if history table is unavailable.
+        }
+    }
+
+    private async Task SaveChangesWithOptionalPackageLogAsync(CancellationToken ct)
+    {
+        var pendingLogs = _db.ChangeTracker.Entries<PackageLog>().Any();
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (Exception) when (pendingLogs)
+        {
+            DetachPendingPackageLogs();
+            if (_db.ChangeTracker.HasChanges())
+                await _db.SaveChangesAsync(ct);
+        }
+    }
+
+    private void DetachPendingPackageLogs()
+    {
+        foreach (var entry in _db.ChangeTracker.Entries<PackageLog>().ToList())
+            entry.State = EntityState.Detached;
+    }
+
+    private static bool IsPackageLogSchemaException(PostgresException ex) =>
+        ex.SqlState == PostgresErrorCodes.UndefinedTable
+        || ex.SqlState == PostgresErrorCodes.UndefinedColumn;
+
+    private async Task<string> ResolveChangedByDisplayNameAsync(Guid? userId, string? email, CancellationToken ct)
+    {
+        if (userId.HasValue)
+        {
+            var user = await _db.Users.AsNoTracking()
+                .Where(u => u.Id == userId.Value && u.TenantId == TenantId)
+                .Select(u => new { u.FirstName, u.LastName, u.Email })
+                .FirstOrDefaultAsync(ct);
+            if (user is not null)
+            {
+                var name = $"{user.FirstName} {user.LastName}".Trim();
+                if (!string.IsNullOrWhiteSpace(name)) return name;
+                if (!string.IsNullOrWhiteSpace(user.Email)) return user.Email;
+            }
+        }
+
+        return string.IsNullOrWhiteSpace(email) ? "Unknown" : email.Trim();
+    }
+
+    private async Task<string> BuildPackageLogSnapshotJsonAsync(TourPackage pkg, CancellationToken ct)
+    {
+        var full = await _db.Packages.AsNoTracking()
+            .Include(p => p.DayWiseItinerary).ThenInclude(d => d.Hotel)
+            .Include(p => p.DayWiseItinerary).ThenInclude(d => d.ItineraryTemplate)
+            .Include(p => p.Vehicle)
+            .FirstOrDefaultAsync(p => p.Id == pkg.Id && p.TenantId == TenantId, ct) ?? pkg;
+
+        var vehicleName = full.Vehicle is null
+            ? null
+            : $"{full.Vehicle.VehicleType}{(string.IsNullOrWhiteSpace(full.Vehicle.VehicleModel) ? "" : " - " + full.Vehicle.VehicleModel)}";
+
+        var snapshot = new PackageLogSnapshot
+        {
+            LeadId = full.LeadId?.ToString("D"),
+            ClientName = full.ClientName,
+            ClientPhone = full.ClientPhone,
+            ClientEmail = full.ClientEmail,
+            ClientCity = full.ClientCity,
+            ClientState = full.ClientState,
+            ClientPickupLocation = full.ClientPickupLocation,
+            ClientDropLocation = full.ClientDropLocation,
+            PackageName = full.PackageName,
+            StartDate = full.StartDate,
+            EndDate = full.EndDate,
+            NumberOfDays = full.NumberOfDays,
+            NumberOfAdults = full.NumberOfAdults,
+            NumberOfChildren = full.NumberOfChildren,
+            VehicleId = full.VehicleId?.ToString("D"),
+            VehicleName = vehicleName,
+            TotalAmount = full.TotalAmount,
+            MarginAmount = full.MarginAmount,
+            Discount = full.Discount,
+            FinalAmount = Math.Max(0, full.TotalAmount - full.Discount),
+            AdvanceAmount = full.AdvanceAmount,
+            BalanceAmount = full.BalanceAmount,
+            Status = full.Status.ToString(),
+            IsLocked = full.IsLocked,
+            InclusionIds = full.InclusionIds ?? [],
+            DayWiseItinerary = full.DayWiseItinerary
+                .OrderBy(d => d.DayNumber)
+                .Select(d => new PackageLogDaySnapshot
+                {
+                    DayNumber = d.DayNumber,
+                    Date = d.Date,
+                    HotelId = d.HotelId?.ToString("D"),
+                    HotelName = d.Hotel?.Name,
+                    RoomType = d.RoomType,
+                    NumberOfRooms = d.NumberOfRooms,
+                    CheckInTime = d.CheckInTime,
+                    CheckOutTime = d.CheckOutTime,
+                    MealPlan = d.MealPlan.ToString(),
+                    ExtraBedCount = d.ExtraBedCount,
+                    CnbCount = d.CnbCount,
+                    Activities = d.Activities ?? [],
+                    Meals = d.Meals ?? [],
+                    Notes = d.Notes,
+                    TemplateId = d.ItineraryTemplateId?.ToString("D"),
+                    TemplateTitle = d.ItineraryTemplate?.Title,
+                    HotelCost = d.HotelCost
+                })
+                .ToList()
+        };
+
+        return JsonSerializer.Serialize(snapshot, PackageLogJsonOptions);
+    }
+
+    private static PackageLogDto ToPackageLogDto(PackageLog log)
+    {
+        PackageLogSnapshot? snapshot = null;
+        if (!string.IsNullOrWhiteSpace(log.SnapshotJson) && log.SnapshotJson != "{}")
+        {
+            try
+            {
+                snapshot = JsonSerializer.Deserialize<PackageLogSnapshot>(log.SnapshotJson, PackageLogJsonOptions);
+            }
+            catch (JsonException)
+            {
+                // Legacy or corrupt row — summary columns still available.
+            }
+        }
+
+        return new PackageLogDto
+        {
+            Id = log.Id.ToString("D"),
+            LeadId = log.LeadId.ToString("D"),
+            PackageId = log.PackageId.ToString("D"),
+            Action = log.Action,
+            PackageName = log.PackageName,
+            FinalAmount = log.FinalAmount,
+            MarginAmount = log.MarginAmount,
+            Status = log.Status,
+            LoggedAt = log.CreatedAt,
+            ChangedByUserId = log.ChangedByUserId?.ToString("D"),
+            ChangedByDisplayName = log.ChangedByDisplayName,
+            Snapshot = snapshot
+        };
+    }
+
     /// <summary>Generate and download package PDF (client-facing proposal).</summary>
     [HttpGet("{id:guid}/pdf")]
     [ProducesResponseType(typeof(FileResult), 200)]
     [ProducesResponseType(404)]
     [ProducesResponseType(500)]
-    public async Task<IActionResult> GetPackagePdf([FromRoute] Guid id, CancellationToken ct)
+    public async Task<IActionResult> GetPackagePdf([FromRoute] Guid id, [FromQuery] string? lang, CancellationToken ct)
     {
         var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
 
@@ -382,7 +632,7 @@ public sealed class PackagesController : TenantControllerBase
 
         try
         {
-            var pdfBytes = await GeneratePackagePdfWithTenantAssetsAsync(pkg, tenant, ct);
+            var pdfBytes = await GeneratePackagePdfWithTenantAssetsAsync(pkg, tenant, lang, ct);
             var filename = ToSafeAsciiDownloadFileName(BuildPdfFilename(pkg));
             Response.Headers.Append("X-Content-Type-Options", "nosniff");
             return File(pdfBytes, "application/pdf", filename);
@@ -403,7 +653,7 @@ public sealed class PackagesController : TenantControllerBase
     [ProducesResponseType(typeof(FileResult), 200)]
     [ProducesResponseType(404)]
     [ProducesResponseType(500)]
-    public async Task<IActionResult> PreviewPackagePdf([FromRoute] Guid id, CancellationToken ct)
+    public async Task<IActionResult> PreviewPackagePdf([FromRoute] Guid id, [FromQuery] string? lang, CancellationToken ct)
     {
         var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
 
@@ -429,7 +679,7 @@ public sealed class PackagesController : TenantControllerBase
 
         try
         {
-            var pdfBytes = await GeneratePackagePdfWithTenantAssetsAsync(pkg, tenant, ct);
+            var pdfBytes = await GeneratePackagePdfWithTenantAssetsAsync(pkg, tenant, lang, ct);
             var filename = ToSafeAsciiDownloadFileName(BuildPdfFilename(pkg));
             Response.Headers.Append("X-Content-Type-Options", "nosniff");
             Response.Headers.ContentDisposition = $"inline; filename=\"{filename}\"";
@@ -460,6 +710,8 @@ public sealed class PackagesController : TenantControllerBase
 
         var lead = await _db.Leads.AsNoTracking().FirstOrDefaultAsync(l => l.Id == request.LeadId && l.TenantId == TenantId, ct);
         if (lead is null) return BadRequest(ApiResponse<PackageDto>.Fail("Lead not found"));
+        if (lead.IsLocked)
+            return BadRequest(ApiResponse<PackageDto>.Fail("This lead is locked. Ask an admin to unlock it before creating another package."));
 
         var totalAmount = request.TotalAmount;
         var discount = request.Discount;
@@ -524,6 +776,9 @@ public sealed class PackagesController : TenantControllerBase
 
         await _db.SaveChangesAsync(ct);
 
+        await AppendPackageLogAsync(pkg, PackageLogAction.Created, ct);
+        await SaveChangesWithOptionalPackageLogAsync(ct);
+
         var created = await _db.Packages.AsNoTracking()
             .Include(p => p.DayWiseItinerary).ThenInclude(d => d.Hotel)
             .Include(p => p.DayWiseItinerary).ThenInclude(d => d.ItineraryTemplate)
@@ -560,6 +815,9 @@ public sealed class PackagesController : TenantControllerBase
         if (request.LeadId == Guid.Empty)
             return BadRequest(ApiResponse<PackageDto>.Fail("Please select a lead for this package."));
 
+        if (pkg.IsLocked)
+            return BadRequest(ApiResponse<PackageDto>.Fail("This package is locked. Ask an admin to unlock it before editing."));
+
         // Once sent for reservation, creator (tour manager or reservation user) cannot edit package details here.
         var role = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
         var isSalesSideRole = string.Equals(role, UserRole.Agent.ToString(), StringComparison.OrdinalIgnoreCase)
@@ -573,13 +831,43 @@ public sealed class PackagesController : TenantControllerBase
                 return BadRequest(ApiResponse<PackageDto>.Fail("This package has been sent for reservation and cannot be edited."));
         }
 
-        var leadOk = await _db.Leads.AnyAsync(l => l.Id == request.LeadId && l.TenantId == TenantId, ct);
-        if (!leadOk) return BadRequest(ApiResponse<PackageDto>.Fail("Lead not found"));
+        // Include soft-deleted leads so packages linked before a lead was removed can still be edited.
+        var requestLead = await _db.Leads.IgnoreQueryFilters().AsNoTracking()
+            .FirstOrDefaultAsync(l => l.Id == request.LeadId && l.TenantId == TenantId, ct);
+
+        if (requestLead is null)
+        {
+            if (pkg.LeadId != request.LeadId)
+                return BadRequest(ApiResponse<PackageDto>.Fail("Lead not found. Select a valid lead for this package."));
+            // Orphaned lead id on package: allow saving package fields without lead sync.
+        }
+        else if (requestLead.IsDeleted)
+        {
+            if (pkg.LeadId != request.LeadId)
+                return BadRequest(ApiResponse<PackageDto>.Fail("Lead not found. Select a valid lead for this package."));
+            // Lead was deleted; keep historical link but do not sync lead status.
+        }
+        else if (requestLead.IsLocked && pkg.LeadId != request.LeadId)
+        {
+            return BadRequest(ApiResponse<PackageDto>.Fail("This lead is locked. Ask an admin to unlock it before moving packages to it."));
+        }
+
+        var syncLeadAndPackages = requestLead is { IsDeleted: false };
 
         if (request.VehicleId is not null)
         {
             var vehicleOk = await _db.Vehicles.AnyAsync(v => v.Id == request.VehicleId && v.TenantId == TenantId, ct);
             if (!vehicleOk) return BadRequest(ApiResponse<PackageDto>.Fail("Vehicle not found"));
+        }
+
+        if (!HasPackageUpdateChanges(pkg, request))
+        {
+            var unchanged = await _db.Packages.AsNoTracking()
+                .Include(p => p.DayWiseItinerary).ThenInclude(d => d.Hotel)
+                .Include(p => p.DayWiseItinerary).ThenInclude(d => d.ItineraryTemplate)
+                .Include(p => p.Vehicle)
+                .FirstAsync(p => p.Id == pkg.Id, ct);
+            return ApiResponse<PackageDto>.Ok(ToDto(unchanged));
         }
 
         pkg.LeadId = request.LeadId;
@@ -605,18 +893,23 @@ public sealed class PackagesController : TenantControllerBase
         pkg.AdvanceAmount = request.AdvanceAmount;
         pkg.BalanceAmount = finalAmount - request.AdvanceAmount;
         pkg.Status = request.Status;
+        pkg.IsLocked = request.Status == PackageStatus.Confirmed;
         pkg.InclusionIds = request.InclusionIds ?? new List<string>();
 
         // When package status changes: sync to the lead and to all packages for that lead so Leads and Packages tabs stay in sync
-        if (pkg.LeadId.HasValue)
+        if (syncLeadAndPackages && pkg.LeadId.HasValue)
         {
             var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == pkg.LeadId.Value && l.TenantId == TenantId, ct);
             if (lead != null)
             {
                 lead.Status = (LeadStatus)(int)request.Status;
+                lead.IsLocked = request.Status == PackageStatus.Confirmed;
                 var allPackagesForLead = await _db.Packages.Where(x => x.LeadId == pkg.LeadId && x.TenantId == TenantId).ToListAsync(ct);
                 foreach (var p in allPackagesForLead)
+                {
                     p.Status = request.Status;
+                    p.IsLocked = request.Status == PackageStatus.Confirmed;
+                }
             }
         }
 
@@ -650,7 +943,10 @@ public sealed class PackagesController : TenantControllerBase
             });
         }
 
-        await _db.SaveChangesAsync(ct);
+        await SaveChangesWithOptionalPackageLogAsync(ct);
+
+        await AppendPackageLogAsync(pkg, PackageLogAction.Updated, ct);
+        await SaveChangesWithOptionalPackageLogAsync(ct);
 
         var updated = await _db.Packages.AsNoTracking()
             .Include(p => p.DayWiseItinerary).ThenInclude(d => d.Hotel)
@@ -671,10 +967,30 @@ public sealed class PackagesController : TenantControllerBase
         if (pkg is null) return NotFound(ApiResponse<object>.Fail("Package not found"));
         if (!canSeeAllPackages && !string.IsNullOrWhiteSpace(currentUserEmail) && pkg.CreatedBy != currentUserEmail)
             return NotFound(ApiResponse<object>.Fail("Package not found"));
+        if (pkg.IsLocked)
+            return BadRequest(ApiResponse<object>.Fail("This package is locked. Ask an admin to unlock it before deleting."));
+
         pkg.IsDeleted = true;
         pkg.DeletedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
+    }
+
+    [HttpPost("{id:guid}/unlock")]
+    [Authorize(Policy = "TenantAdminOnly")]
+    public async Task<ActionResult<ApiResponse<PackageDto>>> UnlockPackage([FromRoute] Guid id, CancellationToken ct)
+    {
+        var pkg = await _db.Packages
+            .Include(p => p.DayWiseItinerary).ThenInclude(d => d.Hotel)
+            .Include(p => p.DayWiseItinerary).ThenInclude(d => d.ItineraryTemplate)
+            .Include(p => p.Vehicle)
+            .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
+        if (pkg is null) return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
+
+        pkg.IsLocked = false;
+        await _db.SaveChangesAsync(ct);
+
+        return ApiResponse<PackageDto>.Ok(ToDto(pkg));
     }
 
     private static DateTime NormalizeUtc(DateTime value)
@@ -725,29 +1041,16 @@ public sealed class PackagesController : TenantControllerBase
         return GetLocationString(h);
     }
 
-    private static string MealPlanLabel(AccommodationMealPlan? plan)
+    private static PackagePdfModel BuildPdfModel(TourPackage pkg, Tenant? tenant, string baseUrl, string? language)
     {
-        if (!plan.HasValue) return "–";
-        return plan.Value switch
-        {
-            AccommodationMealPlan.AP => "Breakfast + Lunch + Dinner",
-            AccommodationMealPlan.MAP => "MAP (Dinner + Breakfast)",
-            AccommodationMealPlan.CP => "CP",
-            AccommodationMealPlan.BreakfastOnly => "Breakfast Only",
-            AccommodationMealPlan.RoomOnly => "EP (Room only)",
-            _ => plan.Value.ToString()
-        };
-    }
-
-    private static PackagePdfModel BuildPdfModel(TourPackage pkg, Tenant? tenant, string baseUrl)
-    {
+        var labels = PdfLocalizedStrings.ForLanguage(language);
+        var culture = labels.Culture;
         var days = (pkg.DayWiseItinerary ?? []).OrderBy(d => d.DayNumber).ToList();
         var nights = Math.Max(0, pkg.NumberOfDays - 1);
-        var daysLabel = $"{nights} {(nights == 1 ? "Night" : "Nights")} / {pkg.NumberOfDays} {(pkg.NumberOfDays == 1 ? "Day" : "Days")}";
+        var daysLabel = labels.DaysDurationLabel(nights, pkg.NumberOfDays);
 
-        var inclusionLabels = InclusionOptions.GetInclusionLabels(pkg.InclusionIds ?? []).ToList();
-        var exclusionLabels = InclusionOptions.GetExclusionLabels(pkg.InclusionIds ?? []).ToList();
-        var indiaCulture = CultureInfo.GetCultureInfo("en-IN");
+        var inclusionLabels = InclusionOptions.GetInclusionLabels(pkg.InclusionIds ?? [], language).ToList();
+        var exclusionLabels = InclusionOptions.GetExclusionLabels(pkg.InclusionIds ?? [], language).ToList();
 
         string ToAbsolute(string? url)
         {
@@ -759,8 +1062,8 @@ public sealed class PackagesController : TenantControllerBase
 
         var pdfDays = days.Select(d =>
         {
-            var title = (d.ItineraryTemplate?.Title ?? d.Hotel?.Name ?? "Day activities").Trim();
-            if (string.IsNullOrEmpty(title)) title = "Day activities";
+            var title = (d.ItineraryTemplate?.Title ?? d.Hotel?.Name ?? labels.DayActivities).Trim();
+            if (string.IsNullOrEmpty(title)) title = labels.DayActivities;
             var descParts = new List<string>();
             if (d.Activities?.Count > 0) descParts.Add(string.Join(". ", d.Activities));
             if (!string.IsNullOrWhiteSpace(d.Notes)) descParts.Add(d.Notes.Trim());
@@ -768,7 +1071,7 @@ public sealed class PackagesController : TenantControllerBase
             return new DayItem
             {
                 DayNumber = d.DayNumber,
-                DateLabel = d.Date.ToString("d MMM yyyy", indiaCulture),
+                DateLabel = d.Date.ToString("d MMM yyyy", culture),
                 HotelName = d.Hotel?.Name,
                 HotelLocation = d.Hotel is null ? null : GetHotelAreaString(d.Hotel),
                 DayImageUrl = d.Hotel?.ImageUrls?.Select(ToAbsolute).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
@@ -783,7 +1086,7 @@ public sealed class PackagesController : TenantControllerBase
         foreach (var d in days)
         {
             if (d.HotelId is null || d.Hotel is null) continue;
-            var meal = MealPlanLabel(d.MealPlan);
+            var meal = MealPlanTranslations.Label(d.MealPlan, language);
             var eb = d.ExtraBedCount ?? 0;
             var cnb = d.CnbCount ?? 0;
             if (seenHotels.TryGetValue(d.HotelId.Value, out var existing))
@@ -822,8 +1125,8 @@ public sealed class PackagesController : TenantControllerBase
         // Peak counts per night (not sum): agents usually enter the same nightly extra bed/CNB on each day; summing inflated PDF totals.
         var peakExtraBeds = hotelNights.Count == 0 ? 0 : hotelNights.Max(d => d.ExtraBedCount ?? 0);
         var peakCnb = hotelNights.Count == 0 ? 0 : hotelNights.Max(d => d.CnbCount ?? 0);
-        string Fmt(decimal v) => v.ToString("N0", CultureInfo.GetCultureInfo("en-IN"));
-        string FmtDate(DateTime dt) => dt.ToString("d MMM yyyy", CultureInfo.GetCultureInfo("en-IN"));
+        string Fmt(decimal v) => v.ToString("N0", culture);
+        string FmtDate(DateTime dt) => dt.ToString("d MMM yyyy", culture);
         // PDF totals use stored package amounts only (no automatic add-ons).
         var totalForPdf = pkg.TotalAmount;
         var totalPackagePriceStr = "Rs. " + Fmt(totalForPdf);
@@ -847,8 +1150,10 @@ public sealed class PackagesController : TenantControllerBase
         var cancellationPolicy = NormalizeLines(tenant?.CancellationPolicy);
         var supplementCosts = NormalizeLines(tenant?.SupplementCosts);
 
+        var contactPerson = tenant?.ContactPerson?.Trim();
         return new PackagePdfModel
         {
+            Labels = labels,
             PackageName = pkg.PackageName ?? "Package",
             ClientName = pkg.ClientName ?? "–",
             ClientPhone = pkg.ClientPhone?.Trim(),
@@ -861,7 +1166,7 @@ public sealed class PackagesController : TenantControllerBase
             DropLocation = string.IsNullOrWhiteSpace(pkg.ClientDropLocation) ? null : pkg.ClientDropLocation.Trim(),
             NumberOfAdults = pkg.NumberOfAdults,
             NumberOfChildren = pkg.NumberOfChildren,
-            MealPlanLabel = firstDay is not null ? MealPlanLabel(firstDay.MealPlan) : "–",
+            MealPlanLabel = firstDay is not null ? MealPlanTranslations.Label(firstDay.MealPlan, language) : "–",
             FirstDayRooms = firstDay?.NumberOfRooms ?? 1,
             TotalExtraBeds = peakExtraBeds,
             TotalCnbCount = peakCnb,
@@ -882,7 +1187,11 @@ public sealed class PackagesController : TenantControllerBase
             AgencyPhone = tenant?.Phone?.Trim(),
             AgencyEmail = tenant?.Email?.Trim(),
             AgencyLogoUrl = tenant?.LogoUrl != null ? ToAbsolute(tenant.LogoUrl) : null,
-            ManagingDirectorName = tenant?.ContactPerson?.Trim(),
+            ManagingDirectorName = contactPerson,
+            SalesHeadName = contactPerson,
+            RegisteredOfficeAddressHtml = PdfTemplatePostProcessor.FormatRegisteredOfficeAddressHtml(
+                tenant?.Address, labels),
+            AgencyWebsite = PdfTemplatePostProcessor.WebsiteFromEmail(tenant?.Email),
             GeneratedDate = FmtDate(DateTime.UtcNow),
             BankAccounts = (tenant?.BankAccounts ?? [])
                 .OrderBy(b => b.DisplayOrder)
@@ -982,6 +1291,7 @@ public sealed class PackagesController : TenantControllerBase
 
         return new PackagePdfModel
         {
+            Labels = model.Labels,
             PackageName = model.PackageName,
             ClientName = model.ClientName,
             ClientPhone = model.ClientPhone,
@@ -1016,6 +1326,9 @@ public sealed class PackagesController : TenantControllerBase
             AgencyEmail = model.AgencyEmail,
             AgencyLogoUrl = ToDataUrl(model.AgencyLogoUrl) ?? model.AgencyLogoUrl,
             ManagingDirectorName = model.ManagingDirectorName,
+            SalesHeadName = model.SalesHeadName,
+            RegisteredOfficeAddressHtml = model.RegisteredOfficeAddressHtml,
+            AgencyWebsite = model.AgencyWebsite,
             GeneratedDate = model.GeneratedDate,
             BankAccounts = model.BankAccounts,
             QrCodes = (model.QrCodes ?? []).Select(q => new QrCodeItem
@@ -1036,7 +1349,7 @@ public sealed class PackagesController : TenantControllerBase
         };
     }
 
-    private async Task<byte[]> GeneratePackagePdfWithTenantAssetsAsync(TourPackage pkg, Tenant? tenant, CancellationToken ct)
+    private async Task<byte[]> GeneratePackagePdfWithTenantAssetsAsync(TourPackage pkg, Tenant? tenant, string? language, CancellationToken ct)
     {
         // Use configured base URL so PDF images load in production; Request.Scheme/Host can be wrong behind a proxy.
         var baseUrl = _configuration["Api:BaseUrl"]?.Trim()
@@ -1047,7 +1360,7 @@ public sealed class PackagesController : TenantControllerBase
             baseUrl = $"{Request.Scheme}://{Request.Host}";
         baseUrl = baseUrl.TrimEnd('/');
 
-        var model = BuildPdfModel(pkg, tenant, baseUrl);
+        var model = BuildPdfModel(pkg, tenant, baseUrl, language);
         var templateKey = model.TemplateKey?.Trim();
         if (string.IsNullOrWhiteSpace(templateKey))
             throw new PdfTemplateConfigurationException(
@@ -1065,6 +1378,7 @@ public sealed class PackagesController : TenantControllerBase
 
         model = new PackagePdfModel
         {
+            Labels = model.Labels,
             PackageName = model.PackageName,
             ClientName = model.ClientName,
             ClientPhone = model.ClientPhone,
@@ -1099,6 +1413,9 @@ public sealed class PackagesController : TenantControllerBase
             AgencyEmail = model.AgencyEmail,
             AgencyLogoUrl = model.AgencyLogoUrl,
             ManagingDirectorName = model.ManagingDirectorName,
+            SalesHeadName = model.SalesHeadName,
+            RegisteredOfficeAddressHtml = model.RegisteredOfficeAddressHtml,
+            AgencyWebsite = model.AgencyWebsite,
             GeneratedDate = model.GeneratedDate,
             BankAccounts = model.BankAccounts,
             QrCodes = model.QrCodes,
@@ -1234,6 +1551,76 @@ public sealed class PackagesController : TenantControllerBase
         }
     }
 
+    private static bool HasPackageUpdateChanges(TourPackage pkg, UpdatePackageRequestDto request)
+    {
+        if (pkg.LeadId != request.LeadId) return true;
+        if (!StringEqual(pkg.ClientName, request.ClientName)) return true;
+        if (!StringEqual(pkg.ClientPhone, request.ClientPhone)) return true;
+        if (!StringEqual(pkg.ClientEmail, request.ClientEmail)) return true;
+        if (!StringEqual(pkg.ClientCity, request.ClientCity)) return true;
+        if (!StringEqual(pkg.ClientState, request.ClientState)) return true;
+        if (!StringEqual(pkg.ClientPickupLocation, request.ClientPickupLocation)) return true;
+        if (!StringEqual(pkg.ClientDropLocation, request.ClientDropLocation)) return true;
+        if (!StringEqual(pkg.PackageName, request.PackageName)) return true;
+        if (NormalizeUtc(pkg.StartDate).Date != NormalizeUtc(request.StartDate).Date) return true;
+        if (NormalizeUtc(pkg.EndDate).Date != NormalizeUtc(request.EndDate).Date) return true;
+        if (pkg.NumberOfAdults != request.NumberOfAdults) return true;
+        if (pkg.NumberOfChildren != request.NumberOfChildren) return true;
+        if (pkg.VehicleId != request.VehicleId) return true;
+        if (pkg.TotalAmount != request.TotalAmount) return true;
+        if (pkg.MarginAmount != request.MarginAmount) return true;
+        if (pkg.Discount != request.Discount) return true;
+        if (pkg.AdvanceAmount != request.AdvanceAmount) return true;
+        if (pkg.Status != request.Status) return true;
+        if (!StringListEqual(pkg.InclusionIds, request.InclusionIds)) return true;
+        return !ItineraryEqual(pkg.DayWiseItinerary, request.DayWiseItinerary);
+    }
+
+    private static bool StringEqual(string? a, string? b) =>
+        string.Equals((a ?? string.Empty).Trim(), (b ?? string.Empty).Trim(), StringComparison.Ordinal);
+
+    private static bool StringListEqual(IReadOnlyList<string>? a, IReadOnlyList<string>? b)
+    {
+        var left = (a ?? []).Select(x => x.Trim()).Where(x => x.Length > 0).OrderBy(x => x, StringComparer.Ordinal).ToList();
+        var right = (b ?? []).Select(x => x.Trim()).Where(x => x.Length > 0).OrderBy(x => x, StringComparer.Ordinal).ToList();
+        return left.SequenceEqual(right, StringComparer.Ordinal);
+    }
+
+    private static bool ItineraryEqual(
+        IReadOnlyList<DayItinerary> existing,
+        IReadOnlyList<CreateDayItineraryRequestDto> requested)
+    {
+        var left = existing.OrderBy(d => d.DayNumber).ToList();
+        var right = requested.OrderBy(d => d.DayNumber).ToList();
+        if (left.Count != right.Count) return false;
+
+        for (var i = 0; i < left.Count; i++)
+        {
+            var e = left[i];
+            var r = right[i];
+            if (e.DayNumber != r.DayNumber) return false;
+            if (NormalizeUtc(e.Date).Date != NormalizeUtc(r.Date).Date) return false;
+            if (e.HotelId != NormalizeOptionalGuid(r.HotelId)) return false;
+            if (!StringEqual(e.RoomType, r.RoomType)) return false;
+            if (e.NumberOfRooms != r.NumberOfRooms) return false;
+            if (!StringEqual(e.CheckInTime, r.CheckInTime)) return false;
+            if (!StringEqual(e.CheckOutTime, r.CheckOutTime)) return false;
+            if (e.MealPlan != (r.MealPlan ?? AccommodationMealPlan.MAP)) return false;
+            if (e.ExtraBedCount != r.ExtraBedCount) return false;
+            if (e.CnbCount != r.CnbCount) return false;
+            if (e.HotelCost != r.HotelCost) return false;
+            if (!StringEqual(e.Notes, r.Notes)) return false;
+            if (e.ItineraryTemplateId != NormalizeOptionalGuid(r.ItineraryTemplateId)) return false;
+            if (!StringListEqual(e.Activities, r.Activities)) return false;
+            if (!StringListEqual(e.Meals, r.Meals)) return false;
+        }
+
+        return true;
+    }
+
+    private static Guid? NormalizeOptionalGuid(Guid? id) =>
+        id is { } g && g != Guid.Empty ? g : null;
+
     private static PackageDto ToDto(TourPackage p)
     {
         var vehicleName = p.Vehicle is null
@@ -1267,6 +1654,7 @@ public sealed class PackagesController : TenantControllerBase
             AdvanceAmount = p.AdvanceAmount,
             BalanceAmount = p.BalanceAmount,
             Status = p.Status,
+            IsLocked = p.IsLocked,
             InclusionIds = p.InclusionIds ?? new List<string>(),
             DayWiseItinerary = p.DayWiseItinerary
                 .OrderBy(d => d.DayNumber)

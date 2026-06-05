@@ -82,7 +82,7 @@ public sealed class FileStorage
 
         var safeName = MakeSafeFileName(file.FileName);
         var ext = Path.GetExtension(safeName);
-        if (string.IsNullOrEmpty(ext) || !IsImageExtension(ext)) ext = ".jpg";
+        if (string.IsNullOrEmpty(ext) || (!IsImageExtension(ext) && !IsPdfExtension(ext))) ext = ".jpg";
         var fileName = $"{paymentId:D}{ext}";
         var fullPath = Path.Combine(folder, fileName);
 
@@ -129,7 +129,7 @@ public sealed class FileStorage
 
         var safeName = MakeSafeFileName(file.FileName);
         var ext = Path.GetExtension(safeName);
-        if (string.IsNullOrEmpty(ext) || !IsImageExtension(ext)) ext = ".jpg";
+        if (string.IsNullOrEmpty(ext) || (!IsImageExtension(ext) && !IsPdfExtension(ext))) ext = ".jpg";
         var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}{ext}";
         var fullPath = Path.Combine(folder, fileName);
 
@@ -146,6 +146,8 @@ public sealed class FileStorage
         var e = ext.ToLowerInvariant();
         return e is ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" or ".bmp";
     }
+
+    private static bool IsPdfExtension(string ext) => ext.Equals(".pdf", StringComparison.OrdinalIgnoreCase);
 
     private static string MakeSafeFileName(string name)
     {

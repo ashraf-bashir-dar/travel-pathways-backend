@@ -48,6 +48,7 @@ public sealed class LeadsController : TenantControllerBase
         public required string Address { get; init; }
         public required LeadSource LeadSource { get; init; }
         public required LeadStatus Status { get; init; }
+        public bool IsLocked { get; init; }
         public string? Notes { get; init; }
         public required string TenantId { get; init; }
         public string? AssignedToUserId { get; init; }
@@ -58,6 +59,10 @@ public sealed class LeadsController : TenantControllerBase
         public required string CreatedBy { get; init; }
         /// <summary>True when any package for this lead has at least one reservation.</summary>
         public bool HasReservation { get; set; }
+        /// <summary>Total tour packages created for this lead.</summary>
+        public int PackageCount { get; set; }
+        /// <summary>Package history entries (create/update revisions) for this lead.</summary>
+        public int PackageLogCount { get; set; }
     }
 
     public class CreateLeadRequestDto
@@ -217,6 +222,56 @@ public sealed class LeadsController : TenantControllerBase
         return userId.HasValue && lead.AssignedToUserId == userId.Value;
     }
 
+    /// <summary>Soft-delete all packages (and related rows) linked to the given leads.</summary>
+    private async Task SoftDeletePackagesForLeadsAsync(IReadOnlyList<Guid> leadIds, DateTime deletedAtUtc, CancellationToken ct)
+    {
+        if (leadIds.Count == 0) return;
+
+        var packageIds = await _db.Packages
+            .Where(p => p.TenantId == TenantId && p.LeadId != null && leadIds.Contains(p.LeadId.Value) && !p.IsDeleted)
+            .Select(p => p.Id)
+            .ToListAsync(ct);
+
+        if (packageIds.Count > 0)
+        {
+            await _db.Packages
+                .Where(p => packageIds.Contains(p.Id))
+                .ExecuteUpdateAsync(
+                    s => s
+                        .SetProperty(p => p.IsDeleted, true)
+                        .SetProperty(p => p.DeletedAtUtc, deletedAtUtc)
+                        .SetProperty(p => p.UpdatedAt, deletedAtUtc),
+                    ct);
+
+            await _db.DayItineraries
+                .Where(d => d.TenantId == TenantId && packageIds.Contains(d.PackageId) && !d.IsDeleted)
+                .ExecuteUpdateAsync(
+                    s => s
+                        .SetProperty(d => d.IsDeleted, true)
+                        .SetProperty(d => d.DeletedAtUtc, deletedAtUtc)
+                        .SetProperty(d => d.UpdatedAt, deletedAtUtc),
+                    ct);
+
+            await _db.Reservations
+                .Where(r => r.TenantId == TenantId && packageIds.Contains(r.PackageId) && !r.IsDeleted)
+                .ExecuteUpdateAsync(
+                    s => s
+                        .SetProperty(r => r.IsDeleted, true)
+                        .SetProperty(r => r.DeletedAtUtc, deletedAtUtc)
+                        .SetProperty(r => r.UpdatedAt, deletedAtUtc),
+                    ct);
+        }
+
+        await _db.PackageLogs
+            .Where(l => l.TenantId == TenantId && leadIds.Contains(l.LeadId) && !l.IsDeleted)
+            .ExecuteUpdateAsync(
+                s => s
+                    .SetProperty(l => l.IsDeleted, true)
+                    .SetProperty(l => l.DeletedAtUtc, deletedAtUtc)
+                    .SetProperty(l => l.UpdatedAt, deletedAtUtc),
+                ct);
+    }
+
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PaginatedResponse<LeadDto>>>> GetLeads(
         [FromQuery] int pageNumber = 1,
@@ -259,6 +314,7 @@ public sealed class LeadsController : TenantControllerBase
             .ToListAsync(ct);
 
         var items = leads.Select(ToDto).ToList();
+        await EnrichLeadPackageCountsAsync(items, ct);
         var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
 
         return ApiResponse<PaginatedResponse<LeadDto>>.Ok(new PaginatedResponse<LeadDto>
@@ -434,19 +490,8 @@ public sealed class LeadsController : TenantControllerBase
         if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId()))
             return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
 
-        var hasReservationForLead = await _db.Reservations.AsNoTracking()
-            .Join(_db.Packages.AsNoTracking(),
-                r => r.PackageId,
-                p => p.Id,
-                (r, p) => new { r, p })
-            .AnyAsync(x =>
-                x.r.TenantId == TenantId &&
-                x.p.TenantId == TenantId &&
-                x.p.LeadId == id,
-                ct);
-
         var dto = ToDto(lead);
-        dto.HasReservation = hasReservationForLead;
+        await EnrichLeadPackageCountsAsync([dto], ct);
         return ApiResponse<LeadDto>.Ok(dto);
     }
 
@@ -514,6 +559,9 @@ public sealed class LeadsController : TenantControllerBase
         if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId()))
             return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
 
+        if (lead.IsLocked)
+            return BadRequest(ApiResponse<LeadDto>.Fail("This lead is locked. Ask an admin to unlock it before editing."));
+
         // Once any package for this lead has a reservation, Tour Manager should not edit lead/package details.
         // Allow Admin/SuperAdmin (canSeeAllLeads) to override if needed.
         if (!canSeeAllLeads)
@@ -550,6 +598,7 @@ public sealed class LeadsController : TenantControllerBase
         lead.LeadSource = request.LeadSource;
         lead.Notes = request.Notes?.Trim();
         lead.Status = request.Status;
+        lead.IsLocked = request.Status == LeadStatus.Confirmed;
 
         if (canSeeAllLeads)
         {
@@ -593,7 +642,10 @@ public sealed class LeadsController : TenantControllerBase
             var packagesToUpdate = await _db.Packages.Where(p => p.LeadId == id && p.TenantId == TenantId).ToListAsync(ct);
             var newPackageStatus = (PackageStatus)(int)lead.Status;
             foreach (var p in packagesToUpdate)
+            {
                 p.Status = newPackageStatus;
+                p.IsLocked = newPackageStatus == PackageStatus.Confirmed;
+            }
             if (packagesToUpdate.Count > 0)
                 await _db.SaveChangesAsync(ct);
         }
@@ -615,10 +667,41 @@ public sealed class LeadsController : TenantControllerBase
         if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId()))
             return NotFound(ApiResponse<object>.Fail("Lead not found"));
 
+        if (lead.IsLocked)
+            return BadRequest(ApiResponse<object>.Fail("This lead is locked. Ask an admin to unlock it before deleting."));
+
+        var deletedAt = DateTime.UtcNow;
+        await SoftDeletePackagesForLeadsAsync([id], deletedAt, ct);
+
         lead.IsDeleted = true;
-        lead.DeletedAtUtc = DateTime.UtcNow;
+        lead.DeletedAtUtc = deletedAt;
+        lead.UpdatedAt = deletedAt;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
+    }
+
+    [HttpPost("{id:guid}/unlock")]
+    [Authorize(Policy = "TenantAdminOnly")]
+    public async Task<ActionResult<ApiResponse<LeadDto>>> UnlockLead([FromRoute] Guid id, CancellationToken ct)
+    {
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
+        var lead = await _db.Leads
+            .Include(l => l.AssignedToUser)
+            .FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
+        if (lead is null) return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
+
+        lead.IsLocked = false;
+
+        var packagesToUnlock = await _db.Packages
+            .Where(p => p.LeadId == id && p.TenantId == TenantId)
+            .ToListAsync(ct);
+        foreach (var package in packagesToUnlock)
+            package.IsLocked = false;
+
+        await _db.SaveChangesAsync(ct);
+        return ApiResponse<LeadDto>.Ok(ToDto(lead));
     }
 
     [HttpGet("{id:guid}/follow-ups")]
@@ -665,6 +748,9 @@ public sealed class LeadsController : TenantControllerBase
         var (_, canSeeAllLeads) = await GetCurrentUserLeadScopeAsync(ct);
         if (!CanAccessLead(lead, canSeeAllLeads, GetCurrentUserId()))
             return NotFound(ApiResponse<LeadFollowUpDto>.Fail("Lead not found"));
+
+        if (lead.IsLocked)
+            return BadRequest(ApiResponse<LeadFollowUpDto>.Fail("This lead is locked. Ask an admin to unlock it before editing."));
 
         var createdBy = User.FindFirstValue(ClaimTypes.Email) ?? User.Identity?.Name ?? "system";
 
@@ -739,10 +825,12 @@ public sealed class LeadsController : TenantControllerBase
                 request.AssignedFrom,
                 request.AssignedTo);
 
-            updated = await query.ExecuteUpdateAsync(
-                s => s.SetProperty(l => l.AssignedToUserId, request.AssignedToUserId)
+            updated = await query
+                .Where(l => !l.IsLocked)
+                .ExecuteUpdateAsync(
+                    s => s.SetProperty(l => l.AssignedToUserId, request.AssignedToUserId)
                     .SetProperty(l => l.UpdatedAt, DateTime.UtcNow),
-                ct);
+                    ct);
         }
         else
         {
@@ -758,7 +846,7 @@ public sealed class LeadsController : TenantControllerBase
                 return BadRequest(ApiResponse<BulkAssignLeadsResult>.Fail("No valid lead ids provided."));
 
             updated = await _db.Leads
-                .Where(l => l.TenantId == TenantId && ids.Contains(l.Id))
+                .Where(l => l.TenantId == TenantId && ids.Contains(l.Id) && !l.IsLocked)
                 .ExecuteUpdateAsync(
                     s => s.SetProperty(l => l.AssignedToUserId, request.AssignedToUserId)
                         .SetProperty(l => l.UpdatedAt, DateTime.UtcNow),
@@ -810,11 +898,20 @@ public sealed class LeadsController : TenantControllerBase
                 request.AssignedFrom,
                 request.AssignedTo);
 
-            deleted = await query.ExecuteUpdateAsync(
-                s => s.SetProperty(l => l.IsDeleted, true)
+            var leadIdsToDelete = await query
+                .Where(l => !l.IsLocked)
+                .Select(l => l.Id)
+                .ToListAsync(ct);
+
+            await SoftDeletePackagesForLeadsAsync(leadIdsToDelete, now, ct);
+
+            deleted = await query
+                .Where(l => !l.IsLocked)
+                .ExecuteUpdateAsync(
+                    s => s.SetProperty(l => l.IsDeleted, true)
                     .SetProperty(l => l.DeletedAtUtc, now)
                     .SetProperty(l => l.UpdatedAt, now),
-                ct);
+                    ct);
         }
         else
         {
@@ -829,8 +926,15 @@ public sealed class LeadsController : TenantControllerBase
             if (ids.Count == 0)
                 return BadRequest(ApiResponse<BulkDeleteLeadsResult>.Fail("No valid lead ids provided."));
 
+            var unlockedIds = await _db.Leads
+                .Where(l => l.TenantId == TenantId && ids.Contains(l.Id) && !l.IsLocked)
+                .Select(l => l.Id)
+                .ToListAsync(ct);
+
+            await SoftDeletePackagesForLeadsAsync(unlockedIds, now, ct);
+
             deleted = await _db.Leads
-                .Where(l => l.TenantId == TenantId && ids.Contains(l.Id))
+                .Where(l => l.TenantId == TenantId && unlockedIds.Contains(l.Id))
                 .ExecuteUpdateAsync(
                     s => s.SetProperty(l => l.IsDeleted, true)
                         .SetProperty(l => l.DeletedAtUtc, now)
@@ -1045,6 +1149,69 @@ public sealed class LeadsController : TenantControllerBase
         });
     }
 
+    private async Task EnrichLeadPackageCountsAsync(List<LeadDto> items, CancellationToken ct)
+    {
+        if (items.Count == 0) return;
+
+        var leadIds = items
+            .Select(i => Guid.TryParse(i.Id, out var id) ? id : (Guid?)null)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToList();
+        if (leadIds.Count == 0) return;
+
+        var packageCounts = await _db.Packages.AsNoTracking()
+            .Where(p => p.TenantId == TenantId && p.LeadId != null && leadIds.Contains(p.LeadId.Value))
+            .GroupBy(p => p.LeadId!.Value)
+            .Select(g => new { LeadId = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+
+        Dictionary<Guid, int> packageLogByLead = new();
+        var effectiveModules = await GetEffectiveAllowedModulesForCurrentUserAsync(ct);
+        if (ModuleAccess.HasModule(effectiveModules, AppModuleKey.Leads))
+        {
+            try
+            {
+                var packageLogCounts = await _db.PackageLogs.AsNoTracking()
+                    .Where(l => l.TenantId == TenantId && leadIds.Contains(l.LeadId))
+                    .GroupBy(l => l.LeadId)
+                    .Select(g => new { LeadId = g.Key, Count = g.Count() })
+                    .ToListAsync(ct);
+                packageLogByLead = packageLogCounts.ToDictionary(x => x.LeadId, x => x.Count);
+            }
+            catch (PostgresException ex) when (ex.SqlState is PostgresErrorCodes.UndefinedTable or PostgresErrorCodes.UndefinedColumn)
+            {
+                // PackageLogs table/columns not applied yet — counts stay zero.
+            }
+        }
+
+        var hasReservationLeadIds = await _db.Reservations.AsNoTracking()
+            .Join(
+                _db.Packages.AsNoTracking(),
+                r => r.PackageId,
+                p => p.Id,
+                (r, p) => new { r, p })
+            .Where(x =>
+                x.r.TenantId == TenantId &&
+                x.p.TenantId == TenantId &&
+                x.p.LeadId != null &&
+                leadIds.Contains(x.p.LeadId.Value))
+            .Select(x => x.p.LeadId!.Value)
+            .Distinct()
+            .ToListAsync(ct);
+
+        var packageByLead = packageCounts.ToDictionary(x => x.LeadId, x => x.Count);
+        var reservationLeadSet = hasReservationLeadIds.ToHashSet();
+
+        foreach (var dto in items)
+        {
+            if (!Guid.TryParse(dto.Id, out var leadId)) continue;
+            dto.PackageCount = packageByLead.GetValueOrDefault(leadId);
+            dto.PackageLogCount = packageLogByLead.GetValueOrDefault(leadId);
+            dto.HasReservation = reservationLeadSet.Contains(leadId);
+        }
+    }
+
     private static LeadDto ToDto(Lead l) =>
         new()
         {
@@ -1057,6 +1224,7 @@ public sealed class LeadsController : TenantControllerBase
             Address = l.Address,
             LeadSource = l.LeadSource,
             Status = l.Status,
+            IsLocked = l.IsLocked,
             Notes = l.Notes,
             TenantId = l.TenantId.ToString("D"),
             AssignedToUserId = l.AssignedToUserId?.ToString("D"),
@@ -1066,7 +1234,9 @@ public sealed class LeadsController : TenantControllerBase
             CreatedAt = l.CreatedAt,
             UpdatedAt = l.UpdatedAt,
             CreatedBy = l.CreatedBy,
-            HasReservation = false
+            HasReservation = false,
+            PackageCount = 0,
+            PackageLogCount = 0
         };
 }
 

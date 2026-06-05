@@ -39,6 +39,7 @@ public sealed class TourPackage : TenantEntityBase
     public decimal BalanceAmount { get; set; }
 
     public PackageStatus Status { get; set; } = PackageStatus.New;
+    public bool IsLocked { get; set; }
 
     /// <summary>Ids of inclusion options that are selected (shown as Inclusions in PDF). Unselected appear as Exclusions.</summary>
     public List<string> InclusionIds { get; set; } = [];

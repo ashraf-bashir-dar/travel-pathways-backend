@@ -268,7 +268,14 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.MigrateAsync();
+        try
+        {
+            await db.Database.MigrateAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Database migration failed. Continuing with compatibility schema checks.");
+        }
         // Backward-safe hotfix: ensure newly introduced user permission column exists
         // even if migration history is out-of-sync in a local DB.
         await db.Database.ExecuteSqlRawAsync(
@@ -332,6 +339,59 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "InboundAllowedLeadSources" text NOT NULL DEFAULT '[]';
             ALTER TABLE "Leads" ADD COLUMN IF NOT EXISTS "InboundProvider" text;
             ALTER TABLE "Leads" ADD COLUMN IF NOT EXISTS "InboundExternalId" text;
+            ALTER TABLE "Leads" ADD COLUMN IF NOT EXISTS "IsLocked" boolean NOT NULL DEFAULT false;
+            ALTER TABLE "Packages" ADD COLUMN IF NOT EXISTS "IsLocked" boolean NOT NULL DEFAULT false;
+            ALTER TABLE "Reservations" ADD COLUMN IF NOT EXISTS "IsLocked" boolean NOT NULL DEFAULT false;
+            CREATE TABLE IF NOT EXISTS "ReservationHotelBookings" (
+                "Id" uuid NOT NULL,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone,
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                "ReservationId" uuid NOT NULL,
+                "DayNumber" integer NOT NULL,
+                "BookingDate" timestamp with time zone NOT NULL,
+                "CheckInDate" timestamp with time zone,
+                "CheckOutDate" timestamp with time zone,
+                "HotelId" uuid,
+                "HotelName" text NOT NULL DEFAULT '',
+                "IsHouseboat" boolean NOT NULL DEFAULT false,
+                "RoomType" text,
+                "NumberOfRooms" integer NOT NULL DEFAULT 0,
+                "ExtraBedCount" integer NOT NULL DEFAULT 0,
+                "CnbCount" integer NOT NULL DEFAULT 0,
+                "NumberOfPersons" integer NOT NULL DEFAULT 0,
+                "RatePerNight" numeric(18,2) NOT NULL DEFAULT 0,
+                "TotalAmount" numeric(18,2) NOT NULL DEFAULT 0,
+                "AdvancePaid" numeric(18,2) NOT NULL DEFAULT 0,
+                "BalanceAmount" numeric(18,2) NOT NULL DEFAULT 0,
+                "Status" text NOT NULL DEFAULT 'Pending',
+                "IsLocked" boolean NOT NULL DEFAULT false,
+                "ConfirmationNumber" text,
+                "Notes" text,
+                CONSTRAINT "PK_ReservationHotelBookings" PRIMARY KEY ("Id"),
+                CONSTRAINT "FK_ReservationHotelBookings_Reservations_ReservationId" FOREIGN KEY ("ReservationId") REFERENCES "Reservations" ("Id") ON DELETE CASCADE
+            );
+            ALTER TABLE "ReservationHotelBookings" ADD COLUMN IF NOT EXISTS "IsLocked" boolean NOT NULL DEFAULT false;
+            CREATE INDEX IF NOT EXISTS "IX_ReservationHotelBookings_ReservationId_DayNumber" ON "ReservationHotelBookings" ("ReservationId", "DayNumber");
+            CREATE TABLE IF NOT EXISTS "ReservationHotelBookingDocuments" (
+                "Id" uuid NOT NULL,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone,
+                "ReservationHotelBookingId" uuid NOT NULL,
+                "Type" text NOT NULL DEFAULT 'PaymentProof',
+                "Amount" numeric(18,2),
+                "PaymentDate" timestamp with time zone,
+                "FileUrl" text NOT NULL,
+                "FileName" text NOT NULL,
+                CONSTRAINT "PK_ReservationHotelBookingDocuments" PRIMARY KEY ("Id"),
+                CONSTRAINT "FK_ReservationHotelBookingDocuments_ReservationHotelBookings_ReservationHotelBookingId" FOREIGN KEY ("ReservationHotelBookingId") REFERENCES "ReservationHotelBookings" ("Id") ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS "IX_ReservationHotelBookingDocuments_ReservationHotelBookingId" ON "ReservationHotelBookingDocuments" ("ReservationHotelBookingId");
             CREATE TABLE IF NOT EXISTS "TenantLeadIntegrations" (
                 "Id" uuid NOT NULL,
                 "InboundKey" text NOT NULL,
@@ -371,6 +431,67 @@ using (var scope = app.Services.CreateScope())
             CREATE UNIQUE INDEX IF NOT EXISTS "IX_Leads_TenantId_InboundProvider_InboundExternalId"
                 ON "Leads" ("TenantId", "InboundProvider", "InboundExternalId")
                 WHERE "InboundExternalId" IS NOT NULL;
+            CREATE TABLE IF NOT EXISTS "PackageLogs" (
+                "Id" uuid NOT NULL,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone,
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                "LeadId" uuid NOT NULL,
+                "PackageId" uuid NOT NULL,
+                "Action" text NOT NULL DEFAULT 'Updated',
+                "PackageName" text NOT NULL DEFAULT '',
+                "FinalAmount" numeric(18,2) NOT NULL DEFAULT 0,
+                "MarginAmount" numeric(18,2) NOT NULL DEFAULT 0,
+                "Status" text NOT NULL DEFAULT 'New',
+                "ChangedByUserId" uuid,
+                "ChangedByDisplayName" text NOT NULL DEFAULT '',
+                "SnapshotJson" text NOT NULL DEFAULT '{}',
+                CONSTRAINT "PK_PackageLogs" PRIMARY KEY ("Id"),
+                CONSTRAINT "FK_PackageLogs_Leads_LeadId"
+                    FOREIGN KEY ("LeadId") REFERENCES "Leads" ("Id") ON DELETE CASCADE,
+                CONSTRAINT "FK_PackageLogs_Packages_PackageId"
+                    FOREIGN KEY ("PackageId") REFERENCES "Packages" ("Id") ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS "IX_PackageLogs_TenantId_LeadId"
+                ON "PackageLogs" ("TenantId", "LeadId");
+            CREATE INDEX IF NOT EXISTS "IX_PackageLogs_LeadId_CreatedAt"
+                ON "PackageLogs" ("LeadId", "CreatedAt" DESC);
+            ALTER TABLE "PackageLogs" ADD COLUMN IF NOT EXISTS "Action" text NOT NULL DEFAULT 'Updated';
+            ALTER TABLE "PackageLogs" ADD COLUMN IF NOT EXISTS "Status" text NOT NULL DEFAULT 'New';
+            ALTER TABLE "PackageLogs" ADD COLUMN IF NOT EXISTS "MarginAmount" numeric(18,2) NOT NULL DEFAULT 0;
+            ALTER TABLE "PackageLogs" ADD COLUMN IF NOT EXISTS "SnapshotJson" text NOT NULL DEFAULT '{}';
+            """);
+
+        // Call logging (incoming/outgoing/missed) captured via provider webhooks.
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "CallLogs" (
+                "Id" uuid NOT NULL,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone,
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                "UserId" uuid,
+                "Direction" character varying(16) NOT NULL,
+                "Status" character varying(64),
+                "Provider" character varying(64),
+                "ProviderCallId" character varying(128),
+                "FromNumber" character varying(48),
+                "ToNumber" character varying(48),
+                "StartedAtUtc" timestamp with time zone,
+                "EndedAtUtc" timestamp with time zone,
+                "DurationSeconds" integer,
+                "RawPayload" text NOT NULL DEFAULT '{}',
+                CONSTRAINT "PK_CallLogs" PRIMARY KEY ("Id"),
+                CONSTRAINT "FK_CallLogs_Users_UserId" FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS "IX_CallLogs_TenantId_CreatedAt" ON "CallLogs" ("TenantId", "CreatedAt" DESC);
+            CREATE INDEX IF NOT EXISTS "IX_CallLogs_UserId_CreatedAt" ON "CallLogs" ("UserId", "CreatedAt" DESC);
             """);
 
         var superAdminEnabled = app.Configuration.GetValue<bool>("SuperAdmin:Enabled", true);

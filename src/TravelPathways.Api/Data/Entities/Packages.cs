@@ -41,8 +41,11 @@ public sealed class TourPackage : TenantEntityBase
     public PackageStatus Status { get; set; } = PackageStatus.New;
     public bool IsLocked { get; set; }
 
-    /// <summary>Ids of inclusion options that are selected (shown as Inclusions in PDF). Unselected appear as Exclusions.</summary>
+    /// <summary>Codes of inclusion-type master rows selected for this package.</summary>
     public List<string> InclusionIds { get; set; } = [];
+
+    /// <summary>Codes of exclusion-type master rows selected for this package.</summary>
+    public List<string> ExclusionIds { get; set; } = [];
 
     public List<DayItinerary> DayWiseItinerary { get; set; } = [];
 

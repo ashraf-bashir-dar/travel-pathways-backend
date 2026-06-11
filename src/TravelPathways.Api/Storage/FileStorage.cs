@@ -35,6 +35,25 @@ public sealed class FileStorage
         return $"/uploads/tenants/{tenantId:D}/{category}/{fileName}";
     }
 
+    public async Task<string> SaveB2bAgentDocumentAsync(Guid tenantId, Guid agentId, IFormFile file, CancellationToken ct)
+    {
+        var folder = Path.Combine(_uploadsRoot, "tenants", tenantId.ToString("D"), "b2b-agents", agentId.ToString("D"), "documents");
+        Directory.CreateDirectory(folder);
+
+        var safeName = MakeSafeFileName(file.FileName);
+        var ext = Path.GetExtension(safeName);
+        if (string.IsNullOrEmpty(ext) || !IsPdfExtension(ext)) ext = ".pdf";
+        var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}{ext}";
+        var fullPath = Path.Combine(folder, fileName);
+
+        await using (var stream = File.Create(fullPath))
+        {
+            await file.CopyToAsync(stream, ct);
+        }
+
+        return $"/uploads/tenants/{tenantId:D}/b2b-agents/{agentId:D}/documents/{fileName}";
+    }
+
     public async Task<string> SaveTransportCompanyFileAsync(Guid tenantId, Guid companyId, string category, IFormFile file, CancellationToken ct)
     {
         var uploadsRoot = _uploadsRoot;

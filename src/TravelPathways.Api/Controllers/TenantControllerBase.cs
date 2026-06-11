@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using TravelPathways.Api.Common;
 using TravelPathways.Api.MultiTenancy;
 
 namespace TravelPathways.Api.Controllers;
 
+[ServiceFilter(typeof(RequireTenantActionFilter))]
 public abstract class TenantControllerBase : ControllerBase
 {
   private readonly TenantContext _tenant;

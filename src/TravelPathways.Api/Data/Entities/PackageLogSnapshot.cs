@@ -28,6 +28,7 @@ public sealed class PackageLogSnapshot
     public string Status { get; set; } = string.Empty;
     public bool IsLocked { get; set; }
     public List<string> InclusionIds { get; set; } = [];
+    public List<string> ExclusionIds { get; set; } = [];
     public List<PackageLogDaySnapshot> DayWiseItinerary { get; set; } = [];
 }
 

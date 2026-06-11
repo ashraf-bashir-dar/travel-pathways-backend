@@ -218,6 +218,14 @@ public sealed class ReservationsController : TenantControllerBase
         };
     }
 
+    /// <summary>Package itineraries include a final departure day with no hotel stay.</summary>
+    private static IReadOnlyList<DayItinerary> GetAccommodationDays(IReadOnlyList<DayItinerary>? itinerary)
+    {
+        if (itinerary is not { Count: > 0 }) return Array.Empty<DayItinerary>();
+        var maxDayNumber = itinerary.Max(d => d.DayNumber);
+        return itinerary.Where(d => d.DayNumber != maxDayNumber).ToList();
+    }
+
     private static ReservationHotelBooking CreateHotelBookingFromDay(Reservation reservation, DayItinerary day)
     {
         var package = reservation.Package;
@@ -642,9 +650,22 @@ public sealed class ReservationsController : TenantControllerBase
         if (r.Package == null)
             return NotFound(ApiResponse<ReservationDetailDto>.Fail("Reservation package not found."));
 
+        var itineraryDays = (r.Package.DayWiseItinerary ?? []).ToList();
+        var accommodationDays = GetAccommodationDays(itineraryDays);
+        var accommodationDayNumbers = accommodationDays.Select(d => d.DayNumber).ToHashSet();
+
         var hotelBookings = r.HotelBookings.ToList();
+        var orphanBookings = hotelBookings.Where(b => !accommodationDayNumbers.Contains(b.DayNumber)).ToList();
+        if (orphanBookings.Count > 0)
+        {
+            _db.ReservationHotelBookings.RemoveRange(orphanBookings);
+            await _db.SaveChangesAsync(ct);
+            foreach (var orphan in orphanBookings)
+                hotelBookings.Remove(orphan);
+        }
+
         var existingBookingDays = hotelBookings.Select(b => b.DayNumber).ToHashSet();
-        var missingBookingDays = (r.Package.DayWiseItinerary ?? [])
+        var missingBookingDays = accommodationDays
             .Where(d => !existingBookingDays.Contains(d.DayNumber))
             .ToList();
         if (missingBookingDays.Count > 0)

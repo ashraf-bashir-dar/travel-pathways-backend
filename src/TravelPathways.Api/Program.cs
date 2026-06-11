@@ -110,12 +110,14 @@ builder.Services.AddCors(options =>
 /* -------------------- Dependency Injection -------------------- */
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<TenantContext>();
+builder.Services.AddScoped<RequireTenantActionFilter>();
 builder.Services.AddScoped<TenantMiddleware>();
 builder.Services.AddScoped<FileStorage>();
 builder.Services.AddScoped<TravelPathways.Api.Services.IPdfTemplateHtmlCache, TravelPathways.Api.Services.PdfTemplateHtmlCache>();
 builder.Services.AddSingleton<TravelPathways.Api.Services.IChromiumBrowserProvider, TravelPathways.Api.Services.ChromiumBrowserProvider>();
 builder.Services.AddHostedService<TravelPathways.Api.Services.ChromiumBrowserHostedService>();
 builder.Services.AddScoped<TravelPathways.Api.Services.IPackagePdfGenerator, TravelPathways.Api.Services.PackagePdfGenerator>();
+builder.Services.AddScoped<TravelPathways.Api.Services.IPackageMasterDataService, TravelPathways.Api.Services.PackageMasterDataService>();
 builder.Services.AddScoped<TravelPathways.Api.Services.ILeadExcelImportService,
     TravelPathways.Api.Services.LeadExcelImportService>();
 builder.Services.AddScoped<TravelPathways.Api.Services.ILeadExcelExportService,
@@ -341,6 +343,7 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE "Leads" ADD COLUMN IF NOT EXISTS "InboundExternalId" text;
             ALTER TABLE "Leads" ADD COLUMN IF NOT EXISTS "IsLocked" boolean NOT NULL DEFAULT false;
             ALTER TABLE "Packages" ADD COLUMN IF NOT EXISTS "IsLocked" boolean NOT NULL DEFAULT false;
+            ALTER TABLE "Packages" ADD COLUMN IF NOT EXISTS "ExclusionIds" text NOT NULL DEFAULT '[]';
             ALTER TABLE "Reservations" ADD COLUMN IF NOT EXISTS "IsLocked" boolean NOT NULL DEFAULT false;
             CREATE TABLE IF NOT EXISTS "ReservationHotelBookings" (
                 "Id" uuid NOT NULL,
@@ -448,7 +451,7 @@ using (var scope = app.Services.CreateScope())
                 "Status" text NOT NULL DEFAULT 'New',
                 "ChangedByUserId" uuid,
                 "ChangedByDisplayName" text NOT NULL DEFAULT '',
-                "SnapshotJson" text NOT NULL DEFAULT '{}',
+                "SnapshotJson" text NOT NULL DEFAULT '{{}}',
                 CONSTRAINT "PK_PackageLogs" PRIMARY KEY ("Id"),
                 CONSTRAINT "FK_PackageLogs_Leads_LeadId"
                     FOREIGN KEY ("LeadId") REFERENCES "Leads" ("Id") ON DELETE CASCADE,
@@ -462,7 +465,7 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE "PackageLogs" ADD COLUMN IF NOT EXISTS "Action" text NOT NULL DEFAULT 'Updated';
             ALTER TABLE "PackageLogs" ADD COLUMN IF NOT EXISTS "Status" text NOT NULL DEFAULT 'New';
             ALTER TABLE "PackageLogs" ADD COLUMN IF NOT EXISTS "MarginAmount" numeric(18,2) NOT NULL DEFAULT 0;
-            ALTER TABLE "PackageLogs" ADD COLUMN IF NOT EXISTS "SnapshotJson" text NOT NULL DEFAULT '{}';
+            ALTER TABLE "PackageLogs" ADD COLUMN IF NOT EXISTS "SnapshotJson" text NOT NULL DEFAULT '{{}}';
             """);
 
         // Call logging (incoming/outgoing/missed) captured via provider webhooks.
@@ -486,13 +489,41 @@ using (var scope = app.Services.CreateScope())
                 "StartedAtUtc" timestamp with time zone,
                 "EndedAtUtc" timestamp with time zone,
                 "DurationSeconds" integer,
-                "RawPayload" text NOT NULL DEFAULT '{}',
+                "RawPayload" text NOT NULL DEFAULT '{{}}',
                 CONSTRAINT "PK_CallLogs" PRIMARY KEY ("Id"),
                 CONSTRAINT "FK_CallLogs_Users_UserId" FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE SET NULL
             );
             CREATE INDEX IF NOT EXISTS "IX_CallLogs_TenantId_CreatedAt" ON "CallLogs" ("TenantId", "CreatedAt" DESC);
             CREATE INDEX IF NOT EXISTS "IX_CallLogs_UserId_CreatedAt" ON "CallLogs" ("UserId", "CreatedAt" DESC);
             """);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "EmployeeLocationLogs" (
+                "Id" uuid NOT NULL,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone,
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                "UserId" uuid NOT NULL,
+                "Latitude" double precision NOT NULL,
+                "Longitude" double precision NOT NULL,
+                "AccuracyMeters" double precision,
+                "Provider" character varying(64) NOT NULL DEFAULT 'android',
+                "ProviderPointId" character varying(128),
+                "RecordedAtUtc" timestamp with time zone NOT NULL,
+                CONSTRAINT "PK_EmployeeLocationLogs" PRIMARY KEY ("Id"),
+                CONSTRAINT "FK_EmployeeLocationLogs_Users_UserId" FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS "IX_EmployeeLocationLogs_TenantId_RecordedAtUtc" ON "EmployeeLocationLogs" ("TenantId", "RecordedAtUtc" DESC);
+            CREATE INDEX IF NOT EXISTS "IX_EmployeeLocationLogs_UserId_RecordedAtUtc" ON "EmployeeLocationLogs" ("UserId", "RecordedAtUtc" DESC);
+            CREATE INDEX IF NOT EXISTS "IX_EmployeeLocationLogs_TenantId_Provider_ProviderPointId" ON "EmployeeLocationLogs" ("TenantId", "Provider", "ProviderPointId");
+            """);
+
+        await TravelPathways.Api.Data.PackageMasterSchemaBootstrap.EnsureAsync(db);
+        await TravelPathways.Api.Data.B2bAgentSchemaBootstrap.EnsureAsync(db);
 
         var superAdminEnabled = app.Configuration.GetValue<bool>("SuperAdmin:Enabled", true);
         if (superAdminEnabled)

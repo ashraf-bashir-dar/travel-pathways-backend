@@ -50,7 +50,13 @@ public enum AppModuleKey
     /// <summary>Internal team chat (groups). Super Admin enables per tenant; tenant admin manages groups and membership.</summary>
     TeamChat = 17,
     /// <summary>Inbound leads: Meta/webhooks, auto-assign rules. Requires InboundLeadsFeatureEnabled on tenant.</summary>
-    LeadIntegrations = 18
+    LeadIntegrations = 18,
+    /// <summary>B2B agents: tenant-managed list of B2B travel partners.</summary>
+    B2B = 19,
+    /// <summary>Sales call logs synced from company Android phones.</summary>
+    CallLogs = 20,
+    /// <summary>Live/history GPS locations for the sales team (tenant admin).</summary>
+    TeamLocations = 21
 }
 
 /// <summary>Status of a reservation (package assigned to reservation manager).</summary>

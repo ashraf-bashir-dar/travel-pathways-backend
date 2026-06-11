@@ -22,6 +22,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<PdfTemplate> PdfTemplates => Set<PdfTemplate>();
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<CallLog> CallLogs => Set<CallLog>();
+    public DbSet<EmployeeLocationLog> EmployeeLocationLogs => Set<EmployeeLocationLog>();
     public DbSet<Plan> Plans => Set<Plan>();
     public DbSet<PlanPrice> PlanPrices => Set<PlanPrice>();
 
@@ -41,6 +42,10 @@ public sealed class AppDbContext : DbContext
     public DbSet<PackageLog> PackageLogs => Set<PackageLog>();
     public DbSet<DayItinerary> DayItineraries => Set<DayItinerary>();
     public DbSet<ItineraryTemplate> ItineraryTemplates => Set<ItineraryTemplate>();
+    public DbSet<PackageInclusionMaster> PackageInclusionMasters => Set<PackageInclusionMaster>();
+    public DbSet<PackageLocationMaster> PackageLocationMasters => Set<PackageLocationMaster>();
+    public DbSet<B2bAgent> B2bAgents => Set<B2bAgent>();
+    public DbSet<B2bAgentDocument> B2bAgentDocuments => Set<B2bAgentDocument>();
 
     public DbSet<State> States => Set<State>();
     public DbSet<City> Cities => Set<City>();
@@ -140,6 +145,69 @@ public sealed class AppDbContext : DbContext
             .Property(r => r.MealPlan)
             .HasConversion<string>();
 
+        modelBuilder.Entity<B2bAgent>()
+            .ToTable("B2bAgents");
+
+        modelBuilder.Entity<B2bAgent>()
+            .Property(x => x.Name)
+            .HasMaxLength(200);
+
+        modelBuilder.Entity<B2bAgent>()
+            .Property(x => x.ContactPerson)
+            .HasMaxLength(200);
+
+        modelBuilder.Entity<B2bAgent>()
+            .Property(x => x.ContactNumber1)
+            .HasMaxLength(32);
+
+        modelBuilder.Entity<B2bAgent>()
+            .Property(x => x.ContactNumber2)
+            .HasMaxLength(32);
+
+        modelBuilder.Entity<B2bAgent>()
+            .Property(x => x.Email)
+            .HasMaxLength(256);
+
+        modelBuilder.Entity<B2bAgent>()
+            .Property(x => x.WebsiteUrl)
+            .HasMaxLength(500);
+
+        modelBuilder.Entity<B2bAgent>()
+            .Property(x => x.State)
+            .HasMaxLength(120);
+
+        modelBuilder.Entity<B2bAgent>()
+            .Property(x => x.City)
+            .HasMaxLength(120);
+
+        modelBuilder.Entity<B2bAgent>()
+            .Property(x => x.Country)
+            .HasMaxLength(120);
+
+        modelBuilder.Entity<B2bAgent>()
+            .Property(x => x.PinCode)
+            .HasMaxLength(16);
+
+        modelBuilder.Entity<B2bAgent>()
+            .HasIndex(x => new { x.TenantId, x.Name });
+
+        modelBuilder.Entity<B2bAgent>()
+            .HasMany(a => a.Documents)
+            .WithOne(d => d.B2bAgent)
+            .HasForeignKey(d => d.B2bAgentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<B2bAgentDocument>()
+            .ToTable("B2bAgentDocuments");
+
+        modelBuilder.Entity<B2bAgentDocument>()
+            .Property(d => d.FileName)
+            .HasMaxLength(260);
+
+        modelBuilder.Entity<B2bAgentDocument>()
+            .Property(d => d.Url)
+            .HasMaxLength(1000);
+
         modelBuilder.Entity<TransportCompany>()
             .HasMany(c => c.Vehicles)
             .WithOne(v => v.TransportCompany)
@@ -210,6 +278,12 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<TourPackage>()
             .Property(p => p.InclusionIds)
             .Metadata.SetValueComparer(new JsonValueComparer<List<string>, string>());
+        modelBuilder.Entity<TourPackage>()
+            .Property(p => p.ExclusionIds)
+            .HasConversion(new JsonValueConverter<List<string>>());
+        modelBuilder.Entity<TourPackage>()
+            .Property(p => p.ExclusionIds)
+            .Metadata.SetValueComparer(new JsonValueComparer<List<string>, string>());
 
         modelBuilder.Entity<PackageLog>()
             .Property(l => l.FinalAmount)
@@ -264,6 +338,38 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<DayItinerary>()
             .Property(d => d.HotelCost)
             .HasColumnType("decimal(18,2)");
+
+        modelBuilder.Entity<PackageInclusionMaster>()
+            .ToTable("PackageInclusionMasters");
+
+        modelBuilder.Entity<PackageInclusionMaster>()
+            .Property(x => x.Code)
+            .HasMaxLength(64);
+
+        modelBuilder.Entity<PackageInclusionMaster>()
+            .Property(x => x.Label)
+            .HasMaxLength(500);
+
+        modelBuilder.Entity<PackageInclusionMaster>()
+            .HasIndex(x => new { x.TenantId, x.Code })
+            .IsUnique();
+
+        modelBuilder.Entity<PackageInclusionMaster>()
+            .HasIndex(x => new { x.TenantId, x.SortOrder });
+
+        modelBuilder.Entity<PackageLocationMaster>()
+            .ToTable("PackageLocationMasters");
+
+        modelBuilder.Entity<PackageLocationMaster>()
+            .Property(x => x.Name)
+            .HasMaxLength(200);
+
+        modelBuilder.Entity<PackageLocationMaster>()
+            .HasIndex(x => new { x.TenantId, x.Name })
+            .IsUnique();
+
+        modelBuilder.Entity<PackageLocationMaster>()
+            .HasIndex(x => new { x.TenantId, x.SortOrder });
 
         modelBuilder.Entity<ItineraryTemplate>()
             .ToTable("DestinationMaster");
@@ -562,6 +668,32 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<CallLog>()
             .HasIndex(l => new { l.UserId, l.CreatedAt });
 
+        modelBuilder.Entity<EmployeeLocationLog>()
+            .ToTable("EmployeeLocationLogs");
+
+        modelBuilder.Entity<EmployeeLocationLog>()
+            .Property(l => l.Provider)
+            .HasMaxLength(64);
+
+        modelBuilder.Entity<EmployeeLocationLog>()
+            .Property(l => l.ProviderPointId)
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<EmployeeLocationLog>()
+            .HasOne(l => l.User)
+            .WithMany()
+            .HasForeignKey(l => l.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<EmployeeLocationLog>()
+            .HasIndex(l => new { l.TenantId, l.RecordedAtUtc });
+
+        modelBuilder.Entity<EmployeeLocationLog>()
+            .HasIndex(l => new { l.UserId, l.RecordedAtUtc });
+
+        modelBuilder.Entity<EmployeeLocationLog>()
+            .HasIndex(l => new { l.TenantId, l.Provider, l.ProviderPointId });
+
         // ---------- Multi-tenancy and soft-delete query filters ----------
         ConfigureTenantFilters(modelBuilder);
     }
@@ -612,6 +744,12 @@ public sealed class AppDbContext : DbContext
                 ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
                 : e.TenantId == _tenant.TenantId));
 
+        modelBuilder.Entity<B2bAgent>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
+
         modelBuilder.Entity<TransportCompany>().HasQueryFilter(e =>
             !e.IsDeleted &&
             (_tenant.IsSuperAdmin
@@ -649,6 +787,18 @@ public sealed class AppDbContext : DbContext
                 : e.TenantId == _tenant.TenantId));
 
         modelBuilder.Entity<ItineraryTemplate>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<PackageInclusionMaster>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<PackageLocationMaster>().HasQueryFilter(e =>
             !e.IsDeleted &&
             (_tenant.IsSuperAdmin
                 ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
@@ -743,6 +893,12 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<PdfTemplate>().HasQueryFilter(t => !t.IsDeleted);
 
         modelBuilder.Entity<CallLog>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<EmployeeLocationLog>().HasQueryFilter(e =>
             !e.IsDeleted &&
             (_tenant.IsSuperAdmin
                 ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)

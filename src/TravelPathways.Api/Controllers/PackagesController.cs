@@ -32,14 +32,23 @@ public sealed class PackagesController : TenantControllerBase
     private readonly AppDbContext _db;
     private readonly IPackagePdfGenerator _pdfGenerator;
     private readonly IPdfTemplateHtmlCache _pdfTemplateHtmlCache;
+    private readonly IPackageMasterDataService _packageMasterData;
     private readonly IConfiguration _configuration;
     private readonly IWebHostEnvironment _env;
 
-    public PackagesController(AppDbContext db, TenantContext tenant, IPackagePdfGenerator pdfGenerator, IPdfTemplateHtmlCache pdfTemplateHtmlCache, IConfiguration configuration, IWebHostEnvironment env) : base(tenant)
+    public PackagesController(
+        AppDbContext db,
+        TenantContext tenant,
+        IPackagePdfGenerator pdfGenerator,
+        IPdfTemplateHtmlCache pdfTemplateHtmlCache,
+        IPackageMasterDataService packageMasterData,
+        IConfiguration configuration,
+        IWebHostEnvironment env) : base(tenant)
     {
         _db = db;
         _pdfGenerator = pdfGenerator;
         _pdfTemplateHtmlCache = pdfTemplateHtmlCache;
+        _packageMasterData = packageMasterData;
         _configuration = configuration;
         _env = env;
     }
@@ -144,6 +153,7 @@ public sealed class PackagesController : TenantControllerBase
         public required PackageStatus Status { get; init; }
         public bool IsLocked { get; init; }
         public List<string>? InclusionIds { get; init; }
+        public List<string>? ExclusionIds { get; init; }
         public List<DayItineraryDto>? DayWiseItinerary { get; init; }
         public required string TenantId { get; init; }
         public required DateTime CreatedAt { get; init; }
@@ -190,6 +200,7 @@ public sealed class PackagesController : TenantControllerBase
         public Guid? VehicleId { get; set; }
         public List<CreateDayItineraryRequestDto> DayWiseItinerary { get; set; } = [];
         public List<string>? InclusionIds { get; set; }
+        public List<string>? ExclusionIds { get; set; }
         public decimal TotalAmount { get; set; }
         /// <summary>Optional margin (INR) stored for PDF / reporting when using price override.</summary>
         public decimal MarginAmount { get; set; }
@@ -512,6 +523,7 @@ public sealed class PackagesController : TenantControllerBase
             Status = full.Status.ToString(),
             IsLocked = full.IsLocked,
             InclusionIds = full.InclusionIds ?? [],
+            ExclusionIds = full.ExclusionIds ?? [],
             DayWiseItinerary = full.DayWiseItinerary
                 .OrderBy(d => d.DayNumber)
                 .Select(d => new PackageLogDaySnapshot
@@ -744,6 +756,7 @@ public sealed class PackagesController : TenantControllerBase
             BalanceAmount = finalAmount,
             Status = (PackageStatus)lead.Status,
             InclusionIds = request.InclusionIds ?? new List<string>(),
+            ExclusionIds = request.ExclusionIds ?? new List<string>(),
             CreatedBy = createdBy
         };
 
@@ -895,6 +908,7 @@ public sealed class PackagesController : TenantControllerBase
         pkg.Status = request.Status;
         pkg.IsLocked = request.Status == PackageStatus.Confirmed;
         pkg.InclusionIds = request.InclusionIds ?? new List<string>();
+        pkg.ExclusionIds = request.ExclusionIds ?? new List<string>();
 
         // When package status changes: sync to the lead and to all packages for that lead so Leads and Packages tabs stay in sync
         if (syncLeadAndPackages && pkg.LeadId.HasValue)
@@ -1041,7 +1055,13 @@ public sealed class PackagesController : TenantControllerBase
         return GetLocationString(h);
     }
 
-    private static PackagePdfModel BuildPdfModel(TourPackage pkg, Tenant? tenant, string baseUrl, string? language)
+    private static PackagePdfModel BuildPdfModel(
+        TourPackage pkg,
+        Tenant? tenant,
+        string baseUrl,
+        string? language,
+        IReadOnlyList<string>? inclusionLabels = null,
+        IReadOnlyList<string>? exclusionLabels = null)
     {
         var labels = PdfLocalizedStrings.ForLanguage(language);
         var culture = labels.Culture;
@@ -1049,8 +1069,8 @@ public sealed class PackagesController : TenantControllerBase
         var nights = Math.Max(0, pkg.NumberOfDays - 1);
         var daysLabel = labels.DaysDurationLabel(nights, pkg.NumberOfDays);
 
-        var inclusionLabels = InclusionOptions.GetInclusionLabels(pkg.InclusionIds ?? [], language).ToList();
-        var exclusionLabels = InclusionOptions.GetExclusionLabels(pkg.InclusionIds ?? [], language).ToList();
+        var resolvedInclusions = (inclusionLabels ?? InclusionOptions.GetInclusionLabels(pkg.InclusionIds ?? [], language)).ToList();
+        var resolvedExclusions = (exclusionLabels ?? InclusionOptions.GetExclusionLabels(pkg.InclusionIds ?? [], language)).ToList();
 
         string ToAbsolute(string? url)
         {
@@ -1181,8 +1201,8 @@ public sealed class PackagesController : TenantControllerBase
             Days = pdfDays,
             Hotels = pdfHotels,
             CoverImageUrls = coverImageUrls,
-            InclusionLabels = inclusionLabels,
-            ExclusionLabels = exclusionLabels,
+            InclusionLabels = resolvedInclusions,
+            ExclusionLabels = resolvedExclusions,
             AgencyName = tenant?.Name?.Trim(),
             AgencyPhone = tenant?.Phone?.Trim(),
             AgencyEmail = tenant?.Email?.Trim(),
@@ -1360,7 +1380,14 @@ public sealed class PackagesController : TenantControllerBase
             baseUrl = $"{Request.Scheme}://{Request.Host}";
         baseUrl = baseUrl.TrimEnd('/');
 
-        var model = BuildPdfModel(pkg, tenant, baseUrl, language);
+        var (inclusionLabels, exclusionLabels) = await _packageMasterData.ResolveInclusionLabelsAsync(
+            pkg.TenantId,
+            pkg.InclusionIds,
+            pkg.ExclusionIds,
+            language,
+            ct);
+
+        var model = BuildPdfModel(pkg, tenant, baseUrl, language, inclusionLabels.ToList(), exclusionLabels.ToList());
         var templateKey = model.TemplateKey?.Trim();
         if (string.IsNullOrWhiteSpace(templateKey))
             throw new PdfTemplateConfigurationException(
@@ -1573,6 +1600,7 @@ public sealed class PackagesController : TenantControllerBase
         if (pkg.AdvanceAmount != request.AdvanceAmount) return true;
         if (pkg.Status != request.Status) return true;
         if (!StringListEqual(pkg.InclusionIds, request.InclusionIds)) return true;
+        if (!StringListEqual(pkg.ExclusionIds, request.ExclusionIds)) return true;
         return !ItineraryEqual(pkg.DayWiseItinerary, request.DayWiseItinerary);
     }
 
@@ -1656,6 +1684,7 @@ public sealed class PackagesController : TenantControllerBase
             Status = p.Status,
             IsLocked = p.IsLocked,
             InclusionIds = p.InclusionIds ?? new List<string>(),
+            ExclusionIds = p.ExclusionIds ?? new List<string>(),
             DayWiseItinerary = p.DayWiseItinerary
                 .OrderBy(d => d.DayNumber)
                 .Select(d => new DayItineraryDto

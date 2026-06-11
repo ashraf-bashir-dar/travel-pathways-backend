@@ -1,9 +1,11 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TravelPathways.Api.Common;
 using TravelPathways.Api.Data;
+using TravelPathways.Api.Data.Entities;
 using TravelPathways.Api.MultiTenancy;
 
 namespace TravelPathways.Api.Controllers;
@@ -23,6 +25,31 @@ public sealed class CallsController : ControllerBase
         public required int IncomingCount { get; init; }
         public required int MissedCount { get; init; }
         public required int TotalCount { get; init; }
+    }
+
+    public sealed class MobileCallSyncItemDto
+    {
+        public string ProviderCallId { get; set; } = string.Empty;
+        public string Direction { get; set; } = string.Empty;
+        public string? FromNumber { get; set; }
+        public string? ToNumber { get; set; }
+        public string? Status { get; set; }
+        public int? DurationSeconds { get; set; }
+        public DateTime? StartedAtUtc { get; set; }
+        public DateTime? EndedAtUtc { get; set; }
+    }
+
+    public sealed class MobileCallSyncRequestDto
+    {
+        public List<MobileCallSyncItemDto> Calls { get; set; } = [];
+    }
+
+    public sealed class MobileCallSyncResponseDto
+    {
+        public required int Received { get; init; }
+        public required int Created { get; init; }
+        public required int Updated { get; init; }
+        public required int Skipped { get; init; }
     }
 
     public sealed class CallLogDto
@@ -53,6 +80,113 @@ public sealed class CallsController : ControllerBase
     {
         _db = db;
         _tenant = tenant;
+    }
+
+    private const string MobileProvider = "android";
+
+    /// <summary>
+    /// Mobile app: upload call log entries from the employee's office phone (JWT auth).
+    /// </summary>
+    [HttpPost("sync")]
+    public async Task<ActionResult<ApiResponse<MobileCallSyncResponseDto>>> SyncMobileCalls(
+        [FromBody] MobileCallSyncRequestDto request,
+        CancellationToken ct)
+    {
+        if (!TryGetCallerId(out var callerId))
+            return Unauthorized(ApiResponse<MobileCallSyncResponseDto>.Fail("User not found."));
+
+        if (!_tenant.TenantId.HasValue)
+            return BadRequest(ApiResponse<MobileCallSyncResponseDto>.Fail("Tenant context is missing."));
+
+        var tenantId = _tenant.TenantId.Value;
+        var items = request.Calls ?? [];
+        if (items.Count == 0)
+        {
+            return ApiResponse<MobileCallSyncResponseDto>.Ok(new MobileCallSyncResponseDto
+            {
+                Received = 0,
+                Created = 0,
+                Updated = 0,
+                Skipped = 0
+            });
+        }
+
+        if (items.Count > 500)
+            return BadRequest(ApiResponse<MobileCallSyncResponseDto>.Fail("Maximum 500 calls per sync request."));
+
+        var created = 0;
+        var updated = 0;
+        var skipped = 0;
+
+        foreach (var item in items)
+        {
+            var providerCallId = (item.ProviderCallId ?? string.Empty).Trim();
+            if (providerCallId.Length == 0)
+            {
+                skipped++;
+                continue;
+            }
+
+            var direction = NormalizeMobileDirection(item.Direction);
+            if (direction is null)
+            {
+                skipped++;
+                continue;
+            }
+
+            var existing = await _db.CallLogs
+                .FirstOrDefaultAsync(l =>
+                    l.TenantId == tenantId &&
+                    l.Provider == MobileProvider &&
+                    l.ProviderCallId == providerCallId &&
+                    !l.IsDeleted, ct);
+
+            var rawPayload = JsonSerializer.Serialize(item);
+
+            if (existing is not null)
+            {
+                existing.Direction = direction;
+                existing.Status = item.Status ?? existing.Status;
+                existing.FromNumber = item.FromNumber ?? existing.FromNumber;
+                existing.ToNumber = item.ToNumber ?? existing.ToNumber;
+                existing.StartedAtUtc = item.StartedAtUtc ?? existing.StartedAtUtc;
+                existing.EndedAtUtc = item.EndedAtUtc ?? existing.EndedAtUtc;
+                existing.DurationSeconds = item.DurationSeconds ?? existing.DurationSeconds;
+                existing.UserId = callerId;
+                existing.RawPayload = rawPayload;
+                updated++;
+            }
+            else
+            {
+                _db.CallLogs.Add(new CallLog
+                {
+                    TenantId = tenantId,
+                    IsActive = true,
+                    UserId = callerId,
+                    Direction = direction,
+                    Status = item.Status,
+                    Provider = MobileProvider,
+                    ProviderCallId = providerCallId,
+                    FromNumber = item.FromNumber,
+                    ToNumber = item.ToNumber,
+                    StartedAtUtc = item.StartedAtUtc,
+                    EndedAtUtc = item.EndedAtUtc,
+                    DurationSeconds = item.DurationSeconds,
+                    RawPayload = rawPayload
+                });
+                created++;
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        return ApiResponse<MobileCallSyncResponseDto>.Ok(new MobileCallSyncResponseDto
+        {
+            Received = items.Count,
+            Created = created,
+            Updated = updated,
+            Skipped = skipped
+        });
     }
 
     /// <summary>
@@ -244,6 +378,13 @@ public sealed class CallsController : ControllerBase
     {
         var d = value.Date;
         return DateTime.SpecifyKind(d, DateTimeKind.Utc);
+    }
+
+    private static string? NormalizeMobileDirection(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var d = value.Trim().ToLowerInvariant();
+        return d is "incoming" or "outgoing" or "missed" ? d : null;
     }
 }
 

@@ -61,6 +61,8 @@ public sealed class AppDbContext : DbContext
     public DbSet<EmployeeCompensation> EmployeeCompensations => Set<EmployeeCompensation>();
     public DbSet<Attendance> Attendances => Set<Attendance>();
     public DbSet<Leave> Leaves => Set<Leave>();
+    public DbSet<UserActivityDailySummary> UserActivityDailySummaries => Set<UserActivityDailySummary>();
+    public DbSet<UserActivityPageVisit> UserActivityPageVisits => Set<UserActivityPageVisit>();
 
     public DbSet<ChatGroup> ChatGroups => Set<ChatGroup>();
     public DbSet<ChatGroupMember> ChatGroupMembers => Set<ChatGroupMember>();
@@ -493,6 +495,9 @@ public sealed class AppDbContext : DbContext
             .Property(p => p.PaymentType)
             .HasConversion<string>();
         modelBuilder.Entity<Payment>()
+            .Property(p => p.PaymentMode)
+            .HasConversion<string>();
+        modelBuilder.Entity<Payment>()
             .Property(p => p.PayeeCategory)
             .HasConversion<string>();
         modelBuilder.Entity<Payment>()
@@ -507,6 +512,12 @@ public sealed class AppDbContext : DbContext
             .HasForeignKey(p => p.UserId)
             .OnDelete(DeleteBehavior.Restrict)
             .IsRequired(false);
+        modelBuilder.Entity<Payment>()
+            .HasOne(p => p.RecordedBy)
+            .WithMany()
+            .HasForeignKey(p => p.RecordedByUserId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .IsRequired(false);
 
         modelBuilder.Entity<Reservation>()
             .HasMany(r => r.HotelBookings)
@@ -519,7 +530,16 @@ public sealed class AppDbContext : DbContext
             .Property(b => b.Status)
             .HasConversion<string>();
         modelBuilder.Entity<ReservationHotelBooking>()
+            .Property(b => b.CancellationReason)
+            .HasConversion<string>();
+        modelBuilder.Entity<ReservationHotelBooking>()
             .Property(b => b.RatePerNight)
+            .HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<ReservationHotelBooking>()
+            .Property(b => b.ExtraBedRate)
+            .HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<ReservationHotelBooking>()
+            .Property(b => b.CnbRate)
             .HasColumnType("decimal(18,2)");
         modelBuilder.Entity<ReservationHotelBooking>()
             .Property(b => b.TotalAmount)
@@ -579,6 +599,32 @@ public sealed class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(l => l.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<UserActivityDailySummary>()
+            .HasOne(s => s.User)
+            .WithMany()
+            .HasForeignKey(s => s.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<UserActivityDailySummary>()
+            .HasIndex(s => new { s.TenantId, s.UserId, s.ActivityDate })
+            .IsUnique();
+
+        modelBuilder.Entity<UserActivityPageVisit>()
+            .Property(v => v.Path)
+            .HasMaxLength(500);
+        modelBuilder.Entity<UserActivityPageVisit>()
+            .Property(v => v.Url)
+            .HasMaxLength(2000);
+        modelBuilder.Entity<UserActivityPageVisit>()
+            .Property(v => v.PageTitle)
+            .HasMaxLength(500);
+        modelBuilder.Entity<UserActivityPageVisit>()
+            .HasOne(v => v.User)
+            .WithMany()
+            .HasForeignKey(v => v.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<UserActivityPageVisit>()
+            .HasIndex(v => new { v.TenantId, v.UserId, v.VisitedAtUtc });
 
         modelBuilder.Entity<ChatGroup>()
             .HasOne(g => g.CreatedByUser)
@@ -884,6 +930,18 @@ public sealed class AppDbContext : DbContext
                 : e.TenantId == _tenant.TenantId));
 
         modelBuilder.Entity<Leave>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<UserActivityDailySummary>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<UserActivityPageVisit>().HasQueryFilter(e =>
             !e.IsDeleted &&
             (_tenant.IsSuperAdmin
                 ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)

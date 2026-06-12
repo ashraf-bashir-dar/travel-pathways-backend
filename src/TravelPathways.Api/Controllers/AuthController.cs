@@ -6,6 +6,7 @@ using TravelPathways.Api.Auth;
 using TravelPathways.Api.Common;
 using TravelPathways.Api.Data;
 using TravelPathways.Api.Services;
+using TravelPathways.Api.Storage;
 using SubscriptionStatus = TravelPathways.Api.Common.SubscriptionStatus;
 
 namespace TravelPathways.Api.Controllers;
@@ -18,13 +19,20 @@ public sealed class AuthController : ControllerBase
     private readonly TokenService _tokens;
     private readonly ILogger<AuthController> _logger;
     private readonly IPasswordEncryption _passwordEncryption;
+    private readonly FileStorage _storage;
 
-    public AuthController(AppDbContext db, TokenService tokens, ILogger<AuthController> logger, IPasswordEncryption passwordEncryption)
+    public AuthController(
+        AppDbContext db,
+        TokenService tokens,
+        ILogger<AuthController> logger,
+        IPasswordEncryption passwordEncryption,
+        FileStorage storage)
     {
         _db = db;
         _tokens = tokens;
         _logger = logger;
         _passwordEncryption = passwordEncryption;
+        _storage = storage;
     }
 
     public sealed class LoginRequestDto
@@ -51,6 +59,36 @@ public sealed class AuthController : ControllerBase
         public required DateTime CreatedAt { get; init; }
         public bool CanViewCostBifurcation { get; init; }
         public bool CanPriceOverride { get; init; }
+        public bool ActivityTrackingEnabled { get; init; } = true;
+        public string? Phone { get; init; }
+        public DateTime? DateOfBirth { get; init; }
+        public DateTime? JoinDate { get; init; }
+        public DateTime? LeaveDate { get; init; }
+        public string? Designation { get; init; }
+        public string? Address { get; init; }
+        public string? EmergencyContactName { get; init; }
+        public string? EmergencyContactPhone { get; init; }
+        public string? ProfilePhotoUrl { get; init; }
+    }
+
+    public sealed class UserProfileDto
+    {
+        public required string Id { get; init; }
+        public required string Email { get; init; }
+        public required string FirstName { get; init; }
+        public required string LastName { get; init; }
+        public required string TenantId { get; init; }
+        public UserRole Role { get; init; }
+        public UserDepartment? Department { get; init; }
+        public string? Designation { get; init; }
+        public string? Phone { get; init; }
+        public DateTime? DateOfBirth { get; init; }
+        public DateTime? JoinDate { get; init; }
+        public DateTime? LeaveDate { get; init; }
+        public string? Address { get; init; }
+        public string? EmergencyContactName { get; init; }
+        public string? EmergencyContactPhone { get; init; }
+        public string? ProfilePhotoUrl { get; init; }
     }
 
     public sealed class TenantDocumentDto
@@ -251,6 +289,80 @@ public sealed class AuthController : ControllerBase
         return Ok(new { message = "Password changed successfully." });
     }
 
+    /// <summary>Current user's read-only profile (employee details).</summary>
+    [Authorize]
+    [HttpGet("profile")]
+    public async Task<ActionResult<UserProfileDto>> GetProfile(CancellationToken ct)
+    {
+        var user = await GetCurrentUserAsync(ct);
+        if (user is null) return Unauthorized();
+        return Ok(MapProfileDto(user));
+    }
+
+    /// <summary>Upload or replace the current user's profile photo.</summary>
+    [Authorize]
+    [HttpPost("profile/photo")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<UserProfileDto>> UploadProfilePhoto(IFormFile? file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { message = "Profile photo file is required." });
+
+        var userId = await GetCurrentUserIdAsync(ct);
+        if (!userId.HasValue) return Unauthorized();
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted, ct);
+        if (user is null || !user.IsActive) return Unauthorized();
+
+        try
+        {
+            user.ProfilePhotoUrl = await _storage.SaveUserProfilePhotoAsync(user.TenantId, user.Id, file, ct);
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Profile photo upload failed for user {UserId}", user.Id);
+            return BadRequest(new { message = "Could not save profile photo. Use a JPG or PNG image." });
+        }
+
+        return Ok(MapProfileDto(user));
+    }
+
+    private async Task<Guid?> GetCurrentUserIdAsync(CancellationToken ct)
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            return null;
+        return userId;
+    }
+
+    private async Task<Data.Entities.AppUser?> GetCurrentUserAsync(CancellationToken ct)
+    {
+        var userId = await GetCurrentUserIdAsync(ct);
+        if (!userId.HasValue) return null;
+        return await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted && u.IsActive, ct);
+    }
+
+    private static UserProfileDto MapProfileDto(Data.Entities.AppUser user) =>
+        new()
+        {
+            Id = user.Id.ToString("D"),
+            Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            TenantId = user.TenantId?.ToString("D") ?? string.Empty,
+            Role = user.Role,
+            Department = user.Department,
+            Designation = user.Designation,
+            Phone = user.Phone,
+            DateOfBirth = user.DateOfBirth,
+            JoinDate = user.JoinDate,
+            LeaveDate = user.LeaveDate,
+            Address = user.Address,
+            EmergencyContactName = user.EmergencyContactName,
+            EmergencyContactPhone = user.EmergencyContactPhone,
+            ProfilePhotoUrl = user.ProfilePhotoUrl
+        };
+
     private static UserDto MapUserDto(Data.Entities.AppUser user) =>
         new()
         {
@@ -265,7 +377,17 @@ public sealed class AuthController : ControllerBase
             IsActive = user.IsActive,
             CreatedAt = user.CreatedAt,
             CanViewCostBifurcation = user.CanViewCostBifurcation,
-            CanPriceOverride = user.CanPriceOverride
+            CanPriceOverride = user.CanPriceOverride,
+            ActivityTrackingEnabled = user.ActivityTrackingEnabled,
+            Phone = user.Phone,
+            DateOfBirth = user.DateOfBirth,
+            JoinDate = user.JoinDate,
+            LeaveDate = user.LeaveDate,
+            Designation = user.Designation,
+            Address = user.Address,
+            EmergencyContactName = user.EmergencyContactName,
+            EmergencyContactPhone = user.EmergencyContactPhone,
+            ProfilePhotoUrl = user.ProfilePhotoUrl
         };
 
     private static TenantDto MapTenantDto(Data.Entities.Tenant? tenant, DateTime fallbackCreatedAt) =>

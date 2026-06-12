@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -29,6 +30,7 @@ public sealed class PaymentsController : TenantControllerBase
         public required PaymentType PaymentType { get; init; }
         public required decimal Amount { get; init; }
         public required DateTime PaymentDate { get; init; }
+        public PaymentMode? PaymentMode { get; init; }
         public string? Reference { get; init; }
         public string? Notes { get; init; }
         public string? LeadId { get; init; }
@@ -47,6 +49,8 @@ public sealed class PaymentsController : TenantControllerBase
         public EmployeePaymentType? EmployeePaymentKind { get; init; }
         public string? PayeeDescription { get; init; }
         public string? ScreenshotUrl { get; init; }
+        public string? RecordedByUserId { get; init; }
+        public string? RecordedByName { get; init; }
         public required string TenantId { get; init; }
         public required DateTime CreatedAt { get; init; }
         public required DateTime UpdatedAt { get; init; }
@@ -57,6 +61,7 @@ public sealed class PaymentsController : TenantControllerBase
         public PaymentType PaymentType { get; set; }
         public decimal Amount { get; set; }
         public DateTime PaymentDate { get; set; }
+        public PaymentMode? PaymentMode { get; set; }
         public string? Reference { get; set; }
         public string? Notes { get; set; }
         public Guid? LeadId { get; set; }
@@ -77,10 +82,13 @@ public sealed class PaymentsController : TenantControllerBase
         [FromQuery] PaymentType? paymentType = null,
         [FromQuery] PaymentPayeeCategory? payeeCategory = null,
         [FromQuery] bool vendorAccommodationOnly = false,
+        [FromQuery] bool vendorPaymentsOnly = false,
+        [FromQuery] bool otherPaymentsOnly = false,
         [FromQuery] Guid? leadId = null,
         [FromQuery] Guid? hotelId = null,
         [FromQuery] Guid? transportCompanyId = null,
         [FromQuery] Guid? userId = null,
+        [FromQuery] Guid? recordedByUserId = null,
         [FromQuery] EmployeePaymentType? employeePaymentKind = null,
         [FromQuery] DateTime? dateFrom = null,
         [FromQuery] DateTime? dateTo = null,
@@ -88,14 +96,44 @@ public sealed class PaymentsController : TenantControllerBase
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
     {
+        var moduleError = await EnsurePaymentsModuleAsync(ct);
+        if (moduleError != null) return moduleError;
+
         pageNumber = Math.Max(1, pageNumber);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
+        var query = _db.Payments.AsNoTracking().Where(p => p.TenantId == TenantId);
+        if (IsTenantAdmin())
+        {
+            if (recordedByUserId.HasValue)
+                query = query.Where(p => p.RecordedByUserId == recordedByUserId.Value);
+        }
+        else
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return ApiResponse<PaginatedResponse<PaymentDto>>.Ok(new PaginatedResponse<PaymentDto>
+                {
+                    Items = [],
+                    TotalCount = 0,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    TotalPages = 1,
+                    TotalAmount = 0
+                });
+            }
+
+            query = query.Where(p => p.RecordedByUserId == currentUserId.Value);
+        }
+
         var filtered = ApplyPaymentListFilters(
-            _db.Payments.AsNoTracking().Where(p => p.TenantId == TenantId),
+            query,
             paymentType,
             payeeCategory,
             vendorAccommodationOnly,
+            vendorPaymentsOnly,
+            otherPaymentsOnly,
             leadId,
             hotelId,
             transportCompanyId,
@@ -113,6 +151,7 @@ public sealed class PaymentsController : TenantControllerBase
             .Include(p => p.Hotel)
             .Include(p => p.TransportCompany)
             .Include(p => p.User)
+            .Include(p => p.RecordedBy)
             .AsSplitQuery()
             .OrderByDescending(p => p.PaymentDate)
             .ThenByDescending(p => p.CreatedAt)
@@ -139,6 +178,8 @@ public sealed class PaymentsController : TenantControllerBase
         PaymentType? paymentType,
         PaymentPayeeCategory? payeeCategory,
         bool vendorAccommodationOnly,
+        bool vendorPaymentsOnly,
+        bool otherPaymentsOnly,
         Guid? leadId,
         Guid? hotelId,
         Guid? transportCompanyId,
@@ -149,7 +190,24 @@ public sealed class PaymentsController : TenantControllerBase
     {
         if (paymentType.HasValue)
             query = query.Where(p => p.PaymentType == paymentType.Value);
-        if (vendorAccommodationOnly)
+        if (vendorPaymentsOnly)
+        {
+            query = query.Where(p =>
+                p.PaymentType == PaymentType.Made &&
+                (p.PayeeCategory == PaymentPayeeCategory.VendorHotel
+                 || p.PayeeCategory == PaymentPayeeCategory.VendorHouseboat
+                 || p.PayeeCategory == PaymentPayeeCategory.VendorTransport
+                 || (p.PayeeCategory == null && (p.HotelId != null || p.TransportCompanyId != null))));
+        }
+        else if (otherPaymentsOnly)
+        {
+            query = query.Where(p =>
+                p.PaymentType == PaymentType.Made &&
+                (p.PayeeCategory == PaymentPayeeCategory.OfficeOther
+                 || (p.PayeeCategory == null && p.HotelId == null && p.LeadId == null
+                     && p.UserId == null && p.TransportCompanyId == null && p.PayeeDescription != null)));
+        }
+        else if (vendorAccommodationOnly)
             query = query.Where(p =>
                 p.PayeeCategory == PaymentPayeeCategory.VendorHotel
                 || p.PayeeCategory == PaymentPayeeCategory.VendorHouseboat
@@ -185,6 +243,9 @@ public sealed class PaymentsController : TenantControllerBase
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<PaymentDto>>> GetPayment(Guid id, CancellationToken ct)
     {
+        var moduleError = await EnsurePaymentsModuleAsync(ct);
+        if (moduleError != null) return moduleError;
+
         var payment = await _db.Payments
             .AsNoTracking()
             .Include(p => p.Lead)
@@ -192,6 +253,7 @@ public sealed class PaymentsController : TenantControllerBase
             .Include(p => p.Hotel)
             .Include(p => p.TransportCompany)
             .Include(p => p.User)
+            .Include(p => p.RecordedBy)
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
 
         if (payment == null)
@@ -203,6 +265,9 @@ public sealed class PaymentsController : TenantControllerBase
     [HttpPost]
     public async Task<ActionResult<ApiResponse<PaymentDto>>> CreatePayment([FromBody] CreatePaymentRequestDto dto, CancellationToken ct)
     {
+        var moduleError = await EnsurePaymentsModuleAsync(ct);
+        if (moduleError != null) return moduleError;
+
         var (valid, error) = await ValidatePaymentDtoAsync(dto, ct);
         if (!valid)
             return BadRequest(ApiResponse<PaymentDto>.Fail(error!));
@@ -213,8 +278,10 @@ public sealed class PaymentsController : TenantControllerBase
             PaymentType = dto.PaymentType,
             Amount = dto.Amount,
             PaymentDate = NormalizeUtc(dto.PaymentDate),
+            PaymentMode = dto.PaymentMode,
             Reference = dto.Reference?.Trim(),
             Notes = dto.Notes?.Trim(),
+            RecordedByUserId = GetCurrentUserId(),
             LeadId = dto.LeadId,
             PackageId = dto.PackageId,
             PayeeCategory = dto.PayeeCategory,
@@ -234,6 +301,9 @@ public sealed class PaymentsController : TenantControllerBase
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<PaymentDto>>> UpdatePayment(Guid id, [FromBody] UpdatePaymentRequestDto dto, CancellationToken ct)
     {
+        var moduleError = await EnsurePaymentsModuleAsync(ct);
+        if (moduleError != null) return moduleError;
+
         var (valid, error) = await ValidatePaymentDtoAsync(dto, ct);
         if (!valid)
             return BadRequest(ApiResponse<PaymentDto>.Fail(error!));
@@ -246,6 +316,7 @@ public sealed class PaymentsController : TenantControllerBase
         payment.PaymentType = dto.PaymentType;
         payment.Amount = dto.Amount;
         payment.PaymentDate = NormalizeUtc(dto.PaymentDate);
+        payment.PaymentMode = dto.PaymentMode;
         payment.Reference = dto.Reference?.Trim();
         payment.Notes = dto.Notes?.Trim();
         payment.LeadId = dto.LeadId;
@@ -266,6 +337,9 @@ public sealed class PaymentsController : TenantControllerBase
     [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeletePayment(Guid id, CancellationToken ct)
     {
+        var moduleError = await EnsurePaymentsModuleAsync(ct);
+        if (moduleError != null) return moduleError;
+
         var payment = await _db.Payments
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
         if (payment == null)
@@ -282,6 +356,9 @@ public sealed class PaymentsController : TenantControllerBase
     [HttpPost("{id:guid}/screenshot")]
     public async Task<ActionResult<ApiResponse<PaymentDto>>> UploadScreenshot(Guid id, IFormFile? file, CancellationToken ct = default)
     {
+        var moduleError = await EnsurePaymentsModuleAsync(ct);
+        if (moduleError != null) return moduleError;
+
         if (file == null || file.Length == 0)
             return BadRequest(ApiResponse<PaymentDto>.Fail("No file provided."));
 
@@ -305,6 +382,29 @@ public sealed class PaymentsController : TenantControllerBase
         await _db.Entry(payment).Reference(p => p.Hotel).LoadAsync(ct);
         await _db.Entry(payment).Reference(p => p.TransportCompany).LoadAsync(ct);
         await _db.Entry(payment).Reference(p => p.User).LoadAsync(ct);
+        await _db.Entry(payment).Reference(p => p.RecordedBy).LoadAsync(ct);
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(userIdClaim, out var userId) ? userId : null;
+    }
+
+    private async Task<ActionResult?> EnsurePaymentsModuleAsync(CancellationToken ct)
+    {
+        if (!HasTenantId)
+            return BadRequest(ApiResponse<object>.Fail("Tenant context is missing."));
+
+        var hasLedger = await TenantModuleResolver.HasModuleAsync(_db, User, TenantId, AppModuleKey.Ledger, ct);
+        if (hasLedger)
+            return null;
+
+        var hasAccounts = await TenantModuleResolver.HasModuleAsync(_db, User, TenantId, AppModuleKey.Accounts, ct);
+        if (hasAccounts)
+            return null;
+
+        return StatusCode(403, ApiResponse<object>.Fail("Ledger or Accounts module is not available for your account."));
     }
 
     private async Task<(bool Valid, string? Error)> ValidatePaymentDtoAsync(CreatePaymentRequestDto dto, CancellationToken ct)
@@ -315,6 +415,29 @@ public sealed class PaymentsController : TenantControllerBase
         {
             if (!dto.LeadId.HasValue)
                 return (false, "Client (Lead) is required for payments received.");
+
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+                return (false, "User context is missing.");
+
+            if (IsTenantAdmin())
+            {
+                var leadExists = await _db.Leads.AsNoTracking()
+                    .AnyAsync(l => l.Id == dto.LeadId.Value && l.TenantId == TenantId && !l.IsDeleted, ct);
+                if (!leadExists)
+                    return (false, "Lead not found.");
+            }
+            else
+            {
+                var leadAssigned = await _db.Leads.AsNoTracking()
+                    .AnyAsync(l => l.Id == dto.LeadId.Value
+                                   && l.TenantId == TenantId
+                                   && !l.IsDeleted
+                                   && l.AssignedToUserId == userId.Value, ct);
+                if (!leadAssigned)
+                    return (false, "Lead not found or not assigned to you.");
+            }
+
             return (true, null);
         }
         if (!dto.PayeeCategory.HasValue)
@@ -377,12 +500,14 @@ public sealed class PaymentsController : TenantControllerBase
                 payeeCategory = PaymentPayeeCategory.VendorTransport;
         }
         var userName = p.User == null ? null : $"{p.User.FirstName} {p.User.LastName}".Trim();
+        var recordedByName = p.RecordedBy == null ? null : $"{p.RecordedBy.FirstName} {p.RecordedBy.LastName}".Trim();
         return new PaymentDto
         {
             Id = p.Id.ToString(),
             PaymentType = p.PaymentType,
             Amount = p.Amount,
             PaymentDate = p.PaymentDate,
+            PaymentMode = p.PaymentMode,
             Reference = p.Reference,
             Notes = p.Notes,
             LeadId = p.LeadId?.ToString(),
@@ -400,6 +525,8 @@ public sealed class PaymentsController : TenantControllerBase
             EmployeePaymentKind = p.EmployeePaymentKind,
             PayeeDescription = p.PayeeDescription,
             ScreenshotUrl = p.ScreenshotUrl,
+            RecordedByUserId = p.RecordedByUserId?.ToString(),
+            RecordedByName = recordedByName,
             TenantId = p.TenantId.ToString(),
             CreatedAt = p.CreatedAt,
             UpdatedAt = p.UpdatedAt

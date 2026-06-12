@@ -146,6 +146,25 @@ public sealed class ReservationsController : TenantControllerBase
         _db.Entry(package).State = EntityState.Unchanged;
     }
 
+    private async Task SyncPackageCancelledAsync(Guid packageId, Guid? leadId, Guid tenantId, CancellationToken ct)
+    {
+        var packages = await _db.Packages
+            .Where(p => p.TenantId == tenantId && !p.IsDeleted &&
+                        (p.Id == packageId || (leadId.HasValue && p.LeadId == leadId)))
+            .ToListAsync(ct);
+        foreach (var pkg in packages)
+        {
+            pkg.Status = PackageStatus.Cancelled;
+            pkg.IsLocked = false;
+        }
+
+        if (!leadId.HasValue) return;
+        var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == leadId && l.TenantId == tenantId && !l.IsDeleted, ct);
+        if (lead == null) return;
+        lead.Status = LeadStatus.Cancelled;
+        lead.IsLocked = false;
+    }
+
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 
     private static string FormatMoney(decimal value) =>
@@ -195,11 +214,15 @@ public sealed class ReservationsController : TenantControllerBase
             CnbCount = booking.CnbCount,
             NumberOfPersons = booking.NumberOfPersons,
             RatePerNight = booking.RatePerNight,
+            ExtraBedRate = booking.ExtraBedRate,
+            CnbRate = booking.CnbRate,
             TotalAmount = booking.TotalAmount,
             AdvancePaid = booking.AdvancePaid,
             BalanceAmount = booking.BalanceAmount,
             Status = booking.Status.ToString(),
             IsLocked = booking.IsLocked,
+            CancellationReason = booking.CancellationReason?.ToString(),
+            CancellationReasonDetail = booking.CancellationReasonDetail,
             ConfirmationNumber = booking.ConfirmationNumber,
             Notes = booking.Notes,
             Documents = (booking.Documents ?? [])
@@ -335,14 +358,24 @@ public sealed class ReservationsController : TenantControllerBase
         public int CnbCount { get; init; }
         public int NumberOfPersons { get; init; }
         public decimal RatePerNight { get; init; }
+        public decimal ExtraBedRate { get; init; }
+        public decimal CnbRate { get; init; }
         public decimal TotalAmount { get; init; }
         public decimal AdvancePaid { get; init; }
         public decimal BalanceAmount { get; init; }
         public required string Status { get; init; }
         public required bool IsLocked { get; init; }
+        public string? CancellationReason { get; init; }
+        public string? CancellationReasonDetail { get; init; }
         public string? ConfirmationNumber { get; init; }
         public string? Notes { get; init; }
         public required List<ReservationHotelBookingDocumentDto> Documents { get; init; }
+    }
+
+    public sealed class CancelReservationHotelBookingRequest
+    {
+        public required ReservationHotelBookingCancellationReason Reason { get; init; }
+        public string? ReasonDetail { get; init; }
     }
 
     public sealed class UpsertReservationHotelBookingRequest
@@ -359,6 +392,8 @@ public sealed class ReservationsController : TenantControllerBase
         public int? CnbCount { get; init; }
         public int? NumberOfPersons { get; init; }
         public decimal? RatePerNight { get; init; }
+        public decimal? ExtraBedRate { get; init; }
+        public decimal? CnbRate { get; init; }
         public decimal? TotalAmount { get; init; }
         public decimal? AdvancePaid { get; init; }
         public decimal? BalanceAmount { get; init; }
@@ -1381,13 +1416,69 @@ public sealed class ReservationsController : TenantControllerBase
             if (dto.NumberOfPersons.HasValue) booking.NumberOfPersons = Math.Max(0, dto.NumberOfPersons.Value);
         }
         if (dto.RatePerNight.HasValue) booking.RatePerNight = Math.Max(0, dto.RatePerNight.Value);
+        if (dto.ExtraBedRate.HasValue) booking.ExtraBedRate = Math.Max(0, dto.ExtraBedRate.Value);
+        if (dto.CnbRate.HasValue) booking.CnbRate = Math.Max(0, dto.CnbRate.Value);
         if (dto.TotalAmount.HasValue) booking.TotalAmount = Math.Max(0, dto.TotalAmount.Value);
         if (dto.AdvancePaid.HasValue) booking.AdvancePaid = Math.Max(0, dto.AdvancePaid.Value);
         booking.BalanceAmount = Math.Max(0, dto.BalanceAmount ?? (booking.TotalAmount - booking.AdvancePaid));
-        if (dto.Status.HasValue) booking.Status = dto.Status.Value;
+        if (dto.Status.HasValue)
+        {
+            if (dto.Status.Value == ReservationHotelBookingStatus.Cancelled)
+                return BadRequest(ApiResponse<ReservationHotelBookingDto>.Fail("Use the cancel booking action and provide a cancellation reason."));
+            booking.Status = dto.Status.Value;
+        }
         if (booking.Status == ReservationHotelBookingStatus.Confirmed) booking.IsLocked = true;
         if (dto.ConfirmationNumber != null) booking.ConfirmationNumber = dto.ConfirmationNumber.Trim();
         if (dto.Notes != null) booking.Notes = dto.Notes.Trim();
+
+        await _db.SaveChangesAsync(ct);
+        return ApiResponse<ReservationHotelBookingDto>.Ok(ToHotelBookingDto(booking));
+    }
+
+    [HttpPost("{id:guid}/hotel-bookings/{bookingId:guid}/cancel")]
+    public async Task<ActionResult<ApiResponse<ReservationHotelBookingDto>>> CancelHotelBooking(
+        Guid id,
+        Guid bookingId,
+        [FromBody] CancelReservationHotelBookingRequest dto,
+        CancellationToken ct = default)
+    {
+        var check = await EnsureReservationsModuleAsync(ct);
+        if (check != null) return check;
+        var (currentUserId, _, isAdmin, isReservationRole) = GetCurrentUserReservationScope();
+        if (!isAdmin && !isReservationRole)
+            return Forbid();
+
+        var tenantId = TenantId;
+        var booking = await _db.ReservationHotelBookings
+            .Include(b => b.Reservation)
+            .ThenInclude(r => r.Package)
+            .Include(b => b.Documents)
+            .Where(b => b.TenantId == tenantId && b.ReservationId == id && b.Id == bookingId)
+            .FirstOrDefaultAsync(ct);
+        if (booking == null)
+            return NotFound(ApiResponse<ReservationHotelBookingDto>.Fail("Hotel booking not found."));
+        if (isReservationRole && currentUserId.HasValue && booking.Reservation.AssignedToUserId != currentUserId.Value)
+            return NotFound(ApiResponse<ReservationHotelBookingDto>.Fail("Hotel booking not found."));
+        if (booking.Status == ReservationHotelBookingStatus.Cancelled)
+            return BadRequest(ApiResponse<ReservationHotelBookingDto>.Fail("This booking is already cancelled."));
+
+        if (dto.Reason == ReservationHotelBookingCancellationReason.Other &&
+            string.IsNullOrWhiteSpace(dto.ReasonDetail))
+            return BadRequest(ApiResponse<ReservationHotelBookingDto>.Fail("Please describe the cancellation reason."));
+
+        booking.Status = ReservationHotelBookingStatus.Cancelled;
+        booking.CancellationReason = dto.Reason;
+        booking.CancellationReasonDetail = dto.Reason == ReservationHotelBookingCancellationReason.Other
+            ? dto.ReasonDetail!.Trim()
+            : null;
+        booking.IsLocked = true;
+
+        if (dto.Reason == ReservationHotelBookingCancellationReason.PackageCancelled)
+        {
+            var package = booking.Reservation.Package;
+            if (package != null)
+                await SyncPackageCancelledAsync(package.Id, package.LeadId, tenantId, ct);
+        }
 
         await _db.SaveChangesAsync(ct);
         return ApiResponse<ReservationHotelBookingDto>.Ok(ToHotelBookingDto(booking));

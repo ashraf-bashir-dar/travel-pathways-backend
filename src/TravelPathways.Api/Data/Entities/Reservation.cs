@@ -73,11 +73,15 @@ public sealed class ReservationHotelBooking : TenantEntityBase
     public int NumberOfPersons { get; set; }
 
     public decimal RatePerNight { get; set; }
+    public decimal ExtraBedRate { get; set; }
+    public decimal CnbRate { get; set; }
     public decimal TotalAmount { get; set; }
     public decimal AdvancePaid { get; set; }
     public decimal BalanceAmount { get; set; }
     public ReservationHotelBookingStatus Status { get; set; } = ReservationHotelBookingStatus.Pending;
     public bool IsLocked { get; set; }
+    public ReservationHotelBookingCancellationReason? CancellationReason { get; set; }
+    public string? CancellationReasonDetail { get; set; }
     public string? ConfirmationNumber { get; set; }
     public string? Notes { get; set; }
 

@@ -6,6 +6,7 @@ using TravelPathways.Api.Common;
 using TravelPathways.Api.Data;
 using TravelPathways.Api.Data.Entities;
 using TravelPathways.Api.Services;
+using TravelPathways.Api.Storage;
 
 namespace TravelPathways.Api.Controllers;
 
@@ -17,12 +18,18 @@ public sealed class AdminTenantUsersController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IEmailService _emailService;
     private readonly IPasswordEncryption _passwordEncryption;
+    private readonly FileStorage _storage;
 
-    public AdminTenantUsersController(AppDbContext db, IEmailService emailService, IPasswordEncryption passwordEncryption)
+    public AdminTenantUsersController(
+        AppDbContext db,
+        IEmailService emailService,
+        IPasswordEncryption passwordEncryption,
+        FileStorage storage)
     {
         _db = db;
         _emailService = emailService;
         _passwordEncryption = passwordEncryption;
+        _storage = storage;
     }
 
     public sealed class TenantUserDto
@@ -39,9 +46,11 @@ public sealed class AdminTenantUsersController : ControllerBase
         public required DateTime CreatedAt { get; init; }
         public bool CanViewCostBifurcation { get; init; }
         public bool CanPriceOverride { get; init; }
+        public bool ActivityTrackingEnabled { get; init; } = true;
         public string? Phone { get; init; }
         public DateTime? DateOfBirth { get; init; }
         public DateTime? JoinDate { get; init; }
+        public DateTime? LeaveDate { get; init; }
         public string? Designation { get; init; }
         public string? Address { get; init; }
         public string? EmergencyContactName { get; init; }
@@ -61,9 +70,11 @@ public sealed class AdminTenantUsersController : ControllerBase
         public List<AppModuleKey>? AllowedModules { get; set; }
         public bool CanViewCostBifurcation { get; set; }
         public bool CanPriceOverride { get; set; }
+        public bool ActivityTrackingEnabled { get; set; } = true;
         public string? Phone { get; set; }
         public DateTime? DateOfBirth { get; set; }
         public DateTime? JoinDate { get; set; }
+        public DateTime? LeaveDate { get; set; }
         public string? Designation { get; set; }
         public string? Address { get; set; }
         public string? EmergencyContactName { get; set; }
@@ -83,9 +94,11 @@ public sealed class AdminTenantUsersController : ControllerBase
         public List<AppModuleKey>? AllowedModules { get; set; }
         public bool CanViewCostBifurcation { get; set; }
         public bool CanPriceOverride { get; set; }
+        public bool ActivityTrackingEnabled { get; set; } = true;
         public string? Phone { get; set; }
         public DateTime? DateOfBirth { get; set; }
         public DateTime? JoinDate { get; set; }
+        public DateTime? LeaveDate { get; set; }
         public string? Designation { get; set; }
         public string? Address { get; set; }
         public string? EmergencyContactName { get; set; }
@@ -151,35 +164,44 @@ public sealed class AdminTenantUsersController : ControllerBase
             }
         }
 
-        var exists = await _db.Users.AnyAsync(u => u.Email == request.Email.Trim(), ct);
-        if (exists) return BadRequest(ApiResponse<TenantUserDto>.Fail("A user with this email already exists."));
-
-        var user = new AppUser
+        var email = request.Email.Trim();
+        var existingByEmail = await TenantUserEmailHelper.FindByEmailIncludingDeletedAsync(_db, email, ct);
+        if (existingByEmail is not null)
         {
-            TenantId = tenantId,
-            Email = request.Email.Trim(),
-            FirstName = request.FirstName.Trim(),
-            LastName = request.LastName.Trim(),
-            Role = request.Role,
-            Department = request.Department,
-            IsActive = request.IsActive,
-            AllowedModules = request.AllowedModules?.ToList() ?? [],
-            CanViewCostBifurcation = request.CanViewCostBifurcation,
-            CanPriceOverride = request.CanPriceOverride,
-            PasswordHash = PasswordHasher.Hash(request.Password),
-            PasswordEncrypted = _passwordEncryption.Encrypt(request.Password),
-            Phone = request.Phone?.Trim(),
-            DateOfBirth = NormalizeNullableUtc(request.DateOfBirth),
-            JoinDate = NormalizeNullableUtc(request.JoinDate),
-            Designation = request.Designation?.Trim(),
-            Address = request.Address?.Trim(),
-            EmergencyContactName = request.EmergencyContactName?.Trim(),
-            EmergencyContactPhone = request.EmergencyContactPhone?.Trim(),
-            ProfilePhotoUrl = request.ProfilePhotoUrl?.Trim()
-        };
+            var conflict = TenantUserEmailHelper.GetCreateEmailConflictMessage(existingByEmail, tenantId);
+            if (conflict is not null)
+                return BadRequest(ApiResponse<TenantUserDto>.Fail(conflict));
+        }
 
-        _db.Users.Add(user);
-        await _db.SaveChangesAsync(ct);
+        AppUser user;
+        var restored = false;
+        if (existingByEmail is { IsDeleted: true, TenantId: var existingTenantId } && existingTenantId == tenantId)
+        {
+            user = existingByEmail;
+            restored = true;
+            user.IsDeleted = false;
+            user.DeletedAtUtc = null;
+            ApplyCreateRequest(user, request);
+            _db.Users.Update(user);
+        }
+        else
+        {
+            user = new AppUser { TenantId = tenantId, Email = email };
+            ApplyCreateRequest(user, request);
+            _db.Users.Add(user);
+        }
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            var friendly = TenantUserEmailHelper.TryGetUserFriendlyDbError(ex);
+            if (friendly is not null)
+                return BadRequest(ApiResponse<TenantUserDto>.Fail(friendly));
+            throw;
+        }
 
         if (tenant.DefaultUserId is null)
         {
@@ -196,7 +218,9 @@ public sealed class AdminTenantUsersController : ControllerBase
             ct);
 
         var response = ApiResponse<TenantUserDto>.Ok(ToDto(user));
-        if (!emailSent)
+        if (restored)
+            response = ApiResponse<TenantUserDto>.Ok(ToDto(user), "User restored and updated.");
+        else if (!emailSent)
             response = ApiResponse<TenantUserDto>.Ok(ToDto(user), "User created. Could not send welcome email; please share the login details with the user manually.");
 
         return CreatedAtAction(nameof(GetUserById), new { tenantId, userId = user.Id }, response);
@@ -213,7 +237,7 @@ public sealed class AdminTenantUsersController : ControllerBase
         if (user is null) return NotFound(ApiResponse<TenantUserDto>.Fail("User not found"));
 
         var newEmail = request.Email.Trim();
-        if (newEmail != user.Email && await _db.Users.AnyAsync(u => u.Email == newEmail, ct))
+        if (newEmail != user.Email && await TenantUserEmailHelper.IsEmailTakenForUpdateAsync(_db, newEmail, userId, ct))
             return BadRequest(ApiResponse<TenantUserDto>.Fail("A user with this email already exists."));
 
         user.Email = newEmail;
@@ -225,9 +249,11 @@ public sealed class AdminTenantUsersController : ControllerBase
         user.AllowedModules = request.AllowedModules?.ToList() ?? user.AllowedModules ?? [];
         user.CanViewCostBifurcation = request.CanViewCostBifurcation;
         user.CanPriceOverride = request.CanPriceOverride;
+        user.ActivityTrackingEnabled = request.ActivityTrackingEnabled;
         user.Phone = request.Phone?.Trim();
         user.DateOfBirth = NormalizeNullableUtc(request.DateOfBirth);
         user.JoinDate = NormalizeNullableUtc(request.JoinDate);
+        user.LeaveDate = NormalizeNullableUtc(request.LeaveDate);
         user.Designation = request.Designation?.Trim();
         user.Address = request.Address?.Trim();
         user.EmergencyContactName = request.EmergencyContactName?.Trim();
@@ -244,6 +270,33 @@ public sealed class AdminTenantUsersController : ControllerBase
         return ApiResponse<TenantUserDto>.Ok(ToDto(user));
     }
 
+    [HttpPost("{userId:guid}/profile-photo")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ApiResponse<TenantUserDto>>> UploadProfilePhoto(
+        [FromRoute] Guid tenantId,
+        [FromRoute] Guid userId,
+        IFormFile? file,
+        CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(ApiResponse<TenantUserDto>.Fail("Profile photo file is required."));
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.TenantId == tenantId && u.Id == userId, ct);
+        if (user is null) return NotFound(ApiResponse<TenantUserDto>.Fail("User not found."));
+
+        try
+        {
+            user.ProfilePhotoUrl = await _storage.SaveUserProfilePhotoAsync(user.TenantId, user.Id, file, ct);
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (Exception)
+        {
+            return BadRequest(ApiResponse<TenantUserDto>.Fail("Could not save profile photo. Use a JPG or PNG image."));
+        }
+
+        return ApiResponse<TenantUserDto>.Ok(ToDto(user));
+    }
+
     [HttpDelete("{userId:guid}")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteUser([FromRoute] Guid tenantId, [FromRoute] Guid userId, CancellationToken ct)
     {
@@ -256,6 +309,31 @@ public sealed class AdminTenantUsersController : ControllerBase
         user.IsActive = false;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<object>.Ok(new { });
+    }
+
+    private void ApplyCreateRequest(AppUser user, CreateTenantUserRequestDto request)
+    {
+        user.Email = request.Email.Trim();
+        user.FirstName = request.FirstName.Trim();
+        user.LastName = request.LastName.Trim();
+        user.Role = request.Role;
+        user.Department = request.Department;
+        user.IsActive = request.IsActive;
+        user.AllowedModules = request.AllowedModules?.ToList() ?? [];
+        user.CanViewCostBifurcation = request.CanViewCostBifurcation;
+        user.CanPriceOverride = request.CanPriceOverride;
+        user.ActivityTrackingEnabled = request.ActivityTrackingEnabled;
+        user.PasswordHash = PasswordHasher.Hash(request.Password);
+        user.PasswordEncrypted = _passwordEncryption.Encrypt(request.Password);
+        user.Phone = request.Phone?.Trim();
+        user.DateOfBirth = NormalizeNullableUtc(request.DateOfBirth);
+        user.JoinDate = NormalizeNullableUtc(request.JoinDate);
+        user.LeaveDate = NormalizeNullableUtc(request.LeaveDate);
+        user.Designation = request.Designation?.Trim();
+        user.Address = request.Address?.Trim();
+        user.EmergencyContactName = request.EmergencyContactName?.Trim();
+        user.EmergencyContactPhone = request.EmergencyContactPhone?.Trim();
+        user.ProfilePhotoUrl = request.ProfilePhotoUrl?.Trim();
     }
 
     private static DateTime? NormalizeNullableUtc(DateTime? value)
@@ -285,9 +363,11 @@ public sealed class AdminTenantUsersController : ControllerBase
             CreatedAt = u.CreatedAt,
             CanViewCostBifurcation = u.CanViewCostBifurcation,
             CanPriceOverride = u.CanPriceOverride,
+            ActivityTrackingEnabled = u.ActivityTrackingEnabled,
             Phone = u.Phone,
             DateOfBirth = u.DateOfBirth,
             JoinDate = u.JoinDate,
+            LeaveDate = u.LeaveDate,
             Designation = u.Designation,
             Address = u.Address,
             EmergencyContactName = u.EmergencyContactName,

@@ -137,6 +137,20 @@ public sealed class LeadsController : TenantControllerBase
         return null;
     }
 
+    private async Task<ActionResult?> EnsurePaymentLeadSearchModuleAsync(CancellationToken ct)
+    {
+        if (!HasTenantId)
+            return BadRequest(ApiResponse<object>.Fail("Tenant context is missing."));
+
+        var effective = await GetEffectiveAllowedModulesForCurrentUserAsync(ct);
+        if (ModuleAccess.HasModule(effective, AppModuleKey.Leads)
+            || ModuleAccess.HasModule(effective, AppModuleKey.Ledger)
+            || ModuleAccess.HasModule(effective, AppModuleKey.Accounts))
+            return null;
+
+        return StatusCode(403, ApiResponse<object>.Fail("Lead search for payments is not available for your account."));
+    }
+
     /// <summary>Returns (current user id, can see all leads in tenant). Tenant admins with Leads module see all; others see assigned only.</summary>
     private async Task<(Guid? UserId, bool CanSeeAllLeads)> GetCurrentUserLeadScopeAsync(CancellationToken ct)
     {
@@ -304,6 +318,101 @@ public sealed class LeadsController : TenantControllerBase
                 assignedFrom,
                 assignedTo)
             .AsNoTracking();
+
+        var total = await query.CountAsync(ct);
+        var leads = await query
+            .Include(l => l.AssignedToUser)
+            .OrderByDescending(l => l.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        var items = leads.Select(ToDto).ToList();
+        await EnrichLeadPackageCountsAsync(items, ct);
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+
+        return ApiResponse<PaginatedResponse<LeadDto>>.Ok(new PaginatedResponse<LeadDto>
+        {
+            Items = items,
+            TotalCount = total,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalPages = totalPages
+        });
+    }
+
+    /// <summary>Search leads assigned to the current user when recording a payment (Ledger / Accounts).</summary>
+    [HttpGet("payment-search")]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<LeadDto>>>> SearchLeadsForPayment(
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] bool includePaymentHistoryLeads = false,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var moduleCheck = await EnsurePaymentLeadSearchModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
+        {
+            return ApiResponse<PaginatedResponse<LeadDto>>.Ok(new PaginatedResponse<LeadDto>
+            {
+                Items = [],
+                TotalCount = 0,
+                PageNumber = 1,
+                PageSize = pageSize,
+                TotalPages = 1
+            });
+        }
+
+        pageNumber = Math.Max(1, pageNumber);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+
+        IQueryable<Lead> query;
+        if (IsTenantAdmin())
+        {
+            query = _db.Leads.AsNoTracking().Where(l => l.TenantId == TenantId);
+        }
+        else
+        {
+            List<Guid>? paymentHistoryLeadIds = null;
+            if (includePaymentHistoryLeads)
+            {
+                paymentHistoryLeadIds = await _db.Payments.AsNoTracking()
+                    .Where(p => p.TenantId == TenantId
+                                && p.PaymentType == PaymentType.Received
+                                && p.RecordedByUserId == currentUserId.Value
+                                && p.LeadId != null)
+                    .Select(p => p.LeadId!.Value)
+                    .Distinct()
+                    .ToListAsync(ct);
+            }
+
+            query = _db.Leads.AsNoTracking()
+                .Where(l => l.TenantId == TenantId
+                            && (l.AssignedToUserId == currentUserId.Value
+                                || (includePaymentHistoryLeads
+                                    && paymentHistoryLeadIds != null
+                                    && paymentHistoryLeadIds.Contains(l.Id))));
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var s = searchTerm.Trim();
+            if (Guid.TryParse(s, out var leadId))
+            {
+                query = query.Where(l => l.Id == leadId);
+            }
+            else
+            {
+                var lower = s.ToLower();
+                query = query.Where(l =>
+                    l.ClientName.ToLower().Contains(lower) ||
+                    l.PhoneNumber.ToLower().Contains(lower) ||
+                    l.Address.ToLower().Contains(lower));
+            }
+        }
 
         var total = await query.CountAsync(ct);
         var leads = await query
@@ -636,18 +745,21 @@ public sealed class LeadsController : TenantControllerBase
             }
         }
 
-        // Sync package status: when lead status changes, update all packages for this lead to the same status
+        // Sync package status: when lead status changes, update only the latest package for this lead.
         if (oldStatus != lead.Status)
         {
-            var packagesToUpdate = await _db.Packages.Where(p => p.LeadId == id && p.TenantId == TenantId).ToListAsync(ct);
-            var newPackageStatus = (PackageStatus)(int)lead.Status;
-            foreach (var p in packagesToUpdate)
+            var latestPackage = await _db.Packages
+                .Where(p => p.LeadId == id && p.TenantId == TenantId)
+                .OrderByDescending(p => p.CreatedAt)
+                .ThenByDescending(p => p.Id)
+                .FirstOrDefaultAsync(ct);
+            if (latestPackage is not null)
             {
-                p.Status = newPackageStatus;
-                p.IsLocked = newPackageStatus == PackageStatus.Confirmed;
-            }
-            if (packagesToUpdate.Count > 0)
+                var newPackageStatus = (PackageStatus)(int)lead.Status;
+                latestPackage.Status = newPackageStatus;
+                latestPackage.IsLocked = newPackageStatus == PackageStatus.Confirmed;
                 await _db.SaveChangesAsync(ct);
+            }
         }
 
         return ApiResponse<LeadDto>.Ok(ToDto(lead));

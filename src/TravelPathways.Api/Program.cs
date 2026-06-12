@@ -282,9 +282,63 @@ using (var scope = app.Services.CreateScope())
         // even if migration history is out-of-sync in a local DB.
         await db.Database.ExecuteSqlRawAsync(
             "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"CanPriceOverride\" boolean NOT NULL DEFAULT false;");
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"LeaveDate\" timestamp with time zone;");
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"ActivityTrackingEnabled\" boolean NOT NULL DEFAULT true;");
         // Same for package margin (PDF / price override); avoids 42703 if migrations were not applied to this DB.
         await db.Database.ExecuteSqlRawAsync(
             "ALTER TABLE \"Packages\" ADD COLUMN IF NOT EXISTS \"MarginAmount\" numeric(18,2) NOT NULL DEFAULT 0;");
+        // Ledger payment fields; avoids 42703 if AddLedgerPaymentFields migration was not applied.
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Payments\" ADD COLUMN IF NOT EXISTS \"PaymentMode\" text;");
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Payments\" ADD COLUMN IF NOT EXISTS \"RecordedByUserId\" uuid;");
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS \"IX_Payments_RecordedByUserId\" ON \"Payments\" (\"RecordedByUserId\");");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "UserActivityDailySummaries" (
+                "Id" uuid NOT NULL PRIMARY KEY,
+                "UserId" uuid NOT NULL REFERENCES "Users"("Id"),
+                "ActivityDate" timestamp with time zone NOT NULL,
+                "ActiveSeconds" integer NOT NULL DEFAULT 0,
+                "IdleSeconds" integer NOT NULL DEFAULT 0,
+                "IsCurrentlyIdle" boolean NOT NULL DEFAULT false,
+                "LastReportedAtUtc" timestamp with time zone NOT NULL,
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_UserActivityDailySummaries_TenantId_UserId_ActivityDate"
+                ON "UserActivityDailySummaries" ("TenantId", "UserId", "ActivityDate");
+            CREATE INDEX IF NOT EXISTS "IX_UserActivityDailySummaries_UserId"
+                ON "UserActivityDailySummaries" ("UserId");
+            """);
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "UserActivityPageVisits" (
+                "Id" uuid NOT NULL PRIMARY KEY,
+                "UserId" uuid NOT NULL REFERENCES "Users"("Id"),
+                "Path" character varying(500) NOT NULL,
+                "Url" character varying(2000) NOT NULL,
+                "PageTitle" character varying(500),
+                "VisitedAtUtc" timestamp with time zone NOT NULL,
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone
+            );
+            CREATE INDEX IF NOT EXISTS "IX_UserActivityPageVisits_TenantId_UserId_VisitedAtUtc"
+                ON "UserActivityPageVisits" ("TenantId", "UserId", "VisitedAtUtc");
+            CREATE INDEX IF NOT EXISTS "IX_UserActivityPageVisits_UserId"
+                ON "UserActivityPageVisits" ("UserId");
+            """);
         await db.Database.ExecuteSqlRawAsync(
             """
             CREATE TABLE IF NOT EXISTS "ChatGroups" (
@@ -378,6 +432,10 @@ using (var scope = app.Services.CreateScope())
                 CONSTRAINT "FK_ReservationHotelBookings_Reservations_ReservationId" FOREIGN KEY ("ReservationId") REFERENCES "Reservations" ("Id") ON DELETE CASCADE
             );
             ALTER TABLE "ReservationHotelBookings" ADD COLUMN IF NOT EXISTS "IsLocked" boolean NOT NULL DEFAULT false;
+            ALTER TABLE "ReservationHotelBookings" ADD COLUMN IF NOT EXISTS "ExtraBedRate" numeric(18,2) NOT NULL DEFAULT 0;
+            ALTER TABLE "ReservationHotelBookings" ADD COLUMN IF NOT EXISTS "CnbRate" numeric(18,2) NOT NULL DEFAULT 0;
+            ALTER TABLE "ReservationHotelBookings" ADD COLUMN IF NOT EXISTS "CancellationReason" text;
+            ALTER TABLE "ReservationHotelBookings" ADD COLUMN IF NOT EXISTS "CancellationReasonDetail" text;
             CREATE INDEX IF NOT EXISTS "IX_ReservationHotelBookings_ReservationId_DayNumber" ON "ReservationHotelBookings" ("ReservationId", "DayNumber");
             CREATE TABLE IF NOT EXISTS "ReservationHotelBookingDocuments" (
                 "Id" uuid NOT NULL,

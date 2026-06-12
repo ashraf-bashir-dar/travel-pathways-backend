@@ -161,6 +161,10 @@ public sealed class PackagesController : TenantControllerBase
         public required string CreatedBy { get; init; }
         /// <summary>True when any reservation exists for this package in the tenant.</summary>
         public bool HasReservation { get; set; }
+        /// <summary>How many package records exist for this lead (including older revisions).</summary>
+        public int LeadPackageVersionCount { get; set; } = 1;
+        /// <summary>How many package log entries exist for this lead (each create/update sent to the client).</summary>
+        public int PackageLogCount { get; set; }
     }
 
     public sealed class CreateDayItineraryRequestDto
@@ -266,6 +270,15 @@ public sealed class PackagesController : TenantControllerBase
             query = query.Where(p => p.StartDate < endUtcExclusive);
         }
 
+        // List page shows only the latest package per lead; older revisions stay in DB and appear in package logs.
+        var latestPackageIds = await query
+            .Where(p => p.LeadId != null)
+            .GroupBy(p => p.LeadId!.Value)
+            .Select(g => g.OrderByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id).First().Id)
+            .ToListAsync(ct);
+        var latestIdSet = latestPackageIds.ToHashSet();
+        query = query.Where(p => p.LeadId == null || latestIdSet.Contains(p.Id));
+
         var total = await query.CountAsync(ct);
         var list = await query
             .OrderByDescending(p => p.CreatedAt)
@@ -273,7 +286,28 @@ public sealed class PackagesController : TenantControllerBase
             .Take(pageSize)
             .ToListAsync(ct);
 
-        var items = list.Select(ToDto).ToList();
+        var leadIds = list.Where(p => p.LeadId.HasValue).Select(p => p.LeadId!.Value).Distinct().ToList();
+        var versionCounts = leadIds.Count == 0
+            ? new Dictionary<Guid, int>()
+            : await _db.Packages.AsNoTracking()
+                .Where(p => p.TenantId == TenantId && p.LeadId != null && leadIds.Contains(p.LeadId.Value))
+                .GroupBy(p => p.LeadId!.Value)
+                .Select(g => new { LeadId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.LeadId, x => x.Count, ct);
+
+        var packageLogCounts = await GetPackageLogCountsByLeadAsync(leadIds, ct);
+
+        var items = list.Select(p =>
+        {
+            var dto = ToDto(p);
+            if (p.LeadId.HasValue)
+            {
+                if (versionCounts.TryGetValue(p.LeadId.Value, out var count))
+                    dto.LeadPackageVersionCount = count;
+                dto.PackageLogCount = packageLogCounts.GetValueOrDefault(p.LeadId.Value);
+            }
+            return dto;
+        }).ToList();
         var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
         return ApiResponse<PaginatedResponse<PackageDto>>.Ok(new PaginatedResponse<PackageDto>
         {
@@ -384,6 +418,7 @@ public sealed class PackagesController : TenantControllerBase
         public string? ChangedByUserId { get; init; }
         public required string ChangedByDisplayName { get; init; }
         public PackageLogSnapshot? Snapshot { get; init; }
+        public string? SnapshotJson { get; init; }
     }
 
     private async Task<bool> CanViewLeadPackageLogsAsync(Guid leadId, CancellationToken ct)
@@ -580,7 +615,10 @@ public sealed class PackagesController : TenantControllerBase
             LoggedAt = log.CreatedAt,
             ChangedByUserId = log.ChangedByUserId?.ToString("D"),
             ChangedByDisplayName = log.ChangedByDisplayName,
-            Snapshot = snapshot
+            Snapshot = snapshot,
+            SnapshotJson = string.IsNullOrWhiteSpace(log.SnapshotJson) || log.SnapshotJson == "{}"
+                ? null
+                : log.SnapshotJson
         };
     }
 
@@ -883,6 +921,8 @@ public sealed class PackagesController : TenantControllerBase
             return ApiResponse<PackageDto>.Ok(ToDto(unchanged));
         }
 
+        var shouldAppendPackageLog = HasPackageDataChanges(pkg, request);
+
         pkg.LeadId = request.LeadId;
         pkg.ClientName = request.ClientName.Trim();
         pkg.ClientPhone = request.ClientPhone.Trim();
@@ -910,20 +950,14 @@ public sealed class PackagesController : TenantControllerBase
         pkg.InclusionIds = request.InclusionIds ?? new List<string>();
         pkg.ExclusionIds = request.ExclusionIds ?? new List<string>();
 
-        // When package status changes: sync to the lead and to all packages for that lead so Leads and Packages tabs stay in sync
-        if (syncLeadAndPackages && pkg.LeadId.HasValue)
+        // When the latest package for a lead changes status, sync that status to the lead only.
+        if (syncLeadAndPackages && pkg.LeadId.HasValue && await IsLatestPackageForLeadAsync(pkg, ct))
         {
             var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == pkg.LeadId.Value && l.TenantId == TenantId, ct);
             if (lead != null)
             {
                 lead.Status = (LeadStatus)(int)request.Status;
                 lead.IsLocked = request.Status == PackageStatus.Confirmed;
-                var allPackagesForLead = await _db.Packages.Where(x => x.LeadId == pkg.LeadId && x.TenantId == TenantId).ToListAsync(ct);
-                foreach (var p in allPackagesForLead)
-                {
-                    p.Status = request.Status;
-                    p.IsLocked = request.Status == PackageStatus.Confirmed;
-                }
             }
         }
 
@@ -959,8 +993,11 @@ public sealed class PackagesController : TenantControllerBase
 
         await SaveChangesWithOptionalPackageLogAsync(ct);
 
-        await AppendPackageLogAsync(pkg, PackageLogAction.Updated, ct);
-        await SaveChangesWithOptionalPackageLogAsync(ct);
+        if (shouldAppendPackageLog)
+        {
+            await AppendPackageLogAsync(pkg, PackageLogAction.Updated, ct);
+            await SaveChangesWithOptionalPackageLogAsync(ct);
+        }
 
         var updated = await _db.Packages.AsNoTracking()
             .Include(p => p.DayWiseItinerary).ThenInclude(d => d.Hotel)
@@ -1578,7 +1615,10 @@ public sealed class PackagesController : TenantControllerBase
         }
     }
 
-    private static bool HasPackageUpdateChanges(TourPackage pkg, UpdatePackageRequestDto request)
+    private static bool HasPackageUpdateChanges(TourPackage pkg, UpdatePackageRequestDto request) =>
+        HasPackageDataChanges(pkg, request) || pkg.Status != request.Status;
+
+    private static bool HasPackageDataChanges(TourPackage pkg, UpdatePackageRequestDto request)
     {
         if (pkg.LeadId != request.LeadId) return true;
         if (!StringEqual(pkg.ClientName, request.ClientName)) return true;
@@ -1598,7 +1638,6 @@ public sealed class PackagesController : TenantControllerBase
         if (pkg.MarginAmount != request.MarginAmount) return true;
         if (pkg.Discount != request.Discount) return true;
         if (pkg.AdvanceAmount != request.AdvanceAmount) return true;
-        if (pkg.Status != request.Status) return true;
         if (!StringListEqual(pkg.InclusionIds, request.InclusionIds)) return true;
         if (!StringListEqual(pkg.ExclusionIds, request.ExclusionIds)) return true;
         return !ItineraryEqual(pkg.DayWiseItinerary, request.DayWiseItinerary);
@@ -1648,6 +1687,39 @@ public sealed class PackagesController : TenantControllerBase
 
     private static Guid? NormalizeOptionalGuid(Guid? id) =>
         id is { } g && g != Guid.Empty ? g : null;
+
+    private async Task<Dictionary<Guid, int>> GetPackageLogCountsByLeadAsync(List<Guid> leadIds, CancellationToken ct)
+    {
+        if (leadIds.Count == 0)
+            return new Dictionary<Guid, int>();
+
+        try
+        {
+            return await _db.PackageLogs.AsNoTracking()
+                .Where(l => l.TenantId == TenantId && leadIds.Contains(l.LeadId))
+                .GroupBy(l => l.LeadId)
+                .Select(g => new { LeadId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.LeadId, x => x.Count, ct);
+        }
+        catch (PostgresException ex) when (IsPackageLogSchemaException(ex))
+        {
+            return new Dictionary<Guid, int>();
+        }
+    }
+
+    private async Task<bool> IsLatestPackageForLeadAsync(TourPackage pkg, CancellationToken ct)
+    {
+        if (!pkg.LeadId.HasValue) return false;
+
+        var latestId = await _db.Packages.AsNoTracking()
+            .Where(x => x.LeadId == pkg.LeadId && x.TenantId == TenantId)
+            .OrderByDescending(x => x.CreatedAt)
+            .ThenByDescending(x => x.Id)
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync(ct);
+
+        return latestId == pkg.Id;
+    }
 
     private static PackageDto ToDto(TourPackage p)
     {

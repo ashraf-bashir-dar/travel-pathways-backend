@@ -800,12 +800,18 @@ namespace TravelPathways.Api.Migrations
                     b.Property<DateTime>("PaymentDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("PaymentMode")
+                        .HasColumnType("text");
+
                     b.Property<string>("PaymentType")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Reference")
                         .HasColumnType("text");
+
+                    b.Property<Guid?>("RecordedByUserId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ScreenshotUrl")
                         .HasColumnType("text");
@@ -829,6 +835,8 @@ namespace TravelPathways.Api.Migrations
                     b.HasIndex("LeadId");
 
                     b.HasIndex("PackageId");
+
+                    b.HasIndex("RecordedByUserId");
 
                     b.HasIndex("TransportCompanyId");
 
@@ -1024,6 +1032,12 @@ namespace TravelPathways.Api.Migrations
                     b.Property<DateTime?>("CheckOutDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CancellationReason")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CancellationReasonDetail")
+                        .HasColumnType("text");
+
                     b.Property<string>("ConfirmationNumber")
                         .HasColumnType("text");
 
@@ -1033,6 +1047,9 @@ namespace TravelPathways.Api.Migrations
                     b.Property<int>("CnbCount")
                         .HasColumnType("integer");
 
+                    b.Property<decimal>("CnbRate")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<int>("DayNumber")
                         .HasColumnType("integer");
 
@@ -1041,6 +1058,9 @@ namespace TravelPathways.Api.Migrations
 
                     b.Property<int>("ExtraBedCount")
                         .HasColumnType("integer");
+
+                    b.Property<decimal>("ExtraBedRate")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<Guid?>("HotelId")
                         .HasColumnType("uuid");
@@ -1884,6 +1904,11 @@ namespace TravelPathways.Api.Migrations
                         .WithMany()
                         .HasForeignKey("TransportCompanyId");
 
+                    b.HasOne("TravelPathways.Api.Data.Entities.AppUser", "RecordedBy")
+                        .WithMany()
+                        .HasForeignKey("RecordedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("TravelPathways.Api.Data.Entities.AppUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
@@ -1894,6 +1919,8 @@ namespace TravelPathways.Api.Migrations
                     b.Navigation("Lead");
 
                     b.Navigation("Package");
+
+                    b.Navigation("RecordedBy");
 
                     b.Navigation("TransportCompany");
 

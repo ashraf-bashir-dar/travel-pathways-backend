@@ -139,6 +139,33 @@ public sealed class FileStorage
         return $"/uploads/tenants/{tenantId:D}/chat/{groupId:D}/{messageId:D}/{fileName}";
     }
 
+    /// <summary>Save or replace a user profile photo. Returns relative URL under /uploads/...</summary>
+    public async Task<string> SaveUserProfilePhotoAsync(Guid? tenantId, Guid userId, IFormFile file, CancellationToken ct)
+    {
+        if (file.Length == 0)
+            throw new InvalidOperationException("Profile photo file is empty.");
+
+        var folder = tenantId.HasValue
+            ? Path.Combine(_uploadsRoot, "tenants", tenantId.Value.ToString("D"), "users", userId.ToString("D"))
+            : Path.Combine(_uploadsRoot, "platform", "users", userId.ToString("D"));
+        Directory.CreateDirectory(folder);
+
+        var safeName = MakeSafeFileName(file.FileName);
+        var ext = Path.GetExtension(safeName);
+        if (string.IsNullOrEmpty(ext) || !IsImageExtension(ext)) ext = ".jpg";
+        var fileName = $"profile{ext}";
+        var fullPath = Path.Combine(folder, fileName);
+
+        await using (var stream = File.Create(fullPath))
+        {
+            await file.CopyToAsync(stream, ct);
+        }
+
+        return tenantId.HasValue
+            ? $"/uploads/tenants/{tenantId:D}/users/{userId:D}/{fileName}"
+            : $"/uploads/platform/users/{userId:D}/{fileName}";
+    }
+
     /// <summary>Save a reservation payment screenshot. Multiple allowed per reservation. Returns relative URL.</summary>
     public async Task<string> SaveReservationScreenshotAsync(Guid tenantId, Guid reservationId, IFormFile file, CancellationToken ct)
     {

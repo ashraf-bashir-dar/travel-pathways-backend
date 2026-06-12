@@ -18,6 +18,8 @@ public sealed class AppUser : EntityBase
     public DateTime? DateOfBirth { get; set; }
     /// <summary>Date the employee joined the organization.</summary>
     public DateTime? JoinDate { get; set; }
+    /// <summary>Date the employee left the organization (if applicable).</summary>
+    public DateTime? LeaveDate { get; set; }
     /// <summary>Job title or designation (e.g. "Senior Tour Manager", "Sales Executive").</summary>
     public string? Designation { get; set; }
     /// <summary>Residential or official address.</summary>
@@ -50,6 +52,9 @@ public sealed class AppUser : EntityBase
 
     /// <summary>Encrypted password for admin view. Null if never set or encryption unavailable.</summary>
     public string? PasswordEncrypted { get; set; }
+
+    /// <summary>When false, web app idle/active time is not recorded for this user.</summary>
+    public bool ActivityTrackingEnabled { get; set; } = true;
 
     /// <summary>Include this user in inbound lead auto-assignment (sales team).</summary>
     public bool ParticipateInInboundAutoAssign { get; set; }

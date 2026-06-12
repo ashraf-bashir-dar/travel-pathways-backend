@@ -8,8 +8,15 @@ public sealed class Payment : TenantEntityBase
 
     public decimal Amount { get; set; }
     public DateTime PaymentDate { get; set; }
+    /// <summary>Cash, UPI, bank transfer, etc.</summary>
+    public PaymentMode? PaymentMode { get; set; }
+    /// <summary>Payment type label, e.g. Advance, Final payment, Partial.</summary>
     public string? Reference { get; set; }
     public string? Notes { get; set; }
+
+    /// <summary>User who recorded this payment in the ledger.</summary>
+    public Guid? RecordedByUserId { get; set; }
+    public AppUser? RecordedBy { get; set; }
 
     /// <summary>For PaymentType.Received: the client/lead.</summary>
     public Guid? LeadId { get; set; }

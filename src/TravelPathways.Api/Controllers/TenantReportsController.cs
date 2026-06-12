@@ -446,6 +446,189 @@ public sealed class TenantReportsController : ControllerBase
         return ApiResponse<TransportPayablesDetailDto>.Ok(detail);
     }
 
+    public sealed class HotelRoomBookingSummaryDto
+    {
+        public string? HotelId { get; init; }
+        public required string HotelName { get; init; }
+        public bool IsHouseboat { get; init; }
+        public int BookingCount { get; init; }
+        public int TotalRooms { get; init; }
+        public decimal TotalPayable { get; init; }
+        public decimal TotalAdvancePaid { get; init; }
+        public decimal TotalBalance { get; init; }
+    }
+
+    public sealed class HotelRoomBookingRowDto
+    {
+        public required string BookingId { get; init; }
+        public required string ReservationId { get; init; }
+        public required string PackageId { get; init; }
+        public required string HotelName { get; init; }
+        public bool IsHouseboat { get; init; }
+        public required string PackageName { get; init; }
+        public required string ClientName { get; init; }
+        public int DayNumber { get; init; }
+        public DateTime CheckInDate { get; init; }
+        public DateTime? CheckOutDate { get; init; }
+        public string? RoomType { get; init; }
+        public int NumberOfRooms { get; init; }
+        public decimal RatePerNight { get; init; }
+        public decimal TotalAmount { get; init; }
+        public decimal AdvancePaid { get; init; }
+        public decimal BalanceAmount { get; init; }
+        public required string Status { get; init; }
+        public string? ConfirmationNumber { get; init; }
+    }
+
+    public sealed class HotelRoomBookingsTotalsDto
+    {
+        public int BookingCount { get; init; }
+        public int TotalRooms { get; init; }
+        public decimal TotalPayable { get; init; }
+        public decimal TotalAdvancePaid { get; init; }
+        public decimal TotalBalance { get; init; }
+    }
+
+    public sealed class HotelRoomBookingsReportDto
+    {
+        public required List<HotelRoomBookingSummaryDto> Summary { get; init; }
+        public required List<HotelRoomBookingRowDto> Bookings { get; init; }
+        public required HotelRoomBookingsTotalsDto Totals { get; init; }
+    }
+
+    /// <summary>
+    /// Hotel room bookings from reservations: rooms, rates, and payable per hotel.
+    /// Date range filters on check-in date (or booking date when check-in is unset). Excludes cancelled.
+    /// </summary>
+    [HttpGet("hotel-room-bookings")]
+    [Authorize(Policy = "TenantAdminOnly")]
+    public async Task<ActionResult<ApiResponse<HotelRoomBookingsReportDto>>> GetHotelRoomBookings(
+        [FromQuery] DateTime? dateFrom = null,
+        [FromQuery] DateTime? dateTo = null,
+        [FromQuery] Guid? hotelId = null,
+        CancellationToken ct = default)
+    {
+        var check = await EnsureVendorManagementModuleAsync(ct);
+        if (check != null) return check;
+        if (!_tenant.TenantId.HasValue)
+            return BadRequest(ApiResponse<HotelRoomBookingsReportDto>.Fail("Tenant context is missing."));
+
+        var tenantId = _tenant.TenantId.Value;
+
+        var query =
+            from b in _db.ReservationHotelBookings.AsNoTracking()
+            join r in _db.Reservations.AsNoTracking() on b.ReservationId equals r.Id
+            join p in _db.Packages.AsNoTracking() on r.PackageId equals p.Id
+            where b.TenantId == tenantId
+                  && !b.IsDeleted
+                  && !r.IsDeleted
+                  && !p.IsDeleted
+                  && b.Status != ReservationHotelBookingStatus.Cancelled
+            select new
+            {
+                b.Id,
+                b.ReservationId,
+                PackageId = p.Id,
+                p.PackageName,
+                p.ClientName,
+                b.DayNumber,
+                StayDate = b.CheckInDate ?? b.BookingDate,
+                b.CheckOutDate,
+                b.HotelId,
+                b.HotelName,
+                b.IsHouseboat,
+                b.RoomType,
+                b.NumberOfRooms,
+                b.RatePerNight,
+                b.TotalAmount,
+                b.AdvancePaid,
+                b.BalanceAmount,
+                b.Status,
+                b.ConfirmationNumber
+            };
+
+        if (dateFrom.HasValue)
+        {
+            var startUtc = StartOfDayUtc(dateFrom.Value);
+            query = query.Where(x => x.StayDate >= startUtc);
+        }
+
+        if (dateTo.HasValue)
+        {
+            var endUtcExclusive = StartOfDayUtc(dateTo.Value).AddDays(1);
+            query = query.Where(x => x.StayDate < endUtcExclusive);
+        }
+
+        if (hotelId.HasValue)
+            query = query.Where(x => x.HotelId == hotelId.Value);
+
+        var rows = await query
+            .OrderBy(x => x.StayDate)
+            .ThenBy(x => x.HotelName)
+            .ThenBy(x => x.PackageName)
+            .ToListAsync(ct);
+
+        var bookings = rows.Select(x => new HotelRoomBookingRowDto
+        {
+            BookingId = x.Id.ToString("D"),
+            ReservationId = x.ReservationId.ToString("D"),
+            PackageId = x.PackageId.ToString("D"),
+            HotelName = string.IsNullOrWhiteSpace(x.HotelName) ? "—" : x.HotelName,
+            IsHouseboat = x.IsHouseboat,
+            PackageName = x.PackageName,
+            ClientName = x.ClientName,
+            DayNumber = x.DayNumber,
+            CheckInDate = x.StayDate,
+            CheckOutDate = x.CheckOutDate,
+            RoomType = x.RoomType,
+            NumberOfRooms = x.NumberOfRooms,
+            RatePerNight = x.RatePerNight,
+            TotalAmount = x.TotalAmount,
+            AdvancePaid = x.AdvancePaid,
+            BalanceAmount = x.BalanceAmount,
+            Status = x.Status.ToString(),
+            ConfirmationNumber = x.ConfirmationNumber
+        }).ToList();
+
+        var summary = rows
+            .GroupBy(x => new { x.HotelId, x.HotelName, x.IsHouseboat })
+            .Select(g => new HotelRoomBookingSummaryDto
+            {
+                HotelId = g.Key.HotelId?.ToString("D"),
+                HotelName = string.IsNullOrWhiteSpace(g.Key.HotelName) ? "—" : g.Key.HotelName,
+                IsHouseboat = g.Key.IsHouseboat,
+                BookingCount = g.Count(),
+                TotalRooms = g.Sum(x => x.NumberOfRooms),
+                TotalPayable = g.Sum(x => x.TotalAmount),
+                TotalAdvancePaid = g.Sum(x => x.AdvancePaid),
+                TotalBalance = g.Sum(x => x.BalanceAmount)
+            })
+            .OrderBy(s => s.HotelName)
+            .ToList();
+
+        var totals = new HotelRoomBookingsTotalsDto
+        {
+            BookingCount = bookings.Count,
+            TotalRooms = bookings.Sum(b => b.NumberOfRooms),
+            TotalPayable = bookings.Sum(b => b.TotalAmount),
+            TotalAdvancePaid = bookings.Sum(b => b.AdvancePaid),
+            TotalBalance = bookings.Sum(b => b.BalanceAmount)
+        };
+
+        return ApiResponse<HotelRoomBookingsReportDto>.Ok(new HotelRoomBookingsReportDto
+        {
+            Summary = summary,
+            Bookings = bookings,
+            Totals = totals
+        });
+    }
+
+    private static DateTime StartOfDayUtc(DateTime value)
+    {
+        var d = value.Date;
+        return new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc);
+    }
+
     private static decimal ApplyRateType(decimal costPrice, RateType? rateType, int numberOfDays)
     {
         switch (rateType)

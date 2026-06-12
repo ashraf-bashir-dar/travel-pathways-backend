@@ -56,7 +56,9 @@ public enum AppModuleKey
     /// <summary>Sales call logs synced from company Android phones.</summary>
     CallLogs = 20,
     /// <summary>Live/history GPS locations for the sales team (tenant admin).</summary>
-    TeamLocations = 21
+    TeamLocations = 21,
+    /// <summary>Manual ledger: record payments received from leads and payments made to hotels, houseboats, and transport.</summary>
+    Ledger = 22
 }
 
 /// <summary>Status of a reservation (package assigned to reservation manager).</summary>
@@ -76,6 +78,13 @@ public enum ReservationHotelBookingStatus
     Cancelled = 3
 }
 
+public enum ReservationHotelBookingCancellationReason
+{
+    Reason1 = 0,
+    PackageCancelled = 1,
+    Other = 2
+}
+
 public enum ReservationHotelBookingDocumentType
 {
     PaymentProof = 0,
@@ -87,6 +96,17 @@ public enum PaymentType
 {
     Received = 0,
     Made = 1
+}
+
+/// <summary>How a payment was made or received (cash, UPI, bank transfer, etc.).</summary>
+public enum PaymentMode
+{
+    Cash = 0,
+    UPI = 1,
+    BankTransfer = 2,
+    Cheque = 3,
+    Card = 4,
+    Other = 5
 }
 
 /// <summary>When PaymentType is Made: who was paid. Determines which FK or PayeeDescription is required.</summary>

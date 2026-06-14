@@ -63,6 +63,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<Leave> Leaves => Set<Leave>();
     public DbSet<UserActivityDailySummary> UserActivityDailySummaries => Set<UserActivityDailySummary>();
     public DbSet<UserActivityPageVisit> UserActivityPageVisits => Set<UserActivityPageVisit>();
+    public DbSet<ExtensionCatalogItem> ExtensionCatalogItems => Set<ExtensionCatalogItem>();
 
     public DbSet<ChatGroup> ChatGroups => Set<ChatGroup>();
     public DbSet<ChatGroupMember> ChatGroupMembers => Set<ChatGroupMember>();
@@ -619,12 +620,46 @@ public sealed class AppDbContext : DbContext
             .Property(v => v.PageTitle)
             .HasMaxLength(500);
         modelBuilder.Entity<UserActivityPageVisit>()
+            .Property(v => v.Source)
+            .HasMaxLength(32)
+            .HasDefaultValue(UserActivityVisitSource.InApp);
+        modelBuilder.Entity<UserActivityPageVisit>()
             .HasOne(v => v.User)
             .WithMany()
             .HasForeignKey(v => v.UserId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<UserActivityPageVisit>()
             .HasIndex(v => new { v.TenantId, v.UserId, v.VisitedAtUtc });
+
+        modelBuilder.Entity<ExtensionCatalogItem>()
+            .Property(e => e.Code)
+            .HasMaxLength(64);
+        modelBuilder.Entity<ExtensionCatalogItem>()
+            .Property(e => e.Name)
+            .HasMaxLength(200);
+        modelBuilder.Entity<ExtensionCatalogItem>()
+            .Property(e => e.Summary)
+            .HasMaxLength(500);
+        modelBuilder.Entity<ExtensionCatalogItem>()
+            .Property(e => e.Icon)
+            .HasMaxLength(16);
+        modelBuilder.Entity<ExtensionCatalogItem>()
+            .Property(e => e.SupportedBrowsers)
+            .HasMaxLength(120);
+        modelBuilder.Entity<ExtensionCatalogItem>()
+            .Property(e => e.ChromeStoreUrl)
+            .HasMaxLength(1000);
+        modelBuilder.Entity<ExtensionCatalogItem>()
+            .Property(e => e.EdgeStoreUrl)
+            .HasMaxLength(1000);
+        modelBuilder.Entity<ExtensionCatalogItem>()
+            .Property(e => e.DownloadApiPath)
+            .HasMaxLength(256);
+        modelBuilder.Entity<ExtensionCatalogItem>()
+            .HasIndex(e => new { e.TenantId, e.Code })
+            .IsUnique();
+        modelBuilder.Entity<ExtensionCatalogItem>()
+            .HasIndex(e => new { e.TenantId, e.SortOrder });
 
         modelBuilder.Entity<ChatGroup>()
             .HasOne(g => g.CreatedByUser)
@@ -942,6 +977,12 @@ public sealed class AppDbContext : DbContext
                 : e.TenantId == _tenant.TenantId));
 
         modelBuilder.Entity<UserActivityPageVisit>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<ExtensionCatalogItem>().HasQueryFilter(e =>
             !e.IsDeleted &&
             (_tenant.IsSuperAdmin
                 ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)

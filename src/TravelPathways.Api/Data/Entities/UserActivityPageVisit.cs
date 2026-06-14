@@ -14,5 +14,11 @@ public sealed class UserActivityPageVisit : TenantEntityBase
 
     public string? PageTitle { get; set; }
 
+    /// <summary>InApp, ExternalLink, or Browser (extension).</summary>
+    public string Source { get; set; } = UserActivityVisitSource.InApp;
+
+    /// <summary>Time spent on page (browser extension only).</summary>
+    public int? DurationSeconds { get; set; }
+
     public DateTime VisitedAtUtc { get; set; }
 }

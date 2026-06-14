@@ -58,7 +58,9 @@ public enum AppModuleKey
     /// <summary>Live/history GPS locations for the sales team (tenant admin).</summary>
     TeamLocations = 21,
     /// <summary>Manual ledger: record payments received from leads and payments made to hotels, houseboats, and transport.</summary>
-    Ledger = 22
+    Ledger = 22,
+    /// <summary>Temporary module: list and install browser extensions. Assign to employees only while onboarding an extension.</summary>
+    Extensions = 23
 }
 
 /// <summary>Status of a reservation (package assigned to reservation manager).</summary>

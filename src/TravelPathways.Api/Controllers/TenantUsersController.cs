@@ -68,6 +68,8 @@ public sealed class TenantUsersController : ControllerBase
         public bool ParticipateInInboundAutoAssign { get; init; }
         public int InboundDailyLeadQuota { get; init; }
         public List<LeadSource> InboundAllowedLeadSources { get; init; } = [];
+        public string? ShiftStartTime { get; init; }
+        public string? ShiftEndTime { get; init; }
     }
 
     public sealed class CreateTenantUserRequestDto
@@ -95,6 +97,8 @@ public sealed class TenantUsersController : ControllerBase
         public bool ParticipateInInboundAutoAssign { get; set; }
         public int InboundDailyLeadQuota { get; set; }
         public List<LeadSource>? InboundAllowedLeadSources { get; set; }
+        public string? ShiftStartTime { get; set; }
+        public string? ShiftEndTime { get; set; }
     }
 
     public sealed class UpdateTenantUserRequestDto
@@ -122,6 +126,8 @@ public sealed class TenantUsersController : ControllerBase
         public bool ParticipateInInboundAutoAssign { get; set; }
         public int InboundDailyLeadQuota { get; set; }
         public List<LeadSource>? InboundAllowedLeadSources { get; set; }
+        public string? ShiftStartTime { get; set; }
+        public string? ShiftEndTime { get; set; }
     }
 
     /// <summary>
@@ -261,6 +267,9 @@ public sealed class TenantUsersController : ControllerBase
             _db.Users.Add(user);
         }
 
+        if (!UserShiftTimeHelper.TryApplyShiftTimes(user, request.ShiftStartTime, request.ShiftEndTime, out var shiftError))
+            return BadRequest(ApiResponse<TenantUserDto>.Fail(shiftError!));
+
         try
         {
             await _db.SaveChangesAsync(ct);
@@ -386,6 +395,8 @@ public sealed class TenantUsersController : ControllerBase
             user.InboundDailyLeadQuota = 0;
             user.InboundAllowedLeadSources = [];
         }
+        if (!UserShiftTimeHelper.TryApplyShiftTimes(user, request.ShiftStartTime, request.ShiftEndTime, out var shiftError))
+            return BadRequest(ApiResponse<TenantUserDto>.Fail(shiftError!));
         if (!string.IsNullOrWhiteSpace(request.Password))
         {
             user.PasswordHash = PasswordHasher.Hash(request.Password);
@@ -483,6 +494,8 @@ public sealed class TenantUsersController : ControllerBase
             ProfilePhotoUrl = u.ProfilePhotoUrl,
             ParticipateInInboundAutoAssign = u.ParticipateInInboundAutoAssign,
             InboundDailyLeadQuota = u.InboundDailyLeadQuota,
-            InboundAllowedLeadSources = u.InboundAllowedLeadSources ?? []
+            InboundAllowedLeadSources = u.InboundAllowedLeadSources ?? [],
+            ShiftStartTime = UserShiftTimeHelper.Format(u.ShiftStartTime),
+            ShiftEndTime = UserShiftTimeHelper.Format(u.ShiftEndTime)
         };
 }

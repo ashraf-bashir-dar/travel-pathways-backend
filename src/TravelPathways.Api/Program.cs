@@ -286,6 +286,10 @@ using (var scope = app.Services.CreateScope())
             "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"LeaveDate\" timestamp with time zone;");
         await db.Database.ExecuteSqlRawAsync(
             "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"ActivityTrackingEnabled\" boolean NOT NULL DEFAULT true;");
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"ShiftStartTime\" time without time zone;");
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"ShiftEndTime\" time without time zone;");
         // Same for package margin (PDF / price override); avoids 42703 if migrations were not applied to this DB.
         await db.Database.ExecuteSqlRawAsync(
             "ALTER TABLE \"Packages\" ADD COLUMN IF NOT EXISTS \"MarginAmount\" numeric(18,2) NOT NULL DEFAULT 0;");
@@ -338,6 +342,38 @@ using (var scope = app.Services.CreateScope())
                 ON "UserActivityPageVisits" ("TenantId", "UserId", "VisitedAtUtc");
             CREATE INDEX IF NOT EXISTS "IX_UserActivityPageVisits_UserId"
                 ON "UserActivityPageVisits" ("UserId");
+            ALTER TABLE "UserActivityPageVisits" ADD COLUMN IF NOT EXISTS "Source" character varying(32) NOT NULL DEFAULT 'InApp';
+            ALTER TABLE "UserActivityPageVisits" ADD COLUMN IF NOT EXISTS "DurationSeconds" integer;
+            CREATE INDEX IF NOT EXISTS "IX_UserActivityPageVisits_TenantId_Source_VisitedAtUtc"
+                ON "UserActivityPageVisits" ("TenantId", "Source", "VisitedAtUtc");
+            """);
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "ExtensionCatalogItems" (
+                "Id" uuid NOT NULL PRIMARY KEY,
+                "Code" character varying(64) NOT NULL,
+                "Name" character varying(200) NOT NULL,
+                "Summary" character varying(500) NOT NULL,
+                "Details" text NOT NULL DEFAULT '',
+                "Icon" character varying(16) NOT NULL DEFAULT '🧩',
+                "SupportedBrowsers" character varying(120) NOT NULL DEFAULT 'Chrome, Edge',
+                "ChromeStoreUrl" character varying(1000),
+                "EdgeStoreUrl" character varying(1000),
+                "DownloadApiPath" character varying(256),
+                "InstallSteps" text,
+                "SortOrder" integer NOT NULL DEFAULT 0,
+                "IsPublished" boolean NOT NULL DEFAULT true,
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_ExtensionCatalogItems_TenantId_Code"
+                ON "ExtensionCatalogItems" ("TenantId", "Code");
+            CREATE INDEX IF NOT EXISTS "IX_ExtensionCatalogItems_TenantId_SortOrder"
+                ON "ExtensionCatalogItems" ("TenantId", "SortOrder");
             """);
         await db.Database.ExecuteSqlRawAsync(
             """

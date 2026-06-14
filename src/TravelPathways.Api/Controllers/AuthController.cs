@@ -69,6 +69,8 @@ public sealed class AuthController : ControllerBase
         public string? EmergencyContactName { get; init; }
         public string? EmergencyContactPhone { get; init; }
         public string? ProfilePhotoUrl { get; init; }
+        public string? ShiftStartTime { get; init; }
+        public string? ShiftEndTime { get; init; }
     }
 
     public sealed class UserProfileDto
@@ -89,6 +91,8 @@ public sealed class AuthController : ControllerBase
         public string? EmergencyContactName { get; init; }
         public string? EmergencyContactPhone { get; init; }
         public string? ProfilePhotoUrl { get; init; }
+        public string? ShiftStartTime { get; init; }
+        public string? ShiftEndTime { get; init; }
     }
 
     public sealed class TenantDocumentDto
@@ -360,7 +364,9 @@ public sealed class AuthController : ControllerBase
             Address = user.Address,
             EmergencyContactName = user.EmergencyContactName,
             EmergencyContactPhone = user.EmergencyContactPhone,
-            ProfilePhotoUrl = user.ProfilePhotoUrl
+            ProfilePhotoUrl = user.ProfilePhotoUrl,
+            ShiftStartTime = UserShiftTimeHelper.Format(user.ShiftStartTime),
+            ShiftEndTime = UserShiftTimeHelper.Format(user.ShiftEndTime)
         };
 
     private static UserDto MapUserDto(Data.Entities.AppUser user) =>
@@ -387,7 +393,9 @@ public sealed class AuthController : ControllerBase
             Address = user.Address,
             EmergencyContactName = user.EmergencyContactName,
             EmergencyContactPhone = user.EmergencyContactPhone,
-            ProfilePhotoUrl = user.ProfilePhotoUrl
+            ProfilePhotoUrl = user.ProfilePhotoUrl,
+            ShiftStartTime = UserShiftTimeHelper.Format(user.ShiftStartTime),
+            ShiftEndTime = UserShiftTimeHelper.Format(user.ShiftEndTime)
         };
 
     private static TenantDto MapTenantDto(Data.Entities.Tenant? tenant, DateTime fallbackCreatedAt) =>

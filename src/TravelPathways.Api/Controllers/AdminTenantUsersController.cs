@@ -56,6 +56,8 @@ public sealed class AdminTenantUsersController : ControllerBase
         public string? EmergencyContactName { get; init; }
         public string? EmergencyContactPhone { get; init; }
         public string? ProfilePhotoUrl { get; init; }
+        public string? ShiftStartTime { get; init; }
+        public string? ShiftEndTime { get; init; }
     }
 
     public sealed class CreateTenantUserRequestDto
@@ -80,6 +82,8 @@ public sealed class AdminTenantUsersController : ControllerBase
         public string? EmergencyContactName { get; set; }
         public string? EmergencyContactPhone { get; set; }
         public string? ProfilePhotoUrl { get; set; }
+        public string? ShiftStartTime { get; set; }
+        public string? ShiftEndTime { get; set; }
     }
 
     public sealed class UpdateTenantUserRequestDto
@@ -104,6 +108,8 @@ public sealed class AdminTenantUsersController : ControllerBase
         public string? EmergencyContactName { get; set; }
         public string? EmergencyContactPhone { get; set; }
         public string? ProfilePhotoUrl { get; set; }
+        public string? ShiftStartTime { get; set; }
+        public string? ShiftEndTime { get; set; }
     }
 
     [HttpGet]
@@ -191,6 +197,9 @@ public sealed class AdminTenantUsersController : ControllerBase
             _db.Users.Add(user);
         }
 
+        if (!UserShiftTimeHelper.TryApplyShiftTimes(user, request.ShiftStartTime, request.ShiftEndTime, out var shiftError))
+            return BadRequest(ApiResponse<TenantUserDto>.Fail(shiftError!));
+
         try
         {
             await _db.SaveChangesAsync(ct);
@@ -259,6 +268,9 @@ public sealed class AdminTenantUsersController : ControllerBase
         user.EmergencyContactName = request.EmergencyContactName?.Trim();
         user.EmergencyContactPhone = request.EmergencyContactPhone?.Trim();
         user.ProfilePhotoUrl = request.ProfilePhotoUrl?.Trim();
+
+        if (!UserShiftTimeHelper.TryApplyShiftTimes(user, request.ShiftStartTime, request.ShiftEndTime, out var shiftError))
+            return BadRequest(ApiResponse<TenantUserDto>.Fail(shiftError!));
 
         if (!string.IsNullOrWhiteSpace(request.Password))
         {
@@ -372,7 +384,9 @@ public sealed class AdminTenantUsersController : ControllerBase
             Address = u.Address,
             EmergencyContactName = u.EmergencyContactName,
             EmergencyContactPhone = u.EmergencyContactPhone,
-            ProfilePhotoUrl = u.ProfilePhotoUrl
+            ProfilePhotoUrl = u.ProfilePhotoUrl,
+            ShiftStartTime = UserShiftTimeHelper.Format(u.ShiftStartTime),
+            ShiftEndTime = UserShiftTimeHelper.Format(u.ShiftEndTime)
         };
 }
 

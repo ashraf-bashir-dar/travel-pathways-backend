@@ -56,6 +56,12 @@ public sealed class AppUser : EntityBase
     /// <summary>When false, web app idle/active time is not recorded for this user.</summary>
     public bool ActivityTrackingEnabled { get; set; } = true;
 
+    /// <summary>Daily shift start time (local, per tenant user).</summary>
+    public TimeOnly? ShiftStartTime { get; set; }
+
+    /// <summary>Daily shift end time (local, per tenant user).</summary>
+    public TimeOnly? ShiftEndTime { get; set; }
+
     /// <summary>Include this user in inbound lead auto-assignment (sales team).</summary>
     public bool ParticipateInInboundAutoAssign { get; set; }
 

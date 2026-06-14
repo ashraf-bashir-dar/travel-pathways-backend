@@ -22,14 +22,19 @@
 # Logs
 *.log
 
-# Docker
-.dockerignore
-Dockerfile*
+# Uploads
+wwwroot/uploads/
+**/wwwroot/uploads/
 
-# Uploads/temp
-wwwroot/uploads/*
+# Temporary files
 tmp/
 temp/
+
+# Database backups
+*.bak
+*.sql
+*.sql.gz
+*.dump
 
 # OS files
 .DS_Store

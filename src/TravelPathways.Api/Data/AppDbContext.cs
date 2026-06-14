@@ -46,6 +46,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<PackageLocationMaster> PackageLocationMasters => Set<PackageLocationMaster>();
     public DbSet<B2bAgent> B2bAgents => Set<B2bAgent>();
     public DbSet<B2bAgentDocument> B2bAgentDocuments => Set<B2bAgentDocument>();
+    public DbSet<SalesConfirmedPackage> SalesConfirmedPackages => Set<SalesConfirmedPackage>();
 
     public DbSet<State> States => Set<State>();
     public DbSet<City> Cities => Set<City>();
@@ -210,6 +211,61 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<B2bAgentDocument>()
             .Property(d => d.Url)
             .HasMaxLength(1000);
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .ToTable("SalesConfirmedPackages");
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .Property(p => p.ClientName)
+            .HasMaxLength(200);
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .Property(p => p.ClientPhone)
+            .HasMaxLength(20);
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .Property(p => p.ReferenceName)
+            .HasMaxLength(200);
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .Property(p => p.ReferenceContact)
+            .HasMaxLength(50);
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .Property(p => p.SourceType)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .Property(p => p.ReferenceSourceType)
+            .HasConversion(
+                v => v.HasValue ? v.Value.ToString() : null,
+                v => SalesReferenceSourceTypeJsonConverter.Parse(v));
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .Property(p => p.ExpectedProfit)
+            .HasColumnType("decimal(18,2)");
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .Property(p => p.ActualProfit)
+            .HasColumnType("decimal(18,2)");
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .HasOne(p => p.Lead)
+            .WithMany()
+            .HasForeignKey(p => p.LeadId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .HasOne(p => p.RecordedBy)
+            .WithMany()
+            .HasForeignKey(p => p.RecordedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .HasIndex(p => new { p.TenantId, p.ConfirmationDate });
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .HasIndex(p => p.RecordedByUserId);
 
         modelBuilder.Entity<TransportCompany>()
             .HasMany(c => c.Vehicles)
@@ -826,6 +882,12 @@ public sealed class AppDbContext : DbContext
                 : e.TenantId == _tenant.TenantId));
 
         modelBuilder.Entity<B2bAgent>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<SalesConfirmedPackage>().HasQueryFilter(e =>
             !e.IsDeleted &&
             (_tenant.IsSuperAdmin
                 ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)

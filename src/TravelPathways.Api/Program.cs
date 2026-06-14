@@ -302,6 +302,60 @@ using (var scope = app.Services.CreateScope())
             "CREATE INDEX IF NOT EXISTS \"IX_Payments_RecordedByUserId\" ON \"Payments\" (\"RecordedByUserId\");");
         await db.Database.ExecuteSqlRawAsync(
             """
+            CREATE TABLE IF NOT EXISTS "SalesConfirmedPackages" (
+                "Id" uuid NOT NULL PRIMARY KEY,
+                "ClientName" character varying(200) NOT NULL,
+                "ClientPhone" character varying(20) NOT NULL,
+                "ArrivalDate" date NOT NULL,
+                "DepartureDate" date NOT NULL,
+                "ExpectedProfit" numeric(18,2) NOT NULL,
+                "ActualProfit" numeric(18,2),
+                "ConfirmationDate" date NOT NULL,
+                "SourceType" text NOT NULL,
+                "LeadId" uuid REFERENCES "Leads"("Id") ON DELETE SET NULL,
+                "ReferenceName" character varying(200),
+                "ReferenceContact" character varying(50),
+                "RecordedByUserId" uuid NOT NULL REFERENCES "Users"("Id"),
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone
+            );
+            CREATE INDEX IF NOT EXISTS "IX_SalesConfirmedPackages_LeadId" ON "SalesConfirmedPackages" ("LeadId");
+            CREATE INDEX IF NOT EXISTS "IX_SalesConfirmedPackages_RecordedByUserId" ON "SalesConfirmedPackages" ("RecordedByUserId");
+            CREATE INDEX IF NOT EXISTS "IX_SalesConfirmedPackages_TenantId_ConfirmationDate"
+                ON "SalesConfirmedPackages" ("TenantId", "ConfirmationDate");
+            """);
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"SalesConfirmedPackages\" ADD COLUMN IF NOT EXISTS \"ReferenceSourceType\" text;");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            UPDATE "SalesConfirmedPackages"
+            SET "ReferenceSourceType" = 'OfficeReference'
+            WHERE "ReferenceSourceType" IN ('InsideReference', 'TravelPathwaysReference');
+            UPDATE "SalesConfirmedPackages"
+            SET "ReferenceSourceType" = 'PersonalReference'
+            WHERE "ReferenceSourceType" = 'OutsideReference';
+            """);
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS "IX_SalesConfirmedPackages_TenantId_LeadId_Active"
+                    ON "SalesConfirmedPackages" ("TenantId", "LeadId")
+                    WHERE "IsDeleted" = false AND "LeadId" IS NOT NULL;
+                """);
+        }
+        catch (Exception indexEx)
+        {
+            logger.LogWarning(
+                indexEx,
+                "Could not create unique index on SalesConfirmedPackages (duplicate lead rows may exist). Application validation still blocks new duplicates.");
+        }
+        await db.Database.ExecuteSqlRawAsync(
+            """
             CREATE TABLE IF NOT EXISTS "UserActivityDailySummaries" (
                 "Id" uuid NOT NULL PRIMARY KEY,
                 "UserId" uuid NOT NULL REFERENCES "Users"("Id"),

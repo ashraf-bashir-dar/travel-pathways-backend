@@ -60,7 +60,21 @@ public enum AppModuleKey
     /// <summary>Manual ledger: record payments received from leads and payments made to hotels, houseboats, and transport.</summary>
     Ledger = 22,
     /// <summary>Temporary module: list and install browser extensions. Assign to employees only while onboarding an extension.</summary>
-    Extensions = 23
+    Extensions = 23,
+    /// <summary>Sales team: log confirmed packages with profit and lead/reference tracking.</summary>
+    Sales = 24
+}
+
+public enum SalesPackageSourceType
+{
+    Lead = 0,
+    Reference = 1
+}
+
+public enum SalesReferenceSourceType
+{
+    OfficeReference = 0,
+    PersonalReference = 1
 }
 
 /// <summary>Status of a reservation (package assigned to reservation manager).</summary>

@@ -145,7 +145,8 @@ public sealed class LeadsController : TenantControllerBase
         var effective = await GetEffectiveAllowedModulesForCurrentUserAsync(ct);
         if (ModuleAccess.HasModule(effective, AppModuleKey.Leads)
             || ModuleAccess.HasModule(effective, AppModuleKey.Ledger)
-            || ModuleAccess.HasModule(effective, AppModuleKey.Accounts))
+            || ModuleAccess.HasModule(effective, AppModuleKey.Accounts)
+            || ModuleAccess.HasModule(effective, AppModuleKey.Sales))
             return null;
 
         return StatusCode(403, ApiResponse<object>.Fail("Lead search for payments is not available for your account."));
@@ -346,6 +347,8 @@ public sealed class LeadsController : TenantControllerBase
     public async Task<ActionResult<ApiResponse<PaginatedResponse<LeadDto>>>> SearchLeadsForPayment(
         [FromQuery] string? searchTerm = null,
         [FromQuery] bool includePaymentHistoryLeads = false,
+        [FromQuery] bool assignedToMeOnly = false,
+        [FromQuery] LeadStatus? status = null,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
@@ -370,14 +373,10 @@ public sealed class LeadsController : TenantControllerBase
         pageSize = Math.Clamp(pageSize, 1, 50);
 
         IQueryable<Lead> query;
-        if (IsTenantAdmin())
-        {
-            query = _db.Leads.AsNoTracking().Where(l => l.TenantId == TenantId);
-        }
-        else
+        if (assignedToMeOnly || !IsTenantAdmin())
         {
             List<Guid>? paymentHistoryLeadIds = null;
-            if (includePaymentHistoryLeads)
+            if (!assignedToMeOnly && includePaymentHistoryLeads)
             {
                 paymentHistoryLeadIds = await _db.Payments.AsNoTracking()
                     .Where(p => p.TenantId == TenantId
@@ -392,10 +391,18 @@ public sealed class LeadsController : TenantControllerBase
             query = _db.Leads.AsNoTracking()
                 .Where(l => l.TenantId == TenantId
                             && (l.AssignedToUserId == currentUserId.Value
-                                || (includePaymentHistoryLeads
+                                || (!assignedToMeOnly
+                                    && includePaymentHistoryLeads
                                     && paymentHistoryLeadIds != null
                                     && paymentHistoryLeadIds.Contains(l.Id))));
         }
+        else
+        {
+            query = _db.Leads.AsNoTracking().Where(l => l.TenantId == TenantId);
+        }
+
+        if (status.HasValue)
+            query = query.Where(l => l.Status == status.Value);
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
@@ -588,7 +595,11 @@ public sealed class LeadsController : TenantControllerBase
     public async Task<ActionResult<ApiResponse<LeadDto>>> GetLeadById([FromRoute] Guid id, CancellationToken ct)
     {
         var moduleCheck = await EnsureLeadsModuleAsync(ct);
-        if (moduleCheck != null) return moduleCheck;
+        if (moduleCheck != null)
+        {
+            moduleCheck = await EnsurePaymentLeadSearchModuleAsync(ct);
+            if (moduleCheck != null) return moduleCheck;
+        }
 
         var lead = await _db.Leads.AsNoTracking()
             .Include(l => l.AssignedToUser)

@@ -31,7 +31,10 @@ public static class TenantModuleResolver
             .Select(u => u.AllowedModules)
             .FirstOrDefaultAsync(ct) ?? [];
 
-        return ModuleAccess.GetEffectiveModules(tenantModules, userModules);
+        var effective = ModuleAccess.GetEffectiveModules(tenantModules, userModules);
+        if (Enum.TryParse<UserRole>(role, true, out var userRole))
+            return UserModulePolicy.ApplyRoleFilter(userRole, effective);
+        return effective;
     }
 
     public static async Task<bool> HasModuleAsync(

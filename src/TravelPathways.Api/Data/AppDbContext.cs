@@ -59,6 +59,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<ReservationHotelBooking> ReservationHotelBookings => Set<ReservationHotelBooking>();
     public DbSet<ReservationHotelBookingDocument> ReservationHotelBookingDocuments => Set<ReservationHotelBookingDocument>();
     public DbSet<EmployeeDailyTask> EmployeeDailyTasks => Set<EmployeeDailyTask>();
+    public DbSet<EmployeeAssignedTask> EmployeeAssignedTasks => Set<EmployeeAssignedTask>();
     public DbSet<EmployeeCompensation> EmployeeCompensations => Set<EmployeeCompensation>();
     public DbSet<Attendance> Attendances => Set<Attendance>();
     public DbSet<Leave> Leaves => Set<Leave>();
@@ -627,6 +628,22 @@ public sealed class AppDbContext : DbContext
             .HasForeignKey(t => t.UserId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        modelBuilder.Entity<EmployeeAssignedTask>()
+            .Property(t => t.Status)
+            .HasConversion<string>();
+        modelBuilder.Entity<EmployeeAssignedTask>()
+            .HasOne(t => t.AssignedToUser)
+            .WithMany()
+            .HasForeignKey(t => t.AssignedToUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<EmployeeAssignedTask>()
+            .HasOne(t => t.AssignedByUser)
+            .WithMany()
+            .HasForeignKey(t => t.AssignedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<EmployeeAssignedTask>()
+            .HasIndex(t => new { t.TenantId, t.AssignedToUserId, t.DueDate });
+
         modelBuilder.Entity<EmployeeCompensation>()
             .ToTable("EmployeeSalary");
         modelBuilder.Entity<EmployeeCompensation>()
@@ -1009,6 +1026,12 @@ public sealed class AppDbContext : DbContext
                 : b.TenantId == _tenant.TenantId));
 
         modelBuilder.Entity<EmployeeDailyTask>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<EmployeeAssignedTask>().HasQueryFilter(e =>
             !e.IsDeleted &&
             (_tenant.IsSuperAdmin
                 ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)

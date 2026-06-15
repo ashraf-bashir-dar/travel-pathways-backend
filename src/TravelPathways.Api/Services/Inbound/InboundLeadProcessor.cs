@@ -89,7 +89,8 @@ public sealed class InboundLeadProcessor : IInboundLeadProcessor
             CreatedBy = createdBy,
             AssignedToUserId = assignee,
             InboundProvider = payload.Provider,
-            InboundExternalId = externalId
+            InboundExternalId = externalId,
+            NextFollowUpDate = LeadNextFollowUpHelper.DefaultDate()
         };
 
         _db.Leads.Add(lead);

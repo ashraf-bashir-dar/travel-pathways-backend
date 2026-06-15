@@ -62,7 +62,9 @@ public enum AppModuleKey
     /// <summary>Temporary module: list and install browser extensions. Assign to employees only while onboarding an extension.</summary>
     Extensions = 23,
     /// <summary>Sales team: log confirmed packages with profit and lead/reference tracking.</summary>
-    Sales = 24
+    Sales = 24,
+    /// <summary>View and complete admin-assigned tasks (for non-admin users).</summary>
+    Tasks = 25
 }
 
 public enum SalesPackageSourceType
@@ -288,5 +290,13 @@ public enum LeaveStatus
     Pending = 0,
     Approved = 1,
     Rejected = 2
+}
+
+/// <summary>Status of an admin-assigned employee task.</summary>
+public enum EmployeeAssignedTaskStatus
+{
+    Pending = 0,
+    Completed = 1,
+    Cancelled = 2
 }
 

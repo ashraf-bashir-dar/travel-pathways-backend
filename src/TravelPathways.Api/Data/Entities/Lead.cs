@@ -16,6 +16,9 @@ public sealed class Lead : TenantEntityBase
     public bool IsLocked { get; set; }
     public string? Notes { get; set; }
 
+    /// <summary>Next scheduled follow-up (date only). Cleared for terminal lead statuses.</summary>
+    public DateOnly? NextFollowUpDate { get; set; }
+
     public Guid? AssignedToUserId { get; set; }
     public AppUser? AssignedToUser { get; set; }
 

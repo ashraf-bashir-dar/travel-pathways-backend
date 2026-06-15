@@ -370,7 +370,7 @@ public sealed class TenantUsersController : ControllerBase
         user.Role = request.Role;
         user.Department = request.Department;
         user.IsActive = request.IsActive;
-        user.AllowedModules = request.AllowedModules?.ToList() ?? user.AllowedModules ?? [];
+        user.AllowedModules = UserModulePolicy.SanitizeAllowedModules(request.Role, request.AllowedModules);
         user.CanViewCostBifurcation = request.CanViewCostBifurcation;
         user.CanPriceOverride = request.CanPriceOverride;
         user.ActivityTrackingEnabled = request.ActivityTrackingEnabled;
@@ -433,7 +433,7 @@ public sealed class TenantUsersController : ControllerBase
         user.Role = request.Role;
         user.Department = request.Department;
         user.IsActive = request.IsActive;
-        user.AllowedModules = request.AllowedModules?.ToList() ?? [];
+        user.AllowedModules = UserModulePolicy.SanitizeAllowedModules(request.Role, request.AllowedModules);
         user.CanViewCostBifurcation = request.CanViewCostBifurcation;
         user.CanPriceOverride = request.CanPriceOverride;
         user.ActivityTrackingEnabled = request.ActivityTrackingEnabled;

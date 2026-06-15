@@ -486,6 +486,7 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE "Leads" ADD COLUMN IF NOT EXISTS "InboundProvider" text;
             ALTER TABLE "Leads" ADD COLUMN IF NOT EXISTS "InboundExternalId" text;
             ALTER TABLE "Leads" ADD COLUMN IF NOT EXISTS "IsLocked" boolean NOT NULL DEFAULT false;
+            ALTER TABLE "Leads" ADD COLUMN IF NOT EXISTS "NextFollowUpDate" date;
             ALTER TABLE "Packages" ADD COLUMN IF NOT EXISTS "IsLocked" boolean NOT NULL DEFAULT false;
             ALTER TABLE "Packages" ADD COLUMN IF NOT EXISTS "ExclusionIds" text NOT NULL DEFAULT '[]';
             ALTER TABLE "Reservations" ADD COLUMN IF NOT EXISTS "IsLocked" boolean NOT NULL DEFAULT false;
@@ -668,6 +669,29 @@ using (var scope = app.Services.CreateScope())
             CREATE INDEX IF NOT EXISTS "IX_EmployeeLocationLogs_TenantId_RecordedAtUtc" ON "EmployeeLocationLogs" ("TenantId", "RecordedAtUtc" DESC);
             CREATE INDEX IF NOT EXISTS "IX_EmployeeLocationLogs_UserId_RecordedAtUtc" ON "EmployeeLocationLogs" ("UserId", "RecordedAtUtc" DESC);
             CREATE INDEX IF NOT EXISTS "IX_EmployeeLocationLogs_TenantId_Provider_ProviderPointId" ON "EmployeeLocationLogs" ("TenantId", "Provider", "ProviderPointId");
+            CREATE TABLE IF NOT EXISTS "EmployeeAssignedTasks" (
+                "Id" uuid NOT NULL,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone,
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                "Title" text NOT NULL DEFAULT '',
+                "Description" text,
+                "DueDate" date NOT NULL,
+                "AssignedToUserId" uuid NOT NULL,
+                "AssignedByUserId" uuid NOT NULL,
+                "Status" text NOT NULL DEFAULT 'Pending',
+                "CompletedAtUtc" timestamp with time zone,
+                CONSTRAINT "PK_EmployeeAssignedTasks" PRIMARY KEY ("Id"),
+                CONSTRAINT "FK_EmployeeAssignedTasks_Users_AssignedToUserId" FOREIGN KEY ("AssignedToUserId") REFERENCES "Users" ("Id") ON DELETE RESTRICT,
+                CONSTRAINT "FK_EmployeeAssignedTasks_Users_AssignedByUserId" FOREIGN KEY ("AssignedByUserId") REFERENCES "Users" ("Id") ON DELETE RESTRICT
+            );
+            CREATE INDEX IF NOT EXISTS "IX_EmployeeAssignedTasks_AssignedToUserId" ON "EmployeeAssignedTasks" ("AssignedToUserId");
+            CREATE INDEX IF NOT EXISTS "IX_EmployeeAssignedTasks_AssignedByUserId" ON "EmployeeAssignedTasks" ("AssignedByUserId");
+            CREATE INDEX IF NOT EXISTS "IX_EmployeeAssignedTasks_TenantId_AssignedToUserId_DueDate" ON "EmployeeAssignedTasks" ("TenantId", "AssignedToUserId", "DueDate");
+            ALTER TABLE "EmployeeAssignedTasks" ADD COLUMN IF NOT EXISTS "AssigneeNotes" text;
             """);
 
         await TravelPathways.Api.Data.PackageMasterSchemaBootstrap.EnsureAsync(db);

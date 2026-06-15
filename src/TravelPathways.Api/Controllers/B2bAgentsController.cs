@@ -76,6 +76,8 @@ public sealed class B2bAgentsController : TenantControllerBase
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 50,
         [FromQuery] string? searchTerm = null,
+        [FromQuery] string? state = null,
+        [FromQuery] string? city = null,
         [FromQuery] bool? isActive = null,
         CancellationToken ct = default)
     {
@@ -94,6 +96,18 @@ public sealed class B2bAgentsController : TenantControllerBase
                 (a.Email != null && a.Email.ToLower().Contains(s)) ||
                 (a.City != null && a.City.ToLower().Contains(s)) ||
                 (a.ContactNumber1 != null && a.ContactNumber1.Contains(s)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(state))
+        {
+            var stateFilter = state.Trim().ToLower();
+            query = query.Where(a => a.State != null && a.State.ToLower() == stateFilter);
+        }
+
+        if (!string.IsNullOrWhiteSpace(city))
+        {
+            var cityFilter = city.Trim().ToLower();
+            query = query.Where(a => a.City != null && a.City.ToLower() == cityFilter);
         }
 
         if (isActive is { } active)

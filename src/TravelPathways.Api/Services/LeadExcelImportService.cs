@@ -257,7 +257,8 @@ public sealed class LeadExcelImportService : ILeadExcelImportService
                 Notes = notes?.Trim(),
                 Status = LeadStatus.New,
                 CreatedBy = createdBy,
-                AssignedToUserId = assigneeId
+                AssignedToUserId = assigneeId,
+                NextFollowUpDate = LeadNextFollowUpHelper.DefaultDate()
             });
         }
 

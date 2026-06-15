@@ -50,6 +50,7 @@ public sealed class LeadsController : TenantControllerBase
         public required LeadStatus Status { get; init; }
         public bool IsLocked { get; init; }
         public string? Notes { get; init; }
+        public string? NextFollowUpDate { get; init; }
         public required string TenantId { get; init; }
         public string? AssignedToUserId { get; init; }
         /// <summary>Display name of the user this lead is assigned to (e.g. "John Doe").</summary>
@@ -75,6 +76,8 @@ public sealed class LeadsController : TenantControllerBase
         public string Address { get; set; } = string.Empty;
         public LeadSource LeadSource { get; set; } = LeadSource.Other;
         public string? Notes { get; set; }
+        /// <summary>Optional. yyyy-MM-dd. Defaults to tomorrow when omitted.</summary>
+        public string? NextFollowUpDate { get; set; }
         /// <summary>Optional. Assign this lead to a user (sales team member) in the same tenant.</summary>
         public Guid? AssignedToUserId { get; set; }
     }
@@ -174,6 +177,14 @@ public sealed class LeadsController : TenantControllerBase
         return Guid.TryParse(claim, out var id) ? id : null;
     }
 
+    private static IQueryable<Lead> ApplyActiveFollowUpScope(IQueryable<Lead> query) =>
+        query.Where(l =>
+            l.NextFollowUpDate != null
+            && l.Status != LeadStatus.Confirmed
+            && l.Status != LeadStatus.Cancelled
+            && l.Status != LeadStatus.NotInterested
+            && l.Status != LeadStatus.AlreadyBooked);
+
     private IQueryable<Lead> BuildLeadsQuery(
         Guid? currentUserId,
         bool canSeeAllLeads,
@@ -183,7 +194,8 @@ public sealed class LeadsController : TenantControllerBase
         Guid? assignedToUserId,
         bool unassignedOnly,
         DateTime? assignedFrom,
-        DateTime? assignedTo)
+        DateTime? assignedTo,
+        string? nextFollowUpFilter)
     {
         var query = _db.Leads.Where(l => l.TenantId == TenantId);
 
@@ -222,6 +234,38 @@ public sealed class LeadsController : TenantControllerBase
             var d = assignedTo.Value.Date;
             var endUtcExclusive = new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc).AddDays(1);
             query = query.Where(l => l.CreatedAt < endUtcExclusive);
+        }
+
+        if (!string.IsNullOrWhiteSpace(nextFollowUpFilter))
+        {
+            var today = LeadNextFollowUpHelper.Today();
+            query = ApplyActiveFollowUpScope(query);
+            switch (nextFollowUpFilter.Trim().ToLowerInvariant())
+            {
+                case "duetoday":
+                    query = query.Where(l => l.NextFollowUpDate == today);
+                    break;
+                case "overdue":
+                    query = query.Where(l => l.NextFollowUpDate < today);
+                    break;
+                case "upcoming":
+                    var end = today.AddDays(7);
+                    query = query.Where(l => l.NextFollowUpDate > today && l.NextFollowUpDate <= end);
+                    break;
+            }
+        }
+
+        return query;
+    }
+
+    private IQueryable<Lead> ApplyLeadScopeForFollowUpSummary(Guid? currentUserId, bool canSeeAllLeads)
+    {
+        var query = _db.Leads.Where(l => l.TenantId == TenantId);
+        if (!canSeeAllLeads)
+        {
+            if (!currentUserId.HasValue)
+                return query.Where(_ => false);
+            return query.Where(l => l.AssignedToUserId == currentUserId.Value);
         }
 
         return query;
@@ -298,6 +342,7 @@ public sealed class LeadsController : TenantControllerBase
         [FromQuery] bool unassignedOnly = false,
         [FromQuery] DateTime? assignedFrom = null,
         [FromQuery] DateTime? assignedTo = null,
+        [FromQuery] string? nextFollowUpFilter = null,
         CancellationToken ct = default)
     {
         var moduleCheck = await EnsureLeadsModuleAsync(ct);
@@ -308,6 +353,7 @@ public sealed class LeadsController : TenantControllerBase
 
         var (scopeUserId, canSeeAllLeads) = await GetCurrentUserLeadScopeAsync(ct);
         var currentUserId = scopeUserId ?? GetCurrentUserId();
+        var followUpFilter = string.IsNullOrWhiteSpace(nextFollowUpFilter) ? null : nextFollowUpFilter.Trim();
         var query = BuildLeadsQuery(
                 currentUserId,
                 canSeeAllLeads,
@@ -317,13 +363,16 @@ public sealed class LeadsController : TenantControllerBase
                 assignedToUserId,
                 unassignedOnly && canSeeAllLeads,
                 assignedFrom,
-                assignedTo)
+                assignedTo,
+                followUpFilter)
             .AsNoTracking();
 
         var total = await query.CountAsync(ct);
-        var leads = await query
+        var ordered = string.IsNullOrWhiteSpace(followUpFilter)
+            ? query.OrderByDescending(l => l.CreatedAt)
+            : query.OrderBy(l => l.NextFollowUpDate).ThenByDescending(l => l.CreatedAt);
+        var leads = await ordered
             .Include(l => l.AssignedToUser)
-            .OrderByDescending(l => l.CreatedAt)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);
@@ -482,6 +531,35 @@ public sealed class LeadsController : TenantControllerBase
         return ApiResponse<List<LeadAssignmentSummaryDto>>.Ok(result);
     }
 
+    /// <summary>Counts of leads with follow-ups due today or overdue (scoped to current user).</summary>
+    [HttpGet("follow-ups/summary")]
+    public async Task<ActionResult<ApiResponse<LeadFollowUpSummaryDto>>> GetFollowUpSummary(CancellationToken ct)
+    {
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
+        var (scopeUserId, canSeeAllLeads) = await GetCurrentUserLeadScopeAsync(ct);
+        var currentUserId = scopeUserId ?? GetCurrentUserId();
+        var today = LeadNextFollowUpHelper.Today();
+        var scoped = ApplyLeadScopeForFollowUpSummary(currentUserId, canSeeAllLeads);
+        var active = ApplyActiveFollowUpScope(scoped);
+
+        var dueToday = await active.CountAsync(l => l.NextFollowUpDate == today, ct);
+        var overdue = await active.CountAsync(l => l.NextFollowUpDate < today, ct);
+
+        return ApiResponse<LeadFollowUpSummaryDto>.Ok(new LeadFollowUpSummaryDto
+        {
+            DueToday = dueToday,
+            Overdue = overdue
+        });
+    }
+
+    public sealed class LeadFollowUpSummaryDto
+    {
+        public int DueToday { get; init; }
+        public int Overdue { get; init; }
+    }
+
     public sealed class LeadAssignmentSummaryDto
     {
         public string? AssignedToUserId { get; init; }
@@ -522,7 +600,8 @@ public sealed class LeadsController : TenantControllerBase
                 assignedToUserId,
                 unassignedOnly,
                 fromDate,
-                toDate)
+                toDate,
+                null)
             .AsNoTracking();
 
         var total = await query.CountAsync(ct);
@@ -657,7 +736,8 @@ public sealed class LeadsController : TenantControllerBase
             Notes = request.Notes?.Trim(),
             Status = LeadStatus.New,
             CreatedBy = createdBy,
-            AssignedToUserId = assignee
+            AssignedToUserId = assignee,
+            NextFollowUpDate = LeadNextFollowUpHelper.ForNewLead(request.NextFollowUpDate)
         };
 
         _db.Leads.Add(lead);
@@ -718,6 +798,7 @@ public sealed class LeadsController : TenantControllerBase
         lead.LeadSource = request.LeadSource;
         lead.Notes = request.Notes?.Trim();
         lead.Status = request.Status;
+        lead.NextFollowUpDate = LeadNextFollowUpHelper.ForStatus(request.Status, request.NextFollowUpDate);
         lead.IsLocked = request.Status == LeadStatus.Confirmed;
 
         if (canSeeAllLeads)
@@ -946,7 +1027,8 @@ public sealed class LeadsController : TenantControllerBase
                 request.FilterAssignedToUserId,
                 request.UnassignedOnly,
                 request.AssignedFrom,
-                request.AssignedTo);
+                request.AssignedTo,
+                null);
 
             updated = await query
                 .Where(l => !l.IsLocked)
@@ -1019,7 +1101,8 @@ public sealed class LeadsController : TenantControllerBase
                 request.FilterAssignedToUserId,
                 request.UnassignedOnly,
                 request.AssignedFrom,
-                request.AssignedTo);
+                request.AssignedTo,
+                null);
 
             var leadIdsToDelete = await query
                 .Where(l => !l.IsLocked)
@@ -1189,7 +1272,8 @@ public sealed class LeadsController : TenantControllerBase
                     request.FilterAssignedToUserId,
                     request.UnassignedOnly,
                     request.AssignedFrom,
-                    request.AssignedTo)
+                    request.AssignedTo,
+                    null)
                 .ToListAsync(ct);
         }
         else
@@ -1349,6 +1433,7 @@ public sealed class LeadsController : TenantControllerBase
             Status = l.Status,
             IsLocked = l.IsLocked,
             Notes = l.Notes,
+            NextFollowUpDate = LeadNextFollowUpHelper.ToApiString(l.NextFollowUpDate),
             TenantId = l.TenantId.ToString("D"),
             AssignedToUserId = l.AssignedToUserId?.ToString("D"),
             AssignedToUserName = l.AssignedToUser != null

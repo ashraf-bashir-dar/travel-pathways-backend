@@ -228,6 +228,7 @@ public sealed class PackagesController : TenantControllerBase
         [FromQuery] PackageStatus? status = null,
         [FromQuery] DateTime? arrivalDateFrom = null,
         [FromQuery] DateTime? arrivalDateTo = null,
+        [FromQuery] Guid? assignedToUserId = null,
         CancellationToken ct = default)
     {
         pageNumber = Math.Max(1, pageNumber);
@@ -268,6 +269,17 @@ public sealed class PackagesController : TenantControllerBase
             var d = arrivalDateTo.Value.Date;
             var endUtcExclusive = new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc).AddDays(1);
             query = query.Where(p => p.StartDate < endUtcExclusive);
+        }
+
+        if (assignedToUserId.HasValue)
+        {
+            query = query.Where(p =>
+                p.LeadId != null &&
+                _db.Leads.Any(l =>
+                    l.Id == p.LeadId &&
+                    l.TenantId == TenantId &&
+                    !l.IsDeleted &&
+                    l.AssignedToUserId == assignedToUserId.Value));
         }
 
         // List page shows only the latest package per lead; older revisions stay in DB and appear in package logs.
@@ -632,6 +644,7 @@ public sealed class PackagesController : TenantControllerBase
         var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
 
         var pkg = await _db.Packages.AsNoTracking()
+            .Include(p => p.Vehicle)
             .Include(p => p.DayWiseItinerary!)
             .ThenInclude(d => d.Hotel!)
             .ThenInclude(h => h.Area)
@@ -708,6 +721,7 @@ public sealed class PackagesController : TenantControllerBase
         var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
 
         var pkg = await _db.Packages.AsNoTracking()
+            .Include(p => p.Vehicle)
             .Include(p => p.DayWiseItinerary!)
             .ThenInclude(d => d.Hotel!)
             .ThenInclude(h => h.Area)
@@ -1221,6 +1235,8 @@ public sealed class PackagesController : TenantControllerBase
             DaysLabel = daysLabel,
             PickUpLocation = string.IsNullOrWhiteSpace(pkg.ClientPickupLocation) ? null : pkg.ClientPickupLocation.Trim(),
             DropLocation = string.IsNullOrWhiteSpace(pkg.ClientDropLocation) ? null : pkg.ClientDropLocation.Trim(),
+            VehicleName = PackagePdfHtmlFragments.FormatVehicleName(pkg.Vehicle),
+            TransportRoute = PackagePdfHtmlFragments.FormatTransportRoute(pkg.ClientPickupLocation, pkg.ClientDropLocation),
             NumberOfAdults = pkg.NumberOfAdults,
             NumberOfChildren = pkg.NumberOfChildren,
             MealPlanLabel = firstDay is not null ? MealPlanTranslations.Label(firstDay.MealPlan, language) : "–",
@@ -1359,6 +1375,8 @@ public sealed class PackagesController : TenantControllerBase
             DaysLabel = model.DaysLabel,
             PickUpLocation = model.PickUpLocation,
             DropLocation = model.DropLocation,
+            VehicleName = model.VehicleName,
+            TransportRoute = model.TransportRoute,
             NumberOfAdults = model.NumberOfAdults,
             NumberOfChildren = model.NumberOfChildren,
             MealPlanLabel = model.MealPlanLabel,
@@ -1453,6 +1471,8 @@ public sealed class PackagesController : TenantControllerBase
             DaysLabel = model.DaysLabel,
             PickUpLocation = model.PickUpLocation,
             DropLocation = model.DropLocation,
+            VehicleName = model.VehicleName,
+            TransportRoute = model.TransportRoute,
             NumberOfAdults = model.NumberOfAdults,
             NumberOfChildren = model.NumberOfChildren,
             MealPlanLabel = model.MealPlanLabel,

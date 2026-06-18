@@ -32,6 +32,12 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         public required string DepartureDate { get; init; }
         public required decimal ExpectedProfit { get; init; }
         public decimal? ActualProfit { get; init; }
+        public decimal TotalPackageCost { get; init; }
+        public decimal TotalReceived { get; init; }
+        public decimal BalanceAmount { get; init; }
+        public bool IsCompleted { get; init; }
+        public string? FinalReview { get; init; }
+        public string? CompletedAt { get; init; }
         public required string ConfirmationDate { get; init; }
         public required SalesPackageSourceType SourceType { get; init; }
         public string? LeadId { get; init; }
@@ -61,6 +67,20 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         public string? ReferenceContact { get; set; }
         [JsonConverter(typeof(SalesReferenceSourceTypeJsonConverter))]
         public SalesReferenceSourceType? ReferenceSourceType { get; set; }
+        public decimal TotalPackageCost { get; set; }
+        public Guid? TourPackageId { get; set; }
+        public bool? IsCompleted { get; set; }
+        public string? FinalReview { get; set; }
+    }
+
+    public sealed class SalesUserPaymentSummaryDto
+    {
+        public required string SalesUserId { get; init; }
+        public string? SalesUserName { get; init; }
+        public required int PackageCount { get; init; }
+        public required decimal TotalPackageCost { get; init; }
+        public required decimal TotalReceived { get; init; }
+        public required decimal BalanceAmount { get; init; }
     }
 
     [HttpGet]
@@ -152,8 +172,11 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         }
 
         var total = await query.CountAsync(ct);
-        var totalExpectedProfit = total > 0 ? await query.SumAsync(p => p.ExpectedProfit, ct) : 0m;
-        var totalActualProfit = total > 0
+        var includeProfitDetails = IsTenantAdmin();
+        var totalExpectedProfit = includeProfitDetails && total > 0
+            ? await query.SumAsync(p => p.ExpectedProfit, ct)
+            : 0m;
+        var totalActualProfit = includeProfitDetails && total > 0
             ? await query.Where(p => p.ActualProfit != null).SumAsync(p => p.ActualProfit!.Value, ct)
             : 0m;
         var rows = await query
@@ -168,13 +191,13 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
         return ApiResponse<PaginatedResponse<SalesConfirmedPackageDto>>.Ok(new PaginatedResponse<SalesConfirmedPackageDto>
         {
-            Items = rows.Select(ToDto).ToList(),
+            Items = await ToDtosAsync(rows, includeProfitDetails, ct),
             TotalCount = total,
             PageNumber = pageNumber,
             PageSize = pageSize,
             TotalPages = totalPages,
-            TotalExpectedProfit = totalExpectedProfit,
-            TotalActualProfit = totalActualProfit
+            TotalExpectedProfit = includeProfitDetails ? totalExpectedProfit : null,
+            TotalActualProfit = includeProfitDetails ? totalActualProfit : null
         });
     }
 
@@ -330,8 +353,11 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         }
 
         var total = await query.CountAsync(ct);
-        var totalExpectedProfit = total > 0 ? await query.SumAsync(p => p.ExpectedProfit, ct) : 0m;
-        var totalActualProfit = total > 0
+        var includeProfitDetails = IsTenantAdmin();
+        var totalExpectedProfit = includeProfitDetails && total > 0
+            ? await query.SumAsync(p => p.ExpectedProfit, ct)
+            : 0m;
+        var totalActualProfit = includeProfitDetails && total > 0
             ? await query.Where(p => p.ActualProfit != null).SumAsync(p => p.ActualProfit!.Value, ct)
             : 0m;
         var rows = await query
@@ -346,13 +372,58 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
         return ApiResponse<PaginatedResponse<SalesConfirmedPackageDto>>.Ok(new PaginatedResponse<SalesConfirmedPackageDto>
         {
-            Items = rows.Select(ToDto).ToList(),
+            Items = await ToDtosAsync(rows, includeProfitDetails, ct),
             TotalCount = total,
             PageNumber = pageNumber,
             PageSize = pageSize,
             TotalPages = totalPages,
-            TotalExpectedProfit = totalExpectedProfit,
-            TotalActualProfit = totalActualProfit
+            TotalExpectedProfit = includeProfitDetails ? totalExpectedProfit : null,
+            TotalActualProfit = includeProfitDetails ? totalActualProfit : null
+        });
+    }
+
+    [HttpGet("sales-user-payment-summary")]
+    public async Task<ActionResult<ApiResponse<SalesUserPaymentSummaryDto>>> GetSalesUserPaymentSummary(
+        [FromQuery] Guid salesUserId,
+        CancellationToken ct = default)
+    {
+        var denied = await EnsureSalesModuleAsync(ct);
+        if (denied != null) return denied;
+
+        if (!IsTenantAdmin())
+            return Forbid();
+
+        var packages = await _db.SalesConfirmedPackages.AsNoTracking()
+            .Where(p => p.TenantId == TenantId && p.RecordedByUserId == salesUserId)
+            .Select(p => new { p.LeadId, p.TotalPackageCost })
+            .ToListAsync(ct);
+
+        var leadIds = packages.Where(p => p.LeadId.HasValue).Select(p => p.LeadId!.Value).Distinct().ToList();
+        var costs = await ResolvePackageCostsAsync(
+            packages.Select(p => (p.LeadId, p.TotalPackageCost)).ToList(),
+            ct);
+        var totalPackageCost = costs.Sum();
+        var receivedByLead = await GetReceivedTotalsByLeadIdsAsync(leadIds, ct);
+        var totalReceived = receivedByLead.Values.Sum();
+
+        var user = await _db.Users.AsNoTracking()
+            .Where(u => u.Id == salesUserId && u.TenantId == TenantId)
+            .Select(u => new { u.FirstName, u.LastName, u.Email })
+            .FirstOrDefaultAsync(ct);
+        var userName = user == null
+            ? null
+            : $"{user.FirstName} {user.LastName}".Trim();
+        if (string.IsNullOrWhiteSpace(userName))
+            userName = user?.Email;
+
+        return ApiResponse<SalesUserPaymentSummaryDto>.Ok(new SalesUserPaymentSummaryDto
+        {
+            SalesUserId = salesUserId.ToString("D"),
+            SalesUserName = userName,
+            PackageCount = packages.Count,
+            TotalPackageCost = totalPackageCost,
+            TotalReceived = totalReceived,
+            BalanceAmount = Math.Max(0, totalPackageCost - totalReceived)
         });
     }
 
@@ -373,7 +444,8 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         if (!CanView(row))
             return NotFound(ApiResponse<SalesConfirmedPackageDto>.Fail("Record not found."));
 
-        return ApiResponse<SalesConfirmedPackageDto>.Ok(ToDto(row));
+        return ApiResponse<SalesConfirmedPackageDto>.Ok(
+            (await ToDtosAsync([row], IsTenantAdmin(), ct)).Single());
     }
 
     [HttpPost]
@@ -392,6 +464,13 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         if (!valid)
             return BadRequest(ApiResponse<SalesConfirmedPackageDto>.Fail(error!));
 
+        var (expectedProfit, actualProfit) = ResolveProfitFieldsForSave(dto, existing: null);
+        var (tourPackageId, totalPackageCost) = await ResolvePackageCostForLeadAsync(
+            dto.LeadId!.Value,
+            dto.TourPackageId,
+            dto.TotalPackageCost,
+            ct);
+
         var now = DateTime.UtcNow;
         var entity = new SalesConfirmedPackage
         {
@@ -400,8 +479,10 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
             ClientPhone = dto.ClientPhone.Trim(),
             ArrivalDate = dto.ArrivalDate,
             DepartureDate = dto.DepartureDate,
-            ExpectedProfit = dto.ExpectedProfit,
-            ActualProfit = dto.ActualProfit,
+            ExpectedProfit = expectedProfit,
+            ActualProfit = actualProfit,
+            TotalPackageCost = totalPackageCost,
+            TourPackageId = tourPackageId,
             ConfirmationDate = dto.ConfirmationDate,
             SourceType = dto.SourceType,
             LeadId = dto.LeadId,
@@ -421,7 +502,8 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         await _db.SaveChangesAsync(ct);
 
         await LoadNavigationsAsync(entity, ct);
-        return ApiResponse<SalesConfirmedPackageDto>.Ok(ToDto(entity));
+        return ApiResponse<SalesConfirmedPackageDto>.Ok(
+            (await ToDtosAsync([entity], IsTenantAdmin(), ct)).Single());
     }
 
     [HttpPut("{id:guid}")]
@@ -442,16 +524,18 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         if (!CanModify(entity))
             return Forbid();
 
-        var (valid, error) = await ValidateDtoAsync(dto, ct, excludePackageId: id);
+        var (valid, error) = await ValidateDtoAsync(dto, ct, excludePackageId: id, existingPackageLeadId: entity.LeadId);
         if (!valid)
             return BadRequest(ApiResponse<SalesConfirmedPackageDto>.Fail(error!));
+
+        var (expectedProfit, actualProfit) = ResolveProfitFieldsForSave(dto, existing: entity);
 
         entity.ClientName = dto.ClientName.Trim();
         entity.ClientPhone = dto.ClientPhone.Trim();
         entity.ArrivalDate = dto.ArrivalDate;
         entity.DepartureDate = dto.DepartureDate;
-        entity.ExpectedProfit = dto.ExpectedProfit;
-        entity.ActualProfit = dto.ActualProfit;
+        entity.ExpectedProfit = expectedProfit;
+        entity.ActualProfit = actualProfit;
         entity.ConfirmationDate = dto.ConfirmationDate;
         entity.SourceType = dto.SourceType;
         entity.LeadId = dto.LeadId;
@@ -462,11 +546,13 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
             ? TrimOrNull(dto.ReferenceContact)
             : null;
         entity.ReferenceSourceType = null;
+        ApplyCompletionFieldsForSave(entity, dto);
         entity.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
         await LoadNavigationsAsync(entity, ct);
-        return ApiResponse<SalesConfirmedPackageDto>.Ok(ToDto(entity));
+        return ApiResponse<SalesConfirmedPackageDto>.Ok(
+            (await ToDtosAsync([entity], IsTenantAdmin(), ct)).Single());
     }
 
     [HttpDelete("{id:guid}")]
@@ -572,7 +658,8 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
     private async Task<(bool Valid, string? Error)> ValidateDtoAsync(
         SaveSalesConfirmedPackageDto dto,
         CancellationToken ct,
-        Guid? excludePackageId = null)
+        Guid? excludePackageId = null,
+        Guid? existingPackageLeadId = null)
     {
         if (string.IsNullOrWhiteSpace(dto.ClientName))
             return (false, "Client name is required.");
@@ -598,6 +685,9 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         if (dto.ActualProfit is { } actual && actual < 0)
             return (false, "Actual profit cannot be negative.");
 
+        if (!IsTenantAdmin() && dto.ActualProfit is not null)
+            return (false, "Only an administrator can set actual profit.");
+
         if (!dto.LeadId.HasValue)
             return (false, "Select a lead.");
 
@@ -621,12 +711,19 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
                 return (false, "You can only confirm packages for leads assigned to you.");
         }
 
-        var duplicateLead = await _db.SalesConfirmedPackages.AsNoTracking()
-            .AnyAsync(p => p.TenantId == TenantId
-                           && p.LeadId == dto.LeadId.Value
-                           && (excludePackageId == null || p.Id != excludePackageId.Value), ct);
-        if (duplicateLead)
-            return (false, "This lead already has a confirmed package.");
+        var leadUnchangedOnUpdate = excludePackageId.HasValue
+            && existingPackageLeadId.HasValue
+            && existingPackageLeadId.Value == dto.LeadId.Value;
+
+        if (!leadUnchangedOnUpdate)
+        {
+            var duplicateLead = await _db.SalesConfirmedPackages.AsNoTracking()
+                .AnyAsync(p => p.TenantId == TenantId
+                               && p.LeadId == dto.LeadId.Value
+                               && (!excludePackageId.HasValue || p.Id != excludePackageId.Value), ct);
+            if (duplicateLead)
+                return (false, "This lead already has a confirmed package.");
+        }
 
         if (dto.SourceType == SalesPackageSourceType.Reference)
         {
@@ -642,6 +739,9 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
             return (false, "Invalid source type.");
         }
 
+        if (IsTenantAdmin() && dto.IsCompleted == true && string.IsNullOrWhiteSpace(dto.FinalReview))
+            return (false, "Final review is required when marking a package as completed.");
+
         return (true, null);
     }
 
@@ -654,36 +754,194 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         await _db.Entry(entity).Reference(p => p.RecordedBy).LoadAsync(ct);
     }
 
-    private static SalesConfirmedPackageDto ToDto(SalesConfirmedPackage p)
+    private (decimal ExpectedProfit, decimal? ActualProfit) ResolveProfitFieldsForSave(
+        SaveSalesConfirmedPackageDto dto,
+        SalesConfirmedPackage? existing)
     {
-        var recordedBy = p.RecordedBy;
-        var recordedByName = recordedBy == null
-            ? null
-            : $"{recordedBy.FirstName} {recordedBy.LastName}".Trim();
-        if (string.IsNullOrWhiteSpace(recordedByName))
-            recordedByName = recordedBy?.Email;
-
-        return new SalesConfirmedPackageDto
+        if (!IsTenantAdmin())
         {
-            Id = p.Id.ToString(),
-            ClientName = p.ClientName,
-            ClientPhone = p.ClientPhone,
-            ArrivalDate = p.ArrivalDate.ToString("yyyy-MM-dd"),
-            DepartureDate = p.DepartureDate.ToString("yyyy-MM-dd"),
-            ExpectedProfit = p.ExpectedProfit,
-            ActualProfit = p.ActualProfit,
-            ConfirmationDate = p.ConfirmationDate.ToString("yyyy-MM-dd"),
-            SourceType = p.SourceType,
-            LeadId = p.LeadId?.ToString(),
-            LeadClientName = p.Lead?.ClientName,
-            ReferenceName = p.ReferenceName,
-            ReferenceContact = p.ReferenceContact,
-            ReferenceSourceType = p.ReferenceSourceType,
-            RecordedByUserId = p.RecordedByUserId.ToString(),
-            RecordedByName = recordedByName,
-            TenantId = p.TenantId.ToString(),
-            CreatedAt = p.CreatedAt,
-            UpdatedAt = p.UpdatedAt
-        };
+            if (existing is null)
+                return (dto.ExpectedProfit, null);
+
+            return (existing.ExpectedProfit, existing.ActualProfit);
+        }
+
+        if (existing is not null)
+        {
+            var departureOnOrBeforeToday = dto.DepartureDate <= EmployeeListWindowEnd();
+            return departureOnOrBeforeToday
+                ? (existing.ExpectedProfit, dto.ActualProfit)
+                : (dto.ExpectedProfit, dto.ActualProfit);
+        }
+
+        // Admin can complete a package any time, even before departure.
+        // In that case, persist the supplied actual profit immediately.
+        if (dto.IsCompleted == true)
+            return (dto.ExpectedProfit, dto.ActualProfit);
+
+        var departurePassed = dto.DepartureDate <= EmployeeListWindowEnd();
+        return departurePassed
+            ? (dto.ExpectedProfit, dto.ActualProfit)
+            : (dto.ExpectedProfit, null);
+    }
+
+    private void ApplyCompletionFieldsForSave(SalesConfirmedPackage entity, SaveSalesConfirmedPackageDto dto)
+    {
+        if (!IsTenantAdmin() || !dto.IsCompleted.HasValue)
+            return;
+
+        if (dto.IsCompleted.Value)
+        {
+            entity.IsCompleted = true;
+            entity.FinalReview = TrimOrNull(dto.FinalReview);
+            entity.CompletedAt = DateTime.UtcNow;
+            entity.CompletedByUserId = GetCurrentUserId();
+            return;
+        }
+
+        entity.IsCompleted = false;
+        entity.FinalReview = null;
+        entity.CompletedAt = null;
+        entity.CompletedByUserId = null;
+    }
+
+    private async Task<Dictionary<Guid, decimal>> GetReceivedTotalsByLeadIdsAsync(
+        IReadOnlyList<Guid> leadIds,
+        CancellationToken ct)
+    {
+        if (leadIds.Count == 0) return new Dictionary<Guid, decimal>();
+
+        return await _db.Payments.AsNoTracking()
+            .Where(p => p.TenantId == TenantId
+                        && p.PaymentType == PaymentType.Received
+                        && p.LeadId != null
+                        && leadIds.Contains(p.LeadId.Value))
+            .GroupBy(p => p.LeadId!.Value)
+            .Select(g => new { LeadId = g.Key, Total = g.Sum(p => p.Amount) })
+            .ToDictionaryAsync(x => x.LeadId, x => x.Total, ct);
+    }
+
+    private async Task<List<decimal>> ResolvePackageCostsAsync(
+        IReadOnlyList<(Guid? LeadId, decimal StoredCost)> packages,
+        CancellationToken ct)
+    {
+        var leadIdsNeedingLookup = packages
+            .Where(p => p.StoredCost <= 0 && p.LeadId.HasValue)
+            .Select(p => p.LeadId!.Value)
+            .Distinct()
+            .ToList();
+
+        var fallbackByLead = new Dictionary<Guid, decimal>();
+        if (leadIdsNeedingLookup.Count > 0)
+        {
+            var tourPackages = await _db.Packages.AsNoTracking()
+                .Where(p => p.TenantId == TenantId && p.LeadId != null && leadIdsNeedingLookup.Contains(p.LeadId.Value))
+                .OrderByDescending(p => p.Status == PackageStatus.Confirmed)
+                .ThenByDescending(p => p.StartDate)
+                .Select(p => new { p.LeadId, p.TotalAmount, p.Discount })
+                .ToListAsync(ct);
+
+            foreach (var group in tourPackages.GroupBy(p => p.LeadId!.Value))
+            {
+                var best = group.First();
+                fallbackByLead[group.Key] = Math.Max(0, best.TotalAmount - best.Discount);
+            }
+        }
+
+        return packages.Select(p =>
+        {
+            if (p.StoredCost > 0) return p.StoredCost;
+            if (p.LeadId.HasValue && fallbackByLead.TryGetValue(p.LeadId.Value, out var fallback))
+                return fallback;
+            return 0m;
+        }).ToList();
+    }
+
+    private async Task<(Guid? TourPackageId, decimal TotalPackageCost)> ResolvePackageCostForLeadAsync(
+        Guid leadId,
+        Guid? requestedTourPackageId,
+        decimal requestedTotalPackageCost,
+        CancellationToken ct)
+    {
+        if (requestedTourPackageId.HasValue && requestedTotalPackageCost > 0)
+            return (requestedTourPackageId, requestedTotalPackageCost);
+
+        if (requestedTotalPackageCost > 0)
+            return (requestedTourPackageId, requestedTotalPackageCost);
+
+        var tourPackage = await _db.Packages.AsNoTracking()
+            .Where(p => p.TenantId == TenantId && p.LeadId == leadId)
+            .OrderByDescending(p => p.Status == PackageStatus.Confirmed)
+            .ThenByDescending(p => p.StartDate)
+            .Select(p => new { p.Id, p.TotalAmount, p.Discount })
+            .FirstOrDefaultAsync(ct);
+
+        if (tourPackage is null)
+            return (requestedTourPackageId, Math.Max(0, requestedTotalPackageCost));
+
+        return (tourPackage.Id, Math.Max(0, tourPackage.TotalAmount - tourPackage.Discount));
+    }
+
+    private async Task<IReadOnlyList<SalesConfirmedPackageDto>> ToDtosAsync(
+        IReadOnlyList<SalesConfirmedPackage> rows,
+        bool includeProfitDetails,
+        CancellationToken ct)
+    {
+        if (rows.Count == 0) return [];
+
+        var leadIds = rows.Where(r => r.LeadId.HasValue).Select(r => r.LeadId!.Value).Distinct().ToList();
+        var receivedByLead = await GetReceivedTotalsByLeadIdsAsync(leadIds, ct);
+        var resolvedCosts = await ResolvePackageCostsAsync(
+            rows.Select(r => (r.LeadId, r.TotalPackageCost)).ToList(),
+            ct);
+
+        var dtos = new List<SalesConfirmedPackageDto>(rows.Count);
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var p = rows[i];
+            var packageCost = resolvedCosts[i];
+            var totalReceived = p.LeadId.HasValue && receivedByLead.TryGetValue(p.LeadId.Value, out var received)
+                ? received
+                : 0m;
+            var balance = Math.Max(0, packageCost - totalReceived);
+
+            var recordedBy = p.RecordedBy;
+            var recordedByName = recordedBy == null
+                ? null
+                : $"{recordedBy.FirstName} {recordedBy.LastName}".Trim();
+            if (string.IsNullOrWhiteSpace(recordedByName))
+                recordedByName = recordedBy?.Email;
+
+            dtos.Add(new SalesConfirmedPackageDto
+            {
+                Id = p.Id.ToString(),
+                ClientName = p.ClientName,
+                ClientPhone = p.ClientPhone,
+                ArrivalDate = p.ArrivalDate.ToString("yyyy-MM-dd"),
+                DepartureDate = p.DepartureDate.ToString("yyyy-MM-dd"),
+                ExpectedProfit = includeProfitDetails ? p.ExpectedProfit : 0m,
+                ActualProfit = includeProfitDetails ? p.ActualProfit : null,
+                TotalPackageCost = packageCost,
+                TotalReceived = totalReceived,
+                BalanceAmount = balance,
+                IsCompleted = p.IsCompleted,
+                FinalReview = p.FinalReview,
+                CompletedAt = p.CompletedAt?.ToString("o"),
+                ConfirmationDate = p.ConfirmationDate.ToString("yyyy-MM-dd"),
+                SourceType = p.SourceType,
+                LeadId = p.LeadId?.ToString(),
+                LeadClientName = p.Lead?.ClientName,
+                ReferenceName = p.ReferenceName,
+                ReferenceContact = p.ReferenceContact,
+                ReferenceSourceType = p.ReferenceSourceType,
+                RecordedByUserId = p.RecordedByUserId.ToString(),
+                RecordedByName = recordedByName,
+                TenantId = p.TenantId.ToString(),
+                CreatedAt = p.CreatedAt,
+                UpdatedAt = p.UpdatedAt
+            });
+        }
+
+        return dtos;
     }
 }

@@ -251,6 +251,20 @@ public sealed class AppDbContext : DbContext
             .HasColumnType("decimal(18,2)");
 
         modelBuilder.Entity<SalesConfirmedPackage>()
+            .Property(p => p.TotalPackageCost)
+            .HasColumnType("decimal(18,2)");
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .Property(p => p.FinalReview)
+            .HasMaxLength(2000);
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
+            .HasOne(p => p.TourPackage)
+            .WithMany()
+            .HasForeignKey(p => p.TourPackageId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<SalesConfirmedPackage>()
             .HasOne(p => p.Lead)
             .WithMany()
             .HasForeignKey(p => p.LeadId)

@@ -154,6 +154,7 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
         string termsHtml = string.Join("", (m.TermsAndConditions ?? []).Select(x => $"<li>{H(x)}</li>"));
         string cancellationHtml = string.Join("", (m.CancellationPolicy ?? []).Select(x => $"<li>{H(x)}</li>"));
         string supplementHtml = string.Join("", (m.SupplementCosts ?? []).Select(x => $"<li>{H(x)}</li>"));
+        string transportHtml = PackagePdfHtmlFragments.BuildTransportSectionHtml(m);
         string bankHtml = string.Join("", (m.BankAccounts ?? []).Select(b =>
             $"<tr><td>{H(b.AccountHolderName)}</td><td>{H(b.BankName)}</td><td>{H(b.AccountNumber)}</td><td>{H(b.IFSC)}</td></tr>"));
         string qrHtml = string.Join("", (m.QrCodes ?? []).Where(q => !string.IsNullOrWhiteSpace(q.ImageUrl)).Select(q =>
@@ -180,6 +181,8 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             ["{{MealPlan}}"] = H(m.MealPlanLabel),
             ["{{PickUpLocation}}"] = H(m.PickUpLocation),
             ["{{DropLocation}}"] = H(m.DropLocation),
+            ["{{VehicleName}}"] = H(m.VehicleName),
+            ["{{TransportRoute}}"] = H(m.TransportRoute),
             ["{{DestinationLine}}"] = H(m.DropLocation ?? m.PickUpLocation ?? labels.DefaultDestination),
             ["{{NumberOfAdults}}"] = H(m.NumberOfAdults.ToString()),
             ["{{NumberOfChildren}}"] = H(m.NumberOfChildren.ToString()),
@@ -204,6 +207,7 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             ["{{GeneratedDate}}"] = H(m.GeneratedDate),
             ["{{HotelsHtml}}"] = hotelsHtml,
             ["{{AccommodationHtml}}"] = accommodationHtml,
+            ["{{TransportHtml}}"] = transportHtml,
             ["{{DaysHtml}}"] = daysHtml,
             ["{{ItineraryOverviewHtml}}"] = itineraryOverviewHtml,
             ["{{InclusionsHtml}}"] = inclusionsHtml,

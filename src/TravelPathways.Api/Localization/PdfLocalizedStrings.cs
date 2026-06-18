@@ -30,6 +30,9 @@ public sealed class PdfLocalizedStrings
     public string Duration { get; init; } = "Duration";
     public string Destination { get; init; } = "Destination";
     public string Transfer { get; init; } = "Transfer";
+    public string Transport { get; init; } = "Transport";
+    public string Vehicle { get; init; } = "Vehicle";
+    public string Route { get; init; } = "Route";
     public string PickUp { get; init; } = "Pick-up";
     public string DropOff { get; init; } = "Drop-off";
     public string DefaultDestination { get; init; } = "Jammu & Kashmir";
@@ -126,6 +129,9 @@ public sealed class PdfLocalizedStrings
         Add(en.Duration, Duration);
         Add(en.Destination, Destination);
         Add(en.Transfer, Transfer);
+        Add(en.Transport, Transport);
+        Add(en.Vehicle, Vehicle);
+        Add(en.Route, Route);
         Add(en.PickUp, PickUp);
         Add(en.DropOff, DropOff);
         Add(en.QuoteSummary, QuoteSummary);
@@ -213,6 +219,9 @@ public sealed class PdfLocalizedStrings
         Duration = "अवधि",
         Destination = "गंतव्य",
         Transfer = "स्थानांतरण",
+        Transport = "परिवहन",
+        Vehicle = "वाहन",
+        Route = "मार्ग",
         PickUp = "पिक-अप",
         DropOff = "ड्रॉप-ऑफ",
         DefaultDestination = "जम्मू और कश्मीर",
@@ -285,6 +294,9 @@ public sealed class PdfLocalizedStrings
         Duration = "കാലാവധി",
         Destination = "ലക്ഷ്യസ്ഥാനം",
         Transfer = "ട്രാൻസ്ഫർ",
+        Transport = "ഗതാഗതം",
+        Vehicle = "വാഹനം",
+        Route = "മാർഗം",
         PickUp = "പിക്ക്-അപ്പ്",
         DropOff = "ഡ്രോപ്പ്-ഓഫ്",
         DefaultDestination = "ജമ്മു കശ്മീർ",
@@ -357,6 +369,9 @@ public sealed class PdfLocalizedStrings
         Duration = "கால அளவு",
         Destination = "இலக்கு",
         Transfer = "போக்குவரத்து",
+        Transport = "போக்குவரத்து",
+        Vehicle = "வாகனம்",
+        Route = "பாதை",
         PickUp = "பிக்-அப்",
         DropOff = "டிராப்-ஆஃப்",
         DefaultDestination = "ஜம்மு காஷ்மீர்",
@@ -429,6 +444,9 @@ public sealed class PdfLocalizedStrings
         Duration = "వ్యవధి",
         Destination = "గమ్యం",
         Transfer = "ట్రాన్స్‌ఫర్",
+        Transport = "రవాణా",
+        Vehicle = "వాహనం",
+        Route = "మార్గం",
         PickUp = "పిక్-అప్",
         DropOff = "డ్రాప్-ఆఫ్",
         DefaultDestination = "జమ్మూ కాశ్మీర్",
@@ -501,6 +519,9 @@ public sealed class PdfLocalizedStrings
         Duration = "ಅವಧಿ",
         Destination = "ಗಮ್ಯಸ್ಥಾನ",
         Transfer = "ವರ್ಗಾವಣೆ",
+        Transport = "ಸಾರಿಗೆ",
+        Vehicle = "ವಾಹನ",
+        Route = "ಮಾರ್ಗ",
         PickUp = "ಪಿಕ್-ಅಪ್",
         DropOff = "ಡ್ರಾಪ್-ಆಫ್",
         DefaultDestination = "ಜಮ್ಮು ಕಾಶ್ಮೀರ",
@@ -573,6 +594,9 @@ public sealed class PdfLocalizedStrings
         Duration = "कालावधी",
         Destination = "गंतव्य",
         Transfer = "वाहतूक",
+        Transport = "वाहतूक",
+        Vehicle = "वाहन",
+        Route = "मार्ग",
         PickUp = "पिक-अप",
         DropOff = "ड्रॉप-ऑफ",
         DefaultDestination = "जम्मू आणि काश्मीर",

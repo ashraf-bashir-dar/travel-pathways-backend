@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using TravelPathways.Api.Localization;
 using TravelPathways.Api.Services;
 
 namespace TravelPathways.Api.Localization;
@@ -72,7 +73,30 @@ public static class PdfTemplatePostProcessor
                 RegexOptions.None);
         }
 
+        html = InjectTransportSectionIfMissing(html, model);
+
         return html;
+    }
+
+    /// <summary>Inject transport block for tenant templates that predate {{TransportHtml}}.</summary>
+    private static string InjectTransportSectionIfMissing(string html, PackagePdfModel model)
+    {
+        if (html.Contains("transport-section", StringComparison.OrdinalIgnoreCase)) return html;
+
+        var transportHtml = PackagePdfHtmlFragments.BuildTransportSectionHtml(model);
+        if (string.IsNullOrEmpty(transportHtml)) return html;
+
+        const string marker = "<div class=\"pricing-panel\">";
+        var idx = html.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (idx < 0)
+        {
+            const string altMarker = "<h2 class=\"section-title section-itinerary-overview\">";
+            idx = html.IndexOf(altMarker, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0) return html;
+            return html.Insert(idx, transportHtml);
+        }
+
+        return html.Insert(idx, transportHtml);
     }
 
     public static string FormatRegisteredOfficeAddressHtml(string? tenantAddress, PdfLocalizedStrings labels)

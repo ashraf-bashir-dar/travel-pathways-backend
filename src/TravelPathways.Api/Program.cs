@@ -355,6 +355,18 @@ using (var scope = app.Services.CreateScope())
                 "Could not create unique index on SalesConfirmedPackages (duplicate lead rows may exist). Application validation still blocks new duplicates.");
         }
         await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"SalesConfirmedPackages\" ADD COLUMN IF NOT EXISTS \"TotalPackageCost\" numeric(18,2) NOT NULL DEFAULT 0;");
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"SalesConfirmedPackages\" ADD COLUMN IF NOT EXISTS \"TourPackageId\" uuid REFERENCES \"Packages\"(\"Id\") ON DELETE SET NULL;");
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"SalesConfirmedPackages\" ADD COLUMN IF NOT EXISTS \"IsCompleted\" boolean NOT NULL DEFAULT false;");
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"SalesConfirmedPackages\" ADD COLUMN IF NOT EXISTS \"FinalReview\" character varying(2000);");
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"SalesConfirmedPackages\" ADD COLUMN IF NOT EXISTS \"CompletedAt\" timestamp with time zone;");
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"SalesConfirmedPackages\" ADD COLUMN IF NOT EXISTS \"CompletedByUserId\" uuid;");
+        await db.Database.ExecuteSqlRawAsync(
             """
             CREATE TABLE IF NOT EXISTS "UserActivityDailySummaries" (
                 "Id" uuid NOT NULL PRIMARY KEY,

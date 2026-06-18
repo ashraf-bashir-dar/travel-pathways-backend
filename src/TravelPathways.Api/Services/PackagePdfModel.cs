@@ -16,6 +16,10 @@ public sealed class PackagePdfModel
     public required string DaysLabel { get; init; }
     public string? PickUpLocation { get; init; }
     public string? DropLocation { get; init; }
+    /// <summary>Selected vehicle for the package (e.g. "Innova - AC").</summary>
+    public string? VehicleName { get; init; }
+    /// <summary>Pickup → drop route line for transport section.</summary>
+    public string? TransportRoute { get; init; }
     public int NumberOfAdults { get; init; }
     public int NumberOfChildren { get; init; }
     public string MealPlanLabel { get; init; } = "–";

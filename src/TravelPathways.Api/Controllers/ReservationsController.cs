@@ -66,6 +66,18 @@ public sealed class ReservationsController : TenantControllerBase
         return (userId, email, isAdmin, isReservation);
     }
 
+    private static bool IsReservationLockedForUser(Reservation reservation, bool isAdmin) =>
+        reservation.IsLocked && !isAdmin;
+
+    private static bool IsHotelBookingLockedForUser(Reservation reservation, ReservationHotelBooking booking, bool isAdmin) =>
+        (!isAdmin && reservation.IsLocked) || (!isAdmin && booking.IsLocked);
+
+    private static void SoftDeleteEntity(EntityBase entity)
+    {
+        entity.IsDeleted = true;
+        entity.DeletedAtUtc = DateTime.UtcNow;
+    }
+
     private static bool IsPackageCreator(TourPackage package, string? email) =>
         !string.IsNullOrWhiteSpace(email) &&
         string.Equals(package.CreatedBy.Trim(), email.Trim(), StringComparison.OrdinalIgnoreCase);
@@ -1263,8 +1275,8 @@ public sealed class ReservationsController : TenantControllerBase
         var user = await _db.Users.AsNoTracking()
             .Where(u => u.TenantId == tenantId && u.Id == dto.AssignedToUserId && u.IsActive)
             .FirstOrDefaultAsync(ct);
-        if (user == null)
-            return BadRequest(ApiResponse<ReservationDetailDto>.Fail("Assigned user not found or inactive."));
+        if (user == null || user.Role != UserRole.Reservation)
+            return BadRequest(ApiResponse<ReservationDetailDto>.Fail("Assigned user must be an active reservation manager."));
 
         var status = dto.Status ?? ReservationStatus.Pending;
         var reservation = new Reservation
@@ -1311,10 +1323,11 @@ public sealed class ReservationsController : TenantControllerBase
         if (isReservationRole && currentUserId.HasValue && reservation.AssignedToUserId != currentUserId.Value)
             return NotFound(ApiResponse<ReservationDetailDto>.Fail("Reservation not found."));
 
-        if (reservation.IsLocked)
+        if (IsReservationLockedForUser(reservation, isAdmin))
             return BadRequest(ApiResponse<ReservationDetailDto>.Fail("This reservation is locked. Ask an admin to unlock it before editing."));
 
         var oldStatus = reservation.Status;
+        var oldAssigneeId = reservation.AssignedToUserId;
         if (dto.Status.HasValue)
             reservation.Status = dto.Status.Value;
         if (dto.Notes != null)
@@ -1326,9 +1339,17 @@ public sealed class ReservationsController : TenantControllerBase
             var user = await _db.Users.AsNoTracking()
                 .Where(u => u.TenantId == tenantId && u.Id == dto.AssignedToUserId.Value && u.IsActive)
                 .FirstOrDefaultAsync(ct);
-            if (user == null)
-                return BadRequest(ApiResponse<ReservationDetailDto>.Fail("Assigned user not found or inactive."));
+            if (user == null || user.Role != UserRole.Reservation)
+                return BadRequest(ApiResponse<ReservationDetailDto>.Fail("Assigned user must be an active reservation manager."));
             reservation.AssignedToUserId = dto.AssignedToUserId.Value;
+            if (isAdmin
+                && oldAssigneeId != dto.AssignedToUserId.Value
+                && oldStatus == ReservationStatus.Completed)
+            {
+                reservation.Status = ReservationStatus.InProcess;
+                reservation.IsLocked = false;
+                await UnlockReservationBookingsAsync(tenantId, id, ct);
+            }
         }
         if (dto.Status.HasValue && oldStatus != dto.Status.Value)
             reservation.IsLocked = dto.Status.Value == ReservationStatus.Completed;
@@ -1355,10 +1376,62 @@ public sealed class ReservationsController : TenantControllerBase
         reservation.IsLocked = false;
         if (reservation.Status == ReservationStatus.Completed)
             reservation.Status = ReservationStatus.InProcess;
+
+        await UnlockReservationBookingsAsync(TenantId, id, ct);
+
         await _db.SaveChangesAsync(ct);
         _db.ChangeTracker.Clear();
 
         return await GetReservation(id, ct);
+    }
+
+    private async Task UnlockReservationBookingsAsync(Guid tenantId, Guid reservationId, CancellationToken ct)
+    {
+        var bookings = await _db.ReservationHotelBookings
+            .Where(b => b.TenantId == tenantId && b.ReservationId == reservationId && b.Status != ReservationHotelBookingStatus.Cancelled)
+            .ToListAsync(ct);
+        foreach (var booking in bookings)
+            booking.IsLocked = false;
+    }
+
+    [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "TenantAdminOnly")]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteReservation(Guid id, CancellationToken ct = default)
+    {
+        var check = await EnsureReservationsModuleAsync(ct);
+        if (check != null) return check;
+        var tenantId = TenantId;
+
+        var reservation = await _db.Reservations
+            .Include(r => r.HotelBookings).ThenInclude(b => b.Documents)
+            .Include(r => r.PaymentScreenshots)
+            .Include(r => r.DayCompletions)
+            .Where(r => r.TenantId == tenantId && r.Id == id)
+            .FirstOrDefaultAsync(ct);
+        if (reservation == null)
+            return NotFound(ApiResponse<object>.Fail("Reservation not found."));
+
+        foreach (var booking in reservation.HotelBookings)
+        {
+            foreach (var document in booking.Documents)
+                SoftDeleteEntity(document);
+            SoftDeleteEntity(booking);
+        }
+        foreach (var screenshot in reservation.PaymentScreenshots)
+            SoftDeleteEntity(screenshot);
+        foreach (var day in reservation.DayCompletions)
+            SoftDeleteEntity(day);
+
+        var driverAssignments = await _db.PackageDriverAssignments
+            .Where(a => a.TenantId == tenantId && a.ReservationId == id)
+            .ToListAsync(ct);
+        foreach (var assignment in driverAssignments)
+            SoftDeleteEntity(assignment);
+
+        SoftDeleteEntity(reservation);
+        await _db.SaveChangesAsync(ct);
+
+        return ApiResponse<object>.Ok(new { });
     }
 
     public sealed class SetDayCompletionRequestDto
@@ -1384,7 +1457,7 @@ public sealed class ReservationsController : TenantControllerBase
             return NotFound(ApiResponse<ReservationDayCompletionDto>.Fail("Reservation not found."));
         if (isReservationRole && currentUserId.HasValue && reservation.AssignedToUserId != currentUserId.Value)
             return NotFound(ApiResponse<ReservationDayCompletionDto>.Fail("Reservation not found."));
-        if (reservation.IsLocked)
+        if (IsReservationLockedForUser(reservation, isAdmin))
             return BadRequest(ApiResponse<ReservationDayCompletionDto>.Fail("This reservation is locked. Ask an admin to unlock it before editing."));
 
         var completion = reservation.DayCompletions.FirstOrDefault(d => d.DayNumber == dto.DayNumber);
@@ -1430,10 +1503,12 @@ public sealed class ReservationsController : TenantControllerBase
             return NotFound(ApiResponse<ReservationHotelBookingDto>.Fail("Hotel booking not found."));
         if (isReservationRole && currentUserId.HasValue && booking.Reservation.AssignedToUserId != currentUserId.Value)
             return NotFound(ApiResponse<ReservationHotelBookingDto>.Fail("Hotel booking not found."));
-        if (booking.Reservation.IsLocked)
-            return BadRequest(ApiResponse<ReservationHotelBookingDto>.Fail("This reservation is locked. Ask an admin to unlock it before editing."));
-        if (booking.IsLocked)
+        if (IsHotelBookingLockedForUser(booking.Reservation, booking, isAdmin))
+        {
+            if (booking.Reservation.IsLocked && !isAdmin)
+                return BadRequest(ApiResponse<ReservationHotelBookingDto>.Fail("This reservation is locked. Ask an admin to unlock it before editing."));
             return BadRequest(ApiResponse<ReservationHotelBookingDto>.Fail("This booking is locked. Ask an admin to unlock it before editing."));
+        }
 
         if (!isReservationRole)
         {
@@ -1561,10 +1636,12 @@ public sealed class ReservationsController : TenantControllerBase
             return NotFound(ApiResponse<ReservationHotelBookingDocumentDto>.Fail("Hotel booking not found."));
         if (isReservationRole && currentUserId.HasValue && booking.Reservation.AssignedToUserId != currentUserId.Value)
             return NotFound(ApiResponse<ReservationHotelBookingDocumentDto>.Fail("Hotel booking not found."));
-        if (booking.Reservation.IsLocked)
-            return BadRequest(ApiResponse<ReservationHotelBookingDocumentDto>.Fail("This reservation is locked. Ask an admin to unlock it before editing."));
-        if (booking.IsLocked)
+        if (IsHotelBookingLockedForUser(booking.Reservation, booking, isAdmin))
+        {
+            if (booking.Reservation.IsLocked && !isAdmin)
+                return BadRequest(ApiResponse<ReservationHotelBookingDocumentDto>.Fail("This reservation is locked. Ask an admin to unlock it before editing."));
             return BadRequest(ApiResponse<ReservationHotelBookingDocumentDto>.Fail("This booking is locked. Ask an admin to unlock it before editing."));
+        }
 
         var url = await _storage.SaveReservationScreenshotAsync(tenantId, id, file, ct);
         var document = new ReservationHotelBookingDocument
@@ -1612,10 +1689,12 @@ public sealed class ReservationsController : TenantControllerBase
             return NotFound(ApiResponse<object>.Fail("Booking proof not found."));
         if (isReservationRole && currentUserId.HasValue && document.ReservationHotelBooking.Reservation.AssignedToUserId != currentUserId.Value)
             return NotFound(ApiResponse<object>.Fail("Booking proof not found."));
-        if (document.ReservationHotelBooking.Reservation.IsLocked)
-            return BadRequest(ApiResponse<object>.Fail("This reservation is locked. Ask an admin to unlock it before editing."));
-        if (document.ReservationHotelBooking.IsLocked)
+        if (IsHotelBookingLockedForUser(document.ReservationHotelBooking.Reservation, document.ReservationHotelBooking, isAdmin))
+        {
+            if (document.ReservationHotelBooking.Reservation.IsLocked && !isAdmin)
+                return BadRequest(ApiResponse<object>.Fail("This reservation is locked. Ask an admin to unlock it before editing."));
             return BadRequest(ApiResponse<object>.Fail("This booking is locked. Ask an admin to unlock it before editing."));
+        }
 
         _db.ReservationHotelBookingDocuments.Remove(document);
         await _db.SaveChangesAsync(ct);
@@ -1640,7 +1719,7 @@ public sealed class ReservationsController : TenantControllerBase
             return NotFound(ApiResponse<ReservationScreenshotDto>.Fail("Reservation not found."));
         if (isReservationRole && currentUserId.HasValue && reservation.AssignedToUserId != currentUserId.Value)
             return NotFound(ApiResponse<ReservationScreenshotDto>.Fail("Reservation not found."));
-        if (reservation.IsLocked)
+        if (IsReservationLockedForUser(reservation, isAdmin))
             return BadRequest(ApiResponse<ReservationScreenshotDto>.Fail("This reservation is locked. Ask an admin to unlock it before editing."));
 
         var url = await _storage.SaveReservationScreenshotAsync(tenantId, id, file, ct);
@@ -1682,7 +1761,7 @@ public sealed class ReservationsController : TenantControllerBase
             return NotFound(ApiResponse<object>.Fail("Screenshot not found."));
         if (isReservationRole && currentUserId.HasValue && screenshot.Reservation.AssignedToUserId != currentUserId.Value)
             return NotFound(ApiResponse<object>.Fail("Screenshot not found."));
-        if (screenshot.Reservation.IsLocked)
+        if (IsReservationLockedForUser(screenshot.Reservation, isAdmin))
             return BadRequest(ApiResponse<object>.Fail("This reservation is locked. Ask an admin to unlock it before editing."));
 
         _db.ReservationPaymentScreenshots.Remove(screenshot);

@@ -149,6 +149,9 @@ public sealed class PackagesController : TenantControllerBase
         public required decimal BalanceAmount { get; init; }
         public required PackageStatus Status { get; init; }
         public string? ConfirmationDate { get; init; }
+        /// <summary>User who confirmed the package (from package log when status became Confirmed).</summary>
+        public string? ConfirmedByUserId { get; set; }
+        public string? ConfirmedByName { get; set; }
         public bool IsLocked { get; init; }
         public List<string>? InclusionIds { get; init; }
         public List<string>? ExclusionIds { get; init; }
@@ -228,6 +231,8 @@ public sealed class PackagesController : TenantControllerBase
         [FromQuery] PackageStatus? status = null,
         [FromQuery] DateTime? arrivalDateFrom = null,
         [FromQuery] DateTime? arrivalDateTo = null,
+        [FromQuery] DateTime? confirmationDateFrom = null,
+        [FromQuery] DateTime? confirmationDateTo = null,
         [FromQuery] Guid? assignedToUserId = null,
         CancellationToken ct = default)
     {
@@ -270,6 +275,17 @@ public sealed class PackagesController : TenantControllerBase
             query = query.Where(p => p.StartDate < endUtcExclusive);
         }
 
+        if (confirmationDateFrom.HasValue)
+        {
+            var from = DateOnly.FromDateTime(confirmationDateFrom.Value.Date);
+            query = query.Where(p => p.ConfirmationDate >= from);
+        }
+        if (confirmationDateTo.HasValue)
+        {
+            var to = DateOnly.FromDateTime(confirmationDateTo.Value.Date);
+            query = query.Where(p => p.ConfirmationDate <= to);
+        }
+
         if (assignedToUserId.HasValue)
         {
             query = query.Where(p =>
@@ -295,6 +311,7 @@ public sealed class PackagesController : TenantControllerBase
                 .ToDictionaryAsync(x => x.LeadId, x => x.Count, ct);
 
         var packageLogCounts = await GetPackageLogCountsByLeadAsync(leadIds, ct);
+        var confirmedByLookup = await GetConfirmedByForPackagesAsync(list, ct);
 
         var items = list.Select(p =>
         {
@@ -304,6 +321,11 @@ public sealed class PackagesController : TenantControllerBase
                 if (versionCounts.TryGetValue(p.LeadId.Value, out var count))
                     dto.LeadPackageVersionCount = count;
                 dto.PackageLogCount = packageLogCounts.GetValueOrDefault(p.LeadId.Value);
+            }
+            if (confirmedByLookup.TryGetValue(p.Id, out var confirmedBy))
+            {
+                dto.ConfirmedByUserId = confirmedBy.UserId?.ToString("D");
+                dto.ConfirmedByName = confirmedBy.Name;
             }
             return dto;
         }).ToList();
@@ -1716,6 +1738,67 @@ public sealed class PackagesController : TenantControllerBase
 
     private static Guid? NormalizeOptionalGuid(Guid? id) =>
         id is { } g && g != Guid.Empty ? g : null;
+
+    private async Task<Dictionary<Guid, (Guid? UserId, string Name)>> GetConfirmedByForPackagesAsync(
+        List<TourPackage> packages,
+        CancellationToken ct)
+    {
+        var result = new Dictionary<Guid, (Guid? UserId, string Name)>();
+        if (packages.Count == 0) return result;
+
+        var packageIds = packages.Select(p => p.Id).ToList();
+
+        try
+        {
+            var logs = await _db.PackageLogs.AsNoTracking()
+                .Where(l => l.TenantId == TenantId
+                    && packageIds.Contains(l.PackageId)
+                    && l.Status == PackageStatus.Confirmed)
+                .OrderByDescending(l => l.CreatedAt)
+                .Select(l => new { l.PackageId, l.ChangedByUserId, l.ChangedByDisplayName })
+                .ToListAsync(ct);
+
+            foreach (var group in logs.GroupBy(l => l.PackageId))
+            {
+                var row = group.First();
+                var name = (row.ChangedByDisplayName ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(name))
+                    result[group.Key] = (row.ChangedByUserId, name);
+            }
+        }
+        catch (PostgresException ex) when (IsPackageLogSchemaException(ex))
+        {
+            // Package log table may be unavailable on older deployments.
+        }
+
+        var missing = packages
+            .Where(p => p.Status == PackageStatus.Confirmed && p.LeadId.HasValue && !result.ContainsKey(p.Id))
+            .ToList();
+        if (missing.Count == 0) return result;
+
+        var leadIds = missing.Select(p => p.LeadId!.Value).Distinct().ToList();
+        var assignees = await _db.Leads.AsNoTracking()
+            .Where(l => l.TenantId == TenantId && leadIds.Contains(l.Id) && l.AssignedToUserId != null)
+            .Select(l => new
+            {
+                l.Id,
+                UserId = l.AssignedToUserId,
+                Name = ((l.AssignedToUser!.FirstName ?? "") + " " + (l.AssignedToUser.LastName ?? "")).Trim(),
+                Email = l.AssignedToUser!.Email
+            })
+            .ToListAsync(ct);
+        var assigneeByLead = assignees.ToDictionary(x => x.Id);
+
+        foreach (var pkg in missing)
+        {
+            if (!assigneeByLead.TryGetValue(pkg.LeadId!.Value, out var assignee)) continue;
+            var name = string.IsNullOrWhiteSpace(assignee.Name) ? assignee.Email : assignee.Name;
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            result[pkg.Id] = (assignee.UserId, name);
+        }
+
+        return result;
+    }
 
     private async Task<Dictionary<Guid, int>> GetPackageLogCountsByLeadAsync(List<Guid> leadIds, CancellationToken ct)
     {

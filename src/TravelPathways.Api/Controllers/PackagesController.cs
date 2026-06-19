@@ -92,11 +92,8 @@ public sealed class PackagesController : TenantControllerBase
             (!string.IsNullOrEmpty(email) && p.CreatedBy.ToLower() == email!.ToLower()) ||
             (userId.HasValue &&
              p.LeadId != null &&
-             _db.Leads.Any(l =>
-                 l.Id == p.LeadId &&
-                 l.TenantId == TenantId &&
-                 !l.IsDeleted &&
-                 l.AssignedToUserId == userId.Value)));
+             p.Lead != null &&
+             p.Lead.AssignedToUserId == userId.Value));
     }
 
     public sealed class DayItineraryDto
@@ -151,6 +148,7 @@ public sealed class PackagesController : TenantControllerBase
         public required decimal AdvanceAmount { get; init; }
         public required decimal BalanceAmount { get; init; }
         public required PackageStatus Status { get; init; }
+        public string? ConfirmationDate { get; init; }
         public bool IsLocked { get; init; }
         public List<string>? InclusionIds { get; init; }
         public List<string>? ExclusionIds { get; init; }
@@ -218,6 +216,8 @@ public sealed class PackagesController : TenantControllerBase
         public decimal AdvanceAmount { get; set; }
         /// <summary>Package status. When set, the lead's status and all packages for that lead are synced to this value.</summary>
         public PackageStatus Status { get; set; }
+        /// <summary>Required when <see cref="Status"/> is Confirmed (yyyy-MM-dd).</summary>
+        public DateOnly? ConfirmationDate { get; set; }
     }
 
     [HttpGet]
@@ -239,20 +239,19 @@ public sealed class PackagesController : TenantControllerBase
 
         var query = ApplyPackageOwnershipFilter(
             _db.Packages.AsNoTracking()
-                .Include(p => p.DayWiseItinerary)
                 .Include(p => p.Vehicle)
-                .Where(p => p.TenantId == TenantId),
+                .Where(p => p.TenantId == TenantId && (p.LeadId == null || p.IsLatestForLead)),
             canSeeAllPackages,
             currentUserEmail,
             userId);
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
-            var s = searchTerm.Trim().ToLower();
+            var pattern = PostgresSearch.ToContainsPattern(searchTerm);
             query = query.Where(p =>
-                p.ClientName.ToLower().Contains(s) ||
-                p.ClientPhone.ToLower().Contains(s) ||
-                p.PackageName.ToLower().Contains(s));
+                EF.Functions.ILike(p.ClientName, pattern, "\\") ||
+                EF.Functions.ILike(p.ClientPhone, pattern, "\\") ||
+                EF.Functions.ILike(p.PackageName, pattern, "\\"));
         }
 
         if (status.HasValue)
@@ -275,21 +274,9 @@ public sealed class PackagesController : TenantControllerBase
         {
             query = query.Where(p =>
                 p.LeadId != null &&
-                _db.Leads.Any(l =>
-                    l.Id == p.LeadId &&
-                    l.TenantId == TenantId &&
-                    !l.IsDeleted &&
-                    l.AssignedToUserId == assignedToUserId.Value));
+                p.Lead != null &&
+                p.Lead.AssignedToUserId == assignedToUserId.Value);
         }
-
-        // List page shows only the latest package per lead; older revisions stay in DB and appear in package logs.
-        var latestPackageIds = await query
-            .Where(p => p.LeadId != null)
-            .GroupBy(p => p.LeadId!.Value)
-            .Select(g => g.OrderByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id).First().Id)
-            .ToListAsync(ct);
-        var latestIdSet = latestPackageIds.ToHashSet();
-        query = query.Where(p => p.LeadId == null || latestIdSet.Contains(p.Id));
 
         var total = await query.CountAsync(ct);
         var list = await query
@@ -311,7 +298,7 @@ public sealed class PackagesController : TenantControllerBase
 
         var items = list.Select(p =>
         {
-            var dto = ToDto(p);
+            var dto = ToDto(p, includeItinerary: false);
             if (p.LeadId.HasValue)
             {
                 if (versionCounts.TryGetValue(p.LeadId.Value, out var count))
@@ -412,7 +399,7 @@ public sealed class PackagesController : TenantControllerBase
             userId);
 
         var pkgs = await query.OrderByDescending(p => p.CreatedAt).ToListAsync(ct);
-        var dtos = pkgs.Select(ToDto).ToList(); // HasReservation left default (false) for this list.
+        var dtos = pkgs.Select(p => ToDto(p)).ToList(); // HasReservation left default (false) for this list.
         return ApiResponse<List<PackageDto>>.Ok(dtos);
     }
 
@@ -809,11 +796,13 @@ public sealed class PackagesController : TenantControllerBase
             Status = (PackageStatus)lead.Status,
             InclusionIds = request.InclusionIds ?? new List<string>(),
             ExclusionIds = request.ExclusionIds ?? new List<string>(),
-            CreatedBy = createdBy
+            CreatedBy = createdBy,
+            IsLatestForLead = true
         };
 
         _db.Packages.Add(pkg);
         await _db.SaveChangesAsync(ct);
+        await MarkAsLatestForLeadAsync(request.LeadId, pkg.Id, ct);
 
         foreach (var d in request.DayWiseItinerary)
         {
@@ -882,6 +871,9 @@ public sealed class PackagesController : TenantControllerBase
 
         if (pkg.IsLocked)
             return BadRequest(ApiResponse<PackageDto>.Fail("This package is locked. Ask an admin to unlock it before editing."));
+
+        var confirmationValidation = ValidateConfirmationDateForStatus(request.Status, request.ConfirmationDate);
+        if (confirmationValidation != null) return confirmationValidation;
 
         // Once sent for reservation, creator (tour manager or reservation user) cannot edit package details here.
         var role = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
@@ -961,6 +953,10 @@ public sealed class PackagesController : TenantControllerBase
         pkg.BalanceAmount = finalAmount - request.AdvanceAmount;
         pkg.Status = request.Status;
         pkg.IsLocked = request.Status == PackageStatus.Confirmed;
+        if (request.Status == PackageStatus.Confirmed)
+            pkg.ConfirmationDate = request.ConfirmationDate;
+        else
+            pkg.ConfirmationDate = null;
         pkg.InclusionIds = request.InclusionIds ?? new List<string>();
         pkg.ExclusionIds = request.ExclusionIds ?? new List<string>();
 
@@ -1635,8 +1631,21 @@ public sealed class PackagesController : TenantControllerBase
         }
     }
 
+    private static ActionResult<ApiResponse<PackageDto>>? ValidateConfirmationDateForStatus(
+        PackageStatus status,
+        DateOnly? confirmationDate)
+    {
+        if (status != PackageStatus.Confirmed) return null;
+        if (!confirmationDate.HasValue || confirmationDate.Value == default)
+            return new BadRequestObjectResult(ApiResponse<PackageDto>.Fail(
+                "Package confirmation date is required when status is Confirmed."));
+        return null;
+    }
+
     private static bool HasPackageUpdateChanges(TourPackage pkg, UpdatePackageRequestDto request) =>
-        HasPackageDataChanges(pkg, request) || pkg.Status != request.Status;
+        HasPackageDataChanges(pkg, request)
+        || pkg.Status != request.Status
+        || pkg.ConfirmationDate != request.ConfirmationDate;
 
     private static bool HasPackageDataChanges(TourPackage pkg, UpdatePackageRequestDto request)
     {
@@ -1741,7 +1750,17 @@ public sealed class PackagesController : TenantControllerBase
         return latestId == pkg.Id;
     }
 
-    private static PackageDto ToDto(TourPackage p)
+    private async Task MarkAsLatestForLeadAsync(Guid leadId, Guid packageId, CancellationToken ct)
+    {
+        await _db.Packages
+            .Where(p => p.TenantId == TenantId && p.LeadId == leadId && p.Id != packageId)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.IsLatestForLead, false), ct);
+        await _db.Packages
+            .Where(p => p.Id == packageId && p.TenantId == TenantId)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.IsLatestForLead, true), ct);
+    }
+
+    private static PackageDto ToDto(TourPackage p, bool includeItinerary = true)
     {
         var vehicleName = p.Vehicle is null
             ? null
@@ -1774,33 +1793,36 @@ public sealed class PackagesController : TenantControllerBase
             AdvanceAmount = p.AdvanceAmount,
             BalanceAmount = p.BalanceAmount,
             Status = p.Status,
+            ConfirmationDate = p.ConfirmationDate?.ToString("yyyy-MM-dd"),
             IsLocked = p.IsLocked,
             InclusionIds = p.InclusionIds ?? new List<string>(),
             ExclusionIds = p.ExclusionIds ?? new List<string>(),
-            DayWiseItinerary = p.DayWiseItinerary
-                .OrderBy(d => d.DayNumber)
-                .Select(d => new DayItineraryDto
-                {
-                    Id = d.Id.ToString("D"),
-                    PackageId = d.PackageId.ToString("D"),
-                    DayNumber = d.DayNumber,
-                    Date = d.Date,
-                    HotelId = d.HotelId?.ToString("D"),
-                    HotelName = d.Hotel?.Name,
-                    RoomType = d.RoomType,
-                    NumberOfRooms = d.NumberOfRooms,
-                    CheckInTime = d.CheckInTime,
-                    CheckOutTime = d.CheckOutTime,
-                    MealPlan = d.MealPlan,
-                    ExtraBedCount = d.ExtraBedCount,
-                    CnbCount = d.CnbCount,
-                    Activities = d.Activities,
-                    Meals = d.Meals,
-                    Notes = d.Notes,
-                    TemplateId = d.ItineraryTemplateId?.ToString("D"),
-                    TemplateTitle = d.ItineraryTemplate?.Title,
-                    HotelCost = d.HotelCost
-                }).ToList(),
+            DayWiseItinerary = includeItinerary
+                ? p.DayWiseItinerary
+                    .OrderBy(d => d.DayNumber)
+                    .Select(d => new DayItineraryDto
+                    {
+                        Id = d.Id.ToString("D"),
+                        PackageId = d.PackageId.ToString("D"),
+                        DayNumber = d.DayNumber,
+                        Date = d.Date,
+                        HotelId = d.HotelId?.ToString("D"),
+                        HotelName = d.Hotel?.Name,
+                        RoomType = d.RoomType,
+                        NumberOfRooms = d.NumberOfRooms,
+                        CheckInTime = d.CheckInTime,
+                        CheckOutTime = d.CheckOutTime,
+                        MealPlan = d.MealPlan,
+                        ExtraBedCount = d.ExtraBedCount,
+                        CnbCount = d.CnbCount,
+                        Activities = d.Activities,
+                        Meals = d.Meals,
+                        Notes = d.Notes,
+                        TemplateId = d.ItineraryTemplateId?.ToString("D"),
+                        TemplateTitle = d.ItineraryTemplate?.Title,
+                        HotelCost = d.HotelCost
+                    }).ToList()
+                : null,
             TenantId = p.TenantId.ToString("D"),
             CreatedAt = p.CreatedAt,
             UpdatedAt = p.UpdatedAt,

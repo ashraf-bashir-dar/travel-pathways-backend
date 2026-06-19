@@ -12,12 +12,12 @@ using TravelPathways.Api.Data;
 using TravelPathways.Api.Data.Entities;
 using TravelPathways.Api.MultiTenancy;
 using TravelPathways.Api.Storage;
-using TravelPathways.Api.Hubs;
 using TravelPathways.Api.Swagger;
 
 var builder = WebApplication.CreateBuilder(args);
 
 /* -------------------- Controllers & JSON -------------------- */
+builder.Services.AddResponseCompression(options => options.EnableForHttps = true);
 builder.Services.AddControllers()
     .AddJsonOptions(o =>
     {
@@ -27,8 +27,6 @@ builder.Services.AddControllers()
         o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         o.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
-
-builder.Services.AddSignalR();
 
 /* -------------------- Swagger -------------------- */
 builder.Services.AddEndpointsApiExplorer();
@@ -443,54 +441,6 @@ using (var scope = app.Services.CreateScope())
             """);
         await db.Database.ExecuteSqlRawAsync(
             """
-            CREATE TABLE IF NOT EXISTS "ChatGroups" (
-                "Id" uuid NOT NULL,
-                "TenantId" uuid NOT NULL,
-                "IsActive" boolean NOT NULL DEFAULT true,
-                "Name" character varying(200) NOT NULL,
-                "Description" character varying(500),
-                "CreatedByUserId" uuid NOT NULL,
-                "CreatedAt" timestamp with time zone NOT NULL,
-                "UpdatedAt" timestamp with time zone NOT NULL,
-                "IsDeleted" boolean NOT NULL DEFAULT false,
-                "DeletedAtUtc" timestamp with time zone,
-                CONSTRAINT "PK_ChatGroups" PRIMARY KEY ("Id"),
-                CONSTRAINT "FK_ChatGroups_Users_CreatedByUserId" FOREIGN KEY ("CreatedByUserId") REFERENCES "Users" ("Id") ON DELETE RESTRICT,
-                CONSTRAINT "FK_ChatGroups_Tenants_TenantId" FOREIGN KEY ("TenantId") REFERENCES "Tenants" ("Id") ON DELETE CASCADE
-            );
-            CREATE TABLE IF NOT EXISTS "ChatGroupMembers" (
-                "GroupId" uuid NOT NULL,
-                "UserId" uuid NOT NULL,
-                "JoinedAt" timestamp with time zone NOT NULL,
-                "AddedByUserId" uuid,
-                "LastReadAtUtc" timestamp with time zone,
-                CONSTRAINT "PK_ChatGroupMembers" PRIMARY KEY ("GroupId", "UserId"),
-                CONSTRAINT "FK_ChatGroupMembers_ChatGroups_GroupId" FOREIGN KEY ("GroupId") REFERENCES "ChatGroups" ("Id") ON DELETE CASCADE,
-                CONSTRAINT "FK_ChatGroupMembers_Users_UserId" FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE RESTRICT
-            );
-            CREATE TABLE IF NOT EXISTS "ChatMessages" (
-                "Id" uuid NOT NULL,
-                "GroupId" uuid NOT NULL,
-                "SenderUserId" uuid NOT NULL,
-                "Body" character varying(4000) NOT NULL,
-                "SentAtUtc" timestamp with time zone NOT NULL,
-                "CreatedAt" timestamp with time zone NOT NULL,
-                "UpdatedAt" timestamp with time zone NOT NULL,
-                "IsDeleted" boolean NOT NULL DEFAULT false,
-                "DeletedAtUtc" timestamp with time zone,
-                CONSTRAINT "PK_ChatMessages" PRIMARY KEY ("Id"),
-                CONSTRAINT "FK_ChatMessages_ChatGroups_GroupId" FOREIGN KEY ("GroupId") REFERENCES "ChatGroups" ("Id") ON DELETE CASCADE,
-                CONSTRAINT "FK_ChatMessages_Users_SenderUserId" FOREIGN KEY ("SenderUserId") REFERENCES "Users" ("Id") ON DELETE RESTRICT
-            );
-            CREATE INDEX IF NOT EXISTS "IX_ChatGroups_TenantId" ON "ChatGroups" ("TenantId");
-            CREATE INDEX IF NOT EXISTS "IX_ChatMessages_GroupId_SentAtUtc" ON "ChatMessages" ("GroupId", "SentAtUtc");
-            ALTER TABLE "ChatGroups" ADD COLUMN IF NOT EXISTS "IsDirect" boolean NOT NULL DEFAULT false;
-            ALTER TABLE "ChatGroups" ADD COLUMN IF NOT EXISTS "DirectPairKey" character varying(100);
-            CREATE UNIQUE INDEX IF NOT EXISTS "IX_ChatGroups_TenantId_DirectPairKey"
-                ON "ChatGroups" ("TenantId", "DirectPairKey")
-                WHERE "IsDirect" = true AND "DirectPairKey" IS NOT NULL;
-            ALTER TABLE "ChatMessages" ADD COLUMN IF NOT EXISTS "MentionedUserIds" text NOT NULL DEFAULT '[]';
-            ALTER TABLE "ChatMessages" ADD COLUMN IF NOT EXISTS "ImageUrls" text NOT NULL DEFAULT '[]';
             ALTER TABLE "Tenants" ADD COLUMN IF NOT EXISTS "InboundLeadsFeatureEnabled" boolean NOT NULL DEFAULT false;
             ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "ParticipateInInboundAutoAssign" boolean NOT NULL DEFAULT false;
             ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "InboundDailyLeadQuota" integer NOT NULL DEFAULT 0;
@@ -704,6 +654,115 @@ using (var scope = app.Services.CreateScope())
             CREATE INDEX IF NOT EXISTS "IX_EmployeeAssignedTasks_AssignedByUserId" ON "EmployeeAssignedTasks" ("AssignedByUserId");
             CREATE INDEX IF NOT EXISTS "IX_EmployeeAssignedTasks_TenantId_AssignedToUserId_DueDate" ON "EmployeeAssignedTasks" ("TenantId", "AssignedToUserId", "DueDate");
             ALTER TABLE "EmployeeAssignedTasks" ADD COLUMN IF NOT EXISTS "AssigneeNotes" text;
+            ALTER TABLE "Packages" ADD COLUMN IF NOT EXISTS "IsLatestForLead" boolean NOT NULL DEFAULT true;
+            CREATE INDEX IF NOT EXISTS "IX_Packages_TenantId_LeadId_IsLatestForLead"
+                ON "Packages" ("TenantId", "LeadId", "IsLatestForLead") WHERE "IsDeleted" = false;
+            CREATE INDEX IF NOT EXISTS "IX_Leads_TenantId_AssignedToUserId"
+                ON "Leads" ("TenantId", "AssignedToUserId") WHERE "IsDeleted" = false;
+            CREATE INDEX IF NOT EXISTS "IX_Leads_TenantId_NextFollowUpDate"
+                ON "Leads" ("TenantId", "NextFollowUpDate") WHERE "IsDeleted" = false;
+            CREATE INDEX IF NOT EXISTS "IX_Leads_TenantId_Status_CreatedAt"
+                ON "Leads" ("TenantId", "Status", "CreatedAt") WHERE "IsDeleted" = false;
+            UPDATE "Packages" SET "IsLatestForLead" = false WHERE "LeadId" IS NOT NULL;
+            UPDATE "Packages" p SET "IsLatestForLead" = true
+            FROM (
+                SELECT DISTINCT ON ("LeadId") "Id"
+                FROM "Packages"
+                WHERE "LeadId" IS NOT NULL AND "IsDeleted" = false
+                ORDER BY "LeadId", "CreatedAt" DESC, "Id" DESC
+            ) latest
+            WHERE p."Id" = latest."Id";
+            ALTER TABLE "Packages" ADD COLUMN IF NOT EXISTS "ConfirmationDate" date;
+            """);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "Drivers" (
+                "Id" uuid NOT NULL,
+                "FullName" text NOT NULL,
+                "PhoneNumber" text NOT NULL,
+                "Email" text,
+                "TransportCompanyId" uuid,
+                "LicenceNumber" text,
+                "AadharLastFour" text,
+                "LicenceDocumentUrl" text,
+                "AadharDocumentUrl" text,
+                "Notes" text,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone,
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                CONSTRAINT "PK_Drivers" PRIMARY KEY ("Id"),
+                CONSTRAINT "FK_Drivers_TransportCompanies_TransportCompanyId"
+                    FOREIGN KEY ("TransportCompanyId") REFERENCES "TransportCompanies" ("Id") ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS "IX_Drivers_TenantId_PhoneNumber" ON "Drivers" ("TenantId", "PhoneNumber");
+            CREATE INDEX IF NOT EXISTS "IX_Drivers_TransportCompanyId" ON "Drivers" ("TransportCompanyId");
+            CREATE TABLE IF NOT EXISTS "PackageDriverAssignments" (
+                "Id" uuid NOT NULL,
+                "PackageId" uuid NOT NULL,
+                "ReservationId" uuid NOT NULL,
+                "DriverId" uuid NOT NULL,
+                "TransportCompanyId" uuid,
+                "VehicleNumber" text NOT NULL,
+                "VehicleModel" text,
+                "VehicleImageUrl" text,
+                "AssignedByUserId" uuid,
+                "ServiceRating" integer,
+                "ServiceNotes" text,
+                "RatedByUserId" uuid,
+                "RatedAtUtc" timestamp with time zone,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NOT NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone,
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                CONSTRAINT "PK_PackageDriverAssignments" PRIMARY KEY ("Id"),
+                CONSTRAINT "FK_PackageDriverAssignments_Drivers_DriverId"
+                    FOREIGN KEY ("DriverId") REFERENCES "Drivers" ("Id") ON DELETE RESTRICT,
+                CONSTRAINT "FK_PackageDriverAssignments_Packages_PackageId"
+                    FOREIGN KEY ("PackageId") REFERENCES "Packages" ("Id") ON DELETE RESTRICT,
+                CONSTRAINT "FK_PackageDriverAssignments_Reservations_ReservationId"
+                    FOREIGN KEY ("ReservationId") REFERENCES "Reservations" ("Id") ON DELETE CASCADE,
+                CONSTRAINT "FK_PackageDriverAssignments_TransportCompanies_TransportCompanyId"
+                    FOREIGN KEY ("TransportCompanyId") REFERENCES "TransportCompanies" ("Id") ON DELETE SET NULL,
+                CONSTRAINT "FK_PackageDriverAssignments_Users_AssignedByUserId"
+                    FOREIGN KEY ("AssignedByUserId") REFERENCES "Users" ("Id") ON DELETE SET NULL,
+                CONSTRAINT "FK_PackageDriverAssignments_Users_RatedByUserId"
+                    FOREIGN KEY ("RatedByUserId") REFERENCES "Users" ("Id") ON DELETE SET NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_PackageDriverAssignments_PackageId"
+                ON "PackageDriverAssignments" ("PackageId");
+            CREATE INDEX IF NOT EXISTS "IX_PackageDriverAssignments_ReservationId"
+                ON "PackageDriverAssignments" ("ReservationId");
+            CREATE INDEX IF NOT EXISTS "IX_PackageDriverAssignments_DriverId"
+                ON "PackageDriverAssignments" ("DriverId");
+            CREATE INDEX IF NOT EXISTS "IX_PackageDriverAssignments_TransportCompanyId"
+                ON "PackageDriverAssignments" ("TransportCompanyId");
+            CREATE INDEX IF NOT EXISTS "IX_PackageDriverAssignments_AssignedByUserId"
+                ON "PackageDriverAssignments" ("AssignedByUserId");
+            CREATE INDEX IF NOT EXISTS "IX_PackageDriverAssignments_RatedByUserId"
+                ON "PackageDriverAssignments" ("RatedByUserId");
+            INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+            SELECT '20260618160000_AddDriversAndAssignments', '8.0.0'
+            WHERE NOT EXISTS (
+                SELECT 1 FROM "__EFMigrationsHistory"
+                WHERE "MigrationId" = '20260618160000_AddDriversAndAssignments');
+            """);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            ALTER TABLE "Drivers" ADD COLUMN IF NOT EXISTS "VehicleNumber" text;
+            ALTER TABLE "Drivers" ADD COLUMN IF NOT EXISTS "VehicleModel" text;
+            ALTER TABLE "Drivers" ADD COLUMN IF NOT EXISTS "VehicleImageUrl" text;
+            INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+            SELECT '20260619120000_AddDriverVehicleFields', '8.0.0'
+            WHERE NOT EXISTS (
+                SELECT 1 FROM "__EFMigrationsHistory"
+                WHERE "MigrationId" = '20260619120000_AddDriverVehicleFields');
             """);
 
         await TravelPathways.Api.Data.PackageMasterSchemaBootstrap.EnsureAsync(db);
@@ -843,13 +902,13 @@ static string GetExceptionDetailMessage(Exception? ex)
 }
 
 /* -------------------- Middleware Order (CRITICAL) -------------------- */
+app.UseResponseCompression();
 app.UseAuthentication();
 app.UseMiddleware<TenantMiddleware>();
 app.UseAuthorization();
 
 app.UseStaticFiles();
 app.MapControllers();
-app.MapHub<ChatHub>("/hubs/chat");
 
 /* -------------------- Root URL (avoid 404 on base URL) -------------------- */
 app.MapGet("/", () => Results.Ok(new

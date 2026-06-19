@@ -78,7 +78,7 @@ public sealed class TenantReportsController : ControllerBase
     public sealed class ConfirmedPackagesReportDto
     {
         public required List<ConfirmedPackagesSummaryDto> Summary { get; init; }
-        public required List<ConfirmedPackageItemDto> Packages { get; init; }
+        public required PaginatedResponse<ConfirmedPackageItemDto> Packages { get; init; }
     }
 
     /// <summary>Get all confirmed packages with employee resolution. Tenant Admin only. Requires EmployeeManagement module. Optional userId filter.</summary>
@@ -86,12 +86,17 @@ public sealed class TenantReportsController : ControllerBase
     [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<ConfirmedPackagesReportDto>>> GetConfirmedPackages(
         [FromQuery] Guid? userId = null,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
     {
         var moduleCheck = await EnsureEmployeeManagementModuleAsync(ct);
         if (moduleCheck != null) return moduleCheck;
         if (!_tenant.TenantId.HasValue)
             return BadRequest(ApiResponse<ConfirmedPackagesReportDto>.Fail("Tenant context is missing."));
+
+        pageNumber = Math.Max(1, pageNumber);
+        pageSize = Math.Clamp(pageSize, 1, 200);
 
         var tenantId = _tenant.TenantId.Value;
         var query = _db.Packages.AsNoTracking()
@@ -108,8 +113,7 @@ public sealed class TenantReportsController : ControllerBase
             query = query.Where(p => p.CreatedBy == user);
         }
 
-        var packages = await query
-            .OrderByDescending(p => p.CreatedAt)
+        var summarySource = await query
             .Select(p => new
             {
                 p.Id,
@@ -123,14 +127,14 @@ public sealed class TenantReportsController : ControllerBase
             })
             .ToListAsync(ct);
 
-        var emails = packages.Select(p => p.CreatedBy).Distinct().ToList();
+        var emails = summarySource.Select(p => p.CreatedBy).Distinct().ToList();
         var usersByEmail = await _db.Users.AsNoTracking()
             .Where(u => u.TenantId == tenantId && emails.Contains(u.Email))
             .Select(u => new { u.Email, u.Id, u.FirstName, u.LastName })
             .ToListAsync(ct);
         var byEmail = usersByEmail.ToDictionary(u => u.Email, u => new { u.Id, Name = $"{u.FirstName} {u.LastName}".Trim() });
 
-        var packageItems = packages.Select(p =>
+        var allPackageItems = summarySource.Select(p =>
         {
             var resolved = byEmail.TryGetValue(p.CreatedBy, out var u);
             return new ConfirmedPackageItemDto
@@ -148,7 +152,7 @@ public sealed class TenantReportsController : ControllerBase
             };
         }).ToList();
 
-        var summaryGroups = packageItems
+        var summaryGroups = allPackageItems
             .Where(x => x.CreatedByUserId != null)
             .GroupBy(x => (UserId: x.CreatedByUserId!, UserName: x.CreatedByUserName ?? "Unknown"))
             .Select(g => new ConfirmedPackagesSummaryDto
@@ -161,7 +165,26 @@ public sealed class TenantReportsController : ControllerBase
             .OrderByDescending(x => x.ConfirmedCount)
             .ToList();
 
-        var report = new ConfirmedPackagesReportDto { Summary = summaryGroups, Packages = packageItems };
+        var total = allPackageItems.Count;
+        var pageItems = allPackageItems
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+
+        var report = new ConfirmedPackagesReportDto
+        {
+            Summary = summaryGroups,
+            Packages = new PaginatedResponse<ConfirmedPackageItemDto>
+            {
+                Items = pageItems,
+                TotalCount = total,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalPages = totalPages
+            }
+        };
         return ApiResponse<ConfirmedPackagesReportDto>.Ok(report);
     }
 

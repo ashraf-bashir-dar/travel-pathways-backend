@@ -523,11 +523,13 @@ public sealed class ReservationsController : TenantControllerBase
 
     /// <summary>List reservations. Status filter: Pending, Completed. Arrivals: use dateFrom/dateTo (package StartDate in range). Optional assignedTo = userId. Reservation role sees only their own.</summary>
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<List<ReservationListItemDto>>>> GetReservations(
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<ReservationListItemDto>>>> GetReservations(
         [FromQuery] ReservationStatus? status = null,
         [FromQuery] DateTime? dateFrom = null,
         [FromQuery] DateTime? dateTo = null,
         [FromQuery] Guid? assignedTo = null,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 500,
         CancellationToken ct = default)
     {
         var check = await EnsureReservationsModuleAsync(ct);
@@ -535,13 +537,14 @@ public sealed class ReservationsController : TenantControllerBase
         var (currentUserId, _, isAdmin, isReservationRole) = GetCurrentUserReservationScope();
         var tenantId = TenantId;
 
+        pageNumber = Math.Max(1, pageNumber);
+        pageSize = Math.Clamp(pageSize, 1, 500);
+
         var effectiveAssignedTo = assignedTo;
         if (isReservationRole && currentUserId.HasValue)
             effectiveAssignedTo = currentUserId;
 
         var query = _db.Reservations.AsNoTracking()
-            .Include(r => r.Package)
-            .Include(r => r.AssignedToUser)
             .Where(r => r.TenantId == tenantId);
 
         if (status.HasValue)
@@ -569,8 +572,11 @@ public sealed class ReservationsController : TenantControllerBase
             }
         }
 
+        var total = await query.CountAsync(ct);
         var list = await query
             .OrderByDescending(r => r.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
             .Select(r => new
             {
                 r.Id,
@@ -614,7 +620,34 @@ public sealed class ReservationsController : TenantControllerBase
             ScreenshotCount = x.ScreenshotCount
         }).ToList();
 
-        return ApiResponse<List<ReservationListItemDto>>.Ok(items);
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        return ApiResponse<PaginatedResponse<ReservationListItemDto>>.Ok(new PaginatedResponse<ReservationListItemDto>
+        {
+            Items = items,
+            TotalCount = total,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalPages = totalPages
+        });
+    }
+
+    [HttpGet("pending-count")]
+    public async Task<ActionResult<ApiResponse<int>>> GetPendingReservationsCount(CancellationToken ct = default)
+    {
+        var check = await EnsureReservationsModuleAsync(ct);
+        if (check != null) return check;
+
+        var (currentUserId, _, _, isReservationRole) = GetCurrentUserReservationScope();
+        var tenantId = TenantId;
+        var query = _db.Reservations.AsNoTracking()
+            .Where(r => r.TenantId == tenantId &&
+                        (r.Status == ReservationStatus.Pending || r.Status == ReservationStatus.InProcess));
+
+        if (isReservationRole && currentUserId.HasValue)
+            query = query.Where(r => r.AssignedToUserId == currentUserId.Value);
+
+        var count = await query.CountAsync(ct);
+        return ApiResponse<int>.Ok(count);
     }
 
     /// <summary>Confirmed packages without a reservation. Admins see all in tenant; others see only packages they created.</summary>

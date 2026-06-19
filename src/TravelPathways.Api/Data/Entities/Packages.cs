@@ -41,6 +41,9 @@ public sealed class TourPackage : TenantEntityBase
     public PackageStatus Status { get; set; } = PackageStatus.New;
     public bool IsLocked { get; set; }
 
+    /// <summary>Date the package was confirmed (required when <see cref="Status"/> is Confirmed).</summary>
+    public DateOnly? ConfirmationDate { get; set; }
+
     /// <summary>Codes of inclusion-type master rows selected for this package.</summary>
     public List<string> InclusionIds { get; set; } = [];
 
@@ -48,6 +51,9 @@ public sealed class TourPackage : TenantEntityBase
     public List<string> ExclusionIds { get; set; } = [];
 
     public List<DayItinerary> DayWiseItinerary { get; set; } = [];
+
+    /// <summary>When multiple package revisions exist per lead, only the latest is shown on the list page.</summary>
+    public bool IsLatestForLead { get; set; } = true;
 
     public string CreatedBy { get; set; } = string.Empty;
 }

@@ -37,6 +37,8 @@ public sealed class AppDbContext : DbContext
     public DbSet<TransportCompany> TransportCompanies => Set<TransportCompany>();
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<VehiclePricing> VehiclePricing => Set<VehiclePricing>();
+    public DbSet<Driver> Drivers => Set<Driver>();
+    public DbSet<PackageDriverAssignment> PackageDriverAssignments => Set<PackageDriverAssignment>();
 
     public DbSet<TourPackage> Packages => Set<TourPackage>();
     public DbSet<PackageLog> PackageLogs => Set<PackageLog>();
@@ -66,10 +68,6 @@ public sealed class AppDbContext : DbContext
     public DbSet<UserActivityDailySummary> UserActivityDailySummaries => Set<UserActivityDailySummary>();
     public DbSet<UserActivityPageVisit> UserActivityPageVisits => Set<UserActivityPageVisit>();
     public DbSet<ExtensionCatalogItem> ExtensionCatalogItems => Set<ExtensionCatalogItem>();
-
-    public DbSet<ChatGroup> ChatGroups => Set<ChatGroup>();
-    public DbSet<ChatGroupMember> ChatGroupMembers => Set<ChatGroupMember>();
-    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -288,6 +286,61 @@ public sealed class AppDbContext : DbContext
             .HasForeignKey(v => v.TransportCompanyId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<Driver>()
+            .HasOne(d => d.TransportCompany)
+            .WithMany()
+            .HasForeignKey(d => d.TransportCompanyId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Driver>()
+            .HasIndex(d => new { d.TenantId, d.PhoneNumber });
+
+        modelBuilder.Entity<PackageDriverAssignment>()
+            .HasOne(a => a.Package)
+            .WithMany()
+            .HasForeignKey(a => a.PackageId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PackageDriverAssignment>()
+            .HasOne(a => a.Reservation)
+            .WithMany()
+            .HasForeignKey(a => a.ReservationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PackageDriverAssignment>()
+            .HasOne(a => a.Driver)
+            .WithMany(d => d.Assignments)
+            .HasForeignKey(a => a.DriverId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PackageDriverAssignment>()
+            .HasOne(a => a.TransportCompany)
+            .WithMany()
+            .HasForeignKey(a => a.TransportCompanyId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<PackageDriverAssignment>()
+            .HasOne(a => a.AssignedByUser)
+            .WithMany()
+            .HasForeignKey(a => a.AssignedByUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<PackageDriverAssignment>()
+            .HasOne(a => a.RatedByUser)
+            .WithMany()
+            .HasForeignKey(a => a.RatedByUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<PackageDriverAssignment>()
+            .HasIndex(a => a.PackageId)
+            .IsUnique();
+
+        modelBuilder.Entity<PackageDriverAssignment>()
+            .HasIndex(a => a.ReservationId);
+
+        modelBuilder.Entity<PackageDriverAssignment>()
+            .HasIndex(a => a.DriverId);
+
         modelBuilder.Entity<Vehicle>()
             .Property(v => v.VehicleType)
             .HasConversion<string>();
@@ -358,6 +411,22 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<TourPackage>()
             .Property(p => p.ExclusionIds)
             .Metadata.SetValueComparer(new JsonValueComparer<List<string>, string>());
+
+        modelBuilder.Entity<TourPackage>()
+            .HasIndex(p => new { p.TenantId, p.LeadId, p.IsLatestForLead })
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<Lead>()
+            .HasIndex(l => new { l.TenantId, l.AssignedToUserId })
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<Lead>()
+            .HasIndex(l => new { l.TenantId, l.NextFollowUpDate })
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<Lead>()
+            .HasIndex(l => new { l.TenantId, l.Status, l.CreatedAt })
+            .HasFilter("\"IsDeleted\" = false");
 
         modelBuilder.Entity<PackageLog>()
             .Property(l => l.FinalAmount)
@@ -748,55 +817,6 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<ExtensionCatalogItem>()
             .HasIndex(e => new { e.TenantId, e.SortOrder });
 
-        modelBuilder.Entity<ChatGroup>()
-            .HasOne(g => g.CreatedByUser)
-            .WithMany()
-            .HasForeignKey(g => g.CreatedByUserId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<ChatGroup>()
-            .HasIndex(g => new { g.TenantId, g.DirectPairKey })
-            .IsUnique()
-            .HasFilter("\"IsDirect\" = true AND \"DirectPairKey\" IS NOT NULL");
-
-        modelBuilder.Entity<ChatGroupMember>()
-            .HasKey(m => new { m.GroupId, m.UserId });
-
-        modelBuilder.Entity<ChatGroupMember>()
-            .HasOne(m => m.Group)
-            .WithMany(g => g.Members)
-            .HasForeignKey(m => m.GroupId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<ChatGroupMember>()
-            .HasOne(m => m.User)
-            .WithMany()
-            .HasForeignKey(m => m.UserId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<ChatMessage>()
-            .HasOne(m => m.Group)
-            .WithMany(g => g.Messages)
-            .HasForeignKey(m => m.GroupId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<ChatMessage>()
-            .HasOne(m => m.SenderUser)
-            .WithMany()
-            .HasForeignKey(m => m.SenderUserId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<ChatMessage>()
-            .HasIndex(m => new { m.GroupId, m.SentAtUtc });
-
-        modelBuilder.Entity<ChatMessage>()
-            .Property(m => m.MentionedUserIds)
-            .HasConversion(new JsonValueConverter<List<Guid>>());
-
-        modelBuilder.Entity<ChatMessage>()
-            .Property(m => m.ImageUrls)
-            .HasConversion(new JsonValueConverter<List<string>>());
-
         modelBuilder.Entity<CallLog>()
             .ToTable("CallLogs");
 
@@ -937,6 +957,18 @@ public sealed class AppDbContext : DbContext
                 : e.TenantId == _tenant.TenantId));
 
         modelBuilder.Entity<VehiclePricing>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<Driver>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (_tenant.IsSuperAdmin
+                ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
+                : e.TenantId == _tenant.TenantId));
+
+        modelBuilder.Entity<PackageDriverAssignment>().HasQueryFilter(e =>
             !e.IsDeleted &&
             (_tenant.IsSuperAdmin
                 ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
@@ -1101,19 +1133,6 @@ public sealed class AppDbContext : DbContext
             (_tenant.IsSuperAdmin
                 ? (!_tenant.TenantId.HasValue || e.TenantId == _tenant.TenantId)
                 : e.TenantId == _tenant.TenantId));
-
-        modelBuilder.Entity<ChatGroup>().HasQueryFilter(g =>
-            !g.IsDeleted &&
-            (_tenant.IsSuperAdmin
-                ? (!_tenant.TenantId.HasValue || g.TenantId == _tenant.TenantId)
-                : g.TenantId == _tenant.TenantId));
-
-        modelBuilder.Entity<ChatGroupMember>().HasQueryFilter(m =>
-            Set<ChatGroup>().Any(g => g.Id == m.GroupId));
-
-        modelBuilder.Entity<ChatMessage>().HasQueryFilter(m =>
-            !m.IsDeleted &&
-            Set<ChatGroup>().Any(g => g.Id == m.GroupId));
     }
 
     public override int SaveChanges()

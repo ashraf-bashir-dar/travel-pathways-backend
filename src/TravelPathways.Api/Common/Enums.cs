@@ -47,8 +47,6 @@ public enum AppModuleKey
     TimeSheet = 15,
     /// <summary>Reservations: assign confirmed packages to reservation manager, track pending/completed, upload advance payment screenshots.</summary>
     Reservations = 16,
-    /// <summary>Internal team chat (groups). Super Admin enables per tenant; tenant admin manages groups and membership.</summary>
-    TeamChat = 17,
     /// <summary>Inbound leads: Meta/webhooks, auto-assign rules. Requires InboundLeadsFeatureEnabled on tenant.</summary>
     LeadIntegrations = 18,
     /// <summary>B2B agents: tenant-managed list of B2B travel partners.</summary>
@@ -64,7 +62,9 @@ public enum AppModuleKey
     /// <summary>Sales team: log confirmed packages with profit and lead/reference tracking.</summary>
     Sales = 24,
     /// <summary>View and complete admin-assigned tasks (for non-admin users).</summary>
-    Tasks = 25
+    Tasks = 25,
+    /// <summary>Master data: transport companies, fleet vehicles, and drivers.</summary>
+    TransportMaster = 26
 }
 
 public enum SalesPackageSourceType

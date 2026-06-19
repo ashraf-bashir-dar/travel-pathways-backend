@@ -72,6 +72,42 @@ public sealed class FileStorage
         return $"/uploads/tenants/{tenantId:D}/transport-companies/{companyId:D}/{category}/{fileName}";
     }
 
+    public async Task<string> SaveDriverFileAsync(Guid tenantId, Guid driverId, string category, IFormFile file, CancellationToken ct)
+    {
+        var folder = Path.Combine(_uploadsRoot, "tenants", tenantId.ToString("D"), "drivers", driverId.ToString("D"), category);
+        Directory.CreateDirectory(folder);
+
+        var safeName = MakeSafeFileName(file.FileName);
+        var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}_{safeName}";
+        var fullPath = Path.Combine(folder, fileName);
+
+        await using (var stream = File.Create(fullPath))
+        {
+            await file.CopyToAsync(stream, ct);
+        }
+
+        return $"/uploads/tenants/{tenantId:D}/drivers/{driverId:D}/{category}/{fileName}";
+    }
+
+    public async Task<string> SaveDriverAssignmentVehicleImageAsync(Guid tenantId, Guid assignmentId, IFormFile file, CancellationToken ct)
+    {
+        var folder = Path.Combine(_uploadsRoot, "tenants", tenantId.ToString("D"), "driver-assignments", assignmentId.ToString("D"), "vehicle");
+        Directory.CreateDirectory(folder);
+
+        var safeName = MakeSafeFileName(file.FileName);
+        var ext = Path.GetExtension(safeName);
+        if (string.IsNullOrEmpty(ext) || (!IsImageExtension(ext) && !IsPdfExtension(ext))) ext = ".jpg";
+        var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}{ext}";
+        var fullPath = Path.Combine(folder, fileName);
+
+        await using (var stream = File.Create(fullPath))
+        {
+            await file.CopyToAsync(stream, ct);
+        }
+
+        return $"/uploads/tenants/{tenantId:D}/driver-assignments/{assignmentId:D}/vehicle/{fileName}";
+    }
+
     public async Task<string> SaveHotelImageAsync(Guid tenantId, Guid hotelId, IFormFile file, CancellationToken ct)
     {
         var uploadsRoot = _uploadsRoot;
@@ -111,32 +147,6 @@ public sealed class FileStorage
         }
 
         return $"/uploads/tenants/{tenantId:D}/payments/{fileName}";
-    }
-
-    /// <summary>Save a team-chat image. Returns relative URL under /uploads/...</summary>
-    public async Task<string> SaveChatImageAsync(Guid tenantId, Guid groupId, Guid messageId, IFormFile file, CancellationToken ct)
-    {
-        var folder = Path.Combine(
-            _uploadsRoot,
-            "tenants",
-            tenantId.ToString("D"),
-            "chat",
-            groupId.ToString("D"),
-            messageId.ToString("D"));
-        Directory.CreateDirectory(folder);
-
-        var safeName = MakeSafeFileName(file.FileName);
-        var ext = Path.GetExtension(safeName);
-        if (string.IsNullOrEmpty(ext) || !IsImageExtension(ext)) ext = ".jpg";
-        var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}{ext}";
-        var fullPath = Path.Combine(folder, fileName);
-
-        await using (var stream = File.Create(fullPath))
-        {
-            await file.CopyToAsync(stream, ct);
-        }
-
-        return $"/uploads/tenants/{tenantId:D}/chat/{groupId:D}/{messageId:D}/{fileName}";
     }
 
     /// <summary>Save or replace a user profile photo. Returns relative URL under /uploads/...</summary>

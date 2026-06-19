@@ -115,6 +115,17 @@ public sealed class HotelsController : TenantControllerBase
         public required DateTime UpdatedAt { get; init; }
     }
 
+    public sealed class HotelLookupDto
+    {
+        public required string Id { get; init; }
+        public required string Name { get; init; }
+        public required string City { get; init; }
+        public required string State { get; init; }
+        public string? AreaName { get; init; }
+        public required bool IsHouseboat { get; init; }
+        public required bool IsActive { get; init; }
+    }
+
     public sealed class HotelDto
     {
         public required string Id { get; init; }
@@ -202,12 +213,12 @@ public sealed class HotelsController : TenantControllerBase
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
-            var s = searchTerm.Trim().ToLower();
+            var pattern = PostgresSearch.ToContainsPattern(searchTerm);
             query = query.Where(h =>
-                h.Name.ToLower().Contains(s) ||
-                h.City.ToLower().Contains(s) ||
-                h.Address.ToLower().Contains(s) ||
-                (h.Area != null && h.Area.Name.ToLower().Contains(s)));
+                EF.Functions.ILike(h.Name, pattern, "\\") ||
+                EF.Functions.ILike(h.City, pattern, "\\") ||
+                EF.Functions.ILike(h.Address, pattern, "\\") ||
+                (h.Area != null && EF.Functions.ILike(h.Area.Name, pattern, "\\")));
         }
 
         if (starRating is >= 1 and <= 5)
@@ -247,6 +258,62 @@ public sealed class HotelsController : TenantControllerBase
         return ApiResponse<PaginatedResponse<HotelDto>>.Ok(new PaginatedResponse<HotelDto>
         {
             Items = items,
+            TotalCount = total,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalPages = totalPages
+        });
+    }
+
+    /// <summary>Lightweight hotel list for dropdowns (no rates or images).</summary>
+    [HttpGet("lookup")]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<HotelLookupDto>>>> GetHotelLookup(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 200,
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] bool? isHouseboat = null,
+        CancellationToken ct = default)
+    {
+        pageNumber = Math.Max(1, pageNumber);
+        pageSize = Math.Clamp(pageSize, 1, 500);
+
+        var query = _db.Hotels.AsNoTracking()
+            .Include(h => h.Area)
+            .Where(h => h.TenantId == TenantId && h.IsActive);
+
+        if (isHouseboat is not null)
+            query = query.Where(h => h.IsHouseboat == isHouseboat.Value);
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var pattern = PostgresSearch.ToContainsPattern(searchTerm);
+            query = query.Where(h =>
+                EF.Functions.ILike(h.Name, pattern, "\\") ||
+                EF.Functions.ILike(h.City, pattern, "\\") ||
+                (h.Area != null && EF.Functions.ILike(h.Area.Name, pattern, "\\")));
+        }
+
+        var total = await query.CountAsync(ct);
+        var rows = await query
+            .OrderBy(h => h.Name)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(h => new HotelLookupDto
+            {
+                Id = h.Id.ToString("D"),
+                Name = h.Name,
+                City = h.City,
+                State = h.State,
+                AreaName = h.Area != null ? h.Area.Name : null,
+                IsHouseboat = h.IsHouseboat,
+                IsActive = h.IsActive
+            })
+            .ToListAsync(ct);
+
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        return ApiResponse<PaginatedResponse<HotelLookupDto>>.Ok(new PaginatedResponse<HotelLookupDto>
+        {
+            Items = rows,
             TotalCount = total,
             PageNumber = pageNumber,
             PageSize = pageSize,

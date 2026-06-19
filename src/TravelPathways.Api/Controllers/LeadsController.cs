@@ -64,6 +64,8 @@ public sealed class LeadsController : TenantControllerBase
         public int PackageCount { get; set; }
         /// <summary>Package history entries (create/update revisions) for this lead.</summary>
         public int PackageLogCount { get; set; }
+        /// <summary>Confirmation date from the latest package for this lead (yyyy-MM-dd).</summary>
+        public string? PackageConfirmationDate { get; set; }
     }
 
     public class CreateLeadRequestDto
@@ -213,11 +215,11 @@ public sealed class LeadsController : TenantControllerBase
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
-            var s = searchTerm.Trim().ToLower();
+            var pattern = PostgresSearch.ToContainsPattern(searchTerm);
             query = query.Where(l =>
-                l.ClientName.ToLower().Contains(s) ||
-                l.PhoneNumber.ToLower().Contains(s) ||
-                l.Address.ToLower().Contains(s));
+                EF.Functions.ILike(l.ClientName, pattern, "\\") ||
+                EF.Functions.ILike(l.PhoneNumber, pattern, "\\") ||
+                EF.Functions.ILike(l.Address, pattern, "\\"));
         }
         if (status.HasValue)
             query = query.Where(l => l.Status == status.Value);
@@ -462,11 +464,11 @@ public sealed class LeadsController : TenantControllerBase
             }
             else
             {
-                var lower = s.ToLower();
+                var pattern = PostgresSearch.ToContainsPattern(s);
                 query = query.Where(l =>
-                    l.ClientName.ToLower().Contains(lower) ||
-                    l.PhoneNumber.ToLower().Contains(lower) ||
-                    l.Address.ToLower().Contains(lower));
+                    EF.Functions.ILike(l.ClientName, pattern, "\\") ||
+                    EF.Functions.ILike(l.PhoneNumber, pattern, "\\") ||
+                    EF.Functions.ILike(l.Address, pattern, "\\"));
             }
         }
 
@@ -560,11 +562,71 @@ public sealed class LeadsController : TenantControllerBase
         public int Overdue { get; init; }
     }
 
+    public sealed class LeadLookupDto
+    {
+        public required string Id { get; init; }
+        public required string ClientName { get; init; }
+        public required string PhoneNumber { get; init; }
+    }
+
     public sealed class LeadAssignmentSummaryDto
     {
         public string? AssignedToUserId { get; init; }
         public required string AssignedToUserName { get; init; }
         public required int LeadCount { get; init; }
+    }
+
+    /// <summary>Lightweight lead list for payment dropdowns.</summary>
+    [HttpGet("lookup")]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<LeadLookupDto>>>> GetLeadLookup(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 200,
+        [FromQuery] string? searchTerm = null,
+        CancellationToken ct = default)
+    {
+        var moduleCheck = await EnsureLeadsModuleAsync(ct);
+        if (moduleCheck != null) return moduleCheck;
+
+        pageNumber = Math.Max(1, pageNumber);
+        pageSize = Math.Clamp(pageSize, 1, 500);
+
+        var (scopeUserId, canSeeAllLeads) = await GetCurrentUserLeadScopeAsync(ct);
+        var currentUserId = scopeUserId ?? GetCurrentUserId();
+        var query = BuildLeadsQuery(
+                currentUserId,
+                canSeeAllLeads,
+                searchTerm,
+                null,
+                null,
+                null,
+                false,
+                null,
+                null,
+                null)
+            .AsNoTracking();
+
+        var total = await query.CountAsync(ct);
+        var items = await query
+            .OrderByDescending(l => l.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(l => new LeadLookupDto
+            {
+                Id = l.Id.ToString("D"),
+                ClientName = l.ClientName,
+                PhoneNumber = l.PhoneNumber
+            })
+            .ToListAsync(ct);
+
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        return ApiResponse<PaginatedResponse<LeadLookupDto>>.Ok(new PaginatedResponse<LeadLookupDto>
+        {
+            Items = items,
+            TotalCount = total,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalPages = totalPages
+        });
     }
 
     /// <summary>Export leads in the assignment date range to Excel (includes follow-up history columns).</summary>
@@ -789,6 +851,23 @@ public sealed class LeadsController : TenantControllerBase
         var oldStatus = lead.Status;
         var oldNotes = lead.Notes?.Trim() ?? string.Empty;
 
+        if (request.Status == LeadStatus.Confirmed && oldStatus != LeadStatus.Confirmed)
+        {
+            var latestPackage = await _db.Packages.AsNoTracking()
+                .Where(p => p.LeadId == id && p.TenantId == TenantId)
+                .OrderByDescending(p => p.CreatedAt)
+                .ThenByDescending(p => p.Id)
+                .Select(p => new { p.ConfirmationDate })
+                .FirstOrDefaultAsync(ct);
+
+            if (latestPackage is null)
+                return BadRequest(ApiResponse<LeadDto>.Fail("Create a package for this lead before marking it as Confirmed."));
+
+            if (!latestPackage.ConfirmationDate.HasValue || latestPackage.ConfirmationDate.Value == default)
+                return BadRequest(ApiResponse<LeadDto>.Fail(
+                    "Set the package confirmation date on the package before marking this lead as Confirmed."));
+        }
+
         lead.ClientName = request.ClientName.Trim();
         lead.PhoneNumber = request.PhoneNumber.Trim();
         lead.ClientEmail = request.ClientEmail?.Trim();
@@ -850,6 +929,8 @@ public sealed class LeadsController : TenantControllerBase
                 var newPackageStatus = (PackageStatus)(int)lead.Status;
                 latestPackage.Status = newPackageStatus;
                 latestPackage.IsLocked = newPackageStatus == PackageStatus.Confirmed;
+                if (newPackageStatus != PackageStatus.Confirmed)
+                    latestPackage.ConfirmationDate = null;
                 await _db.SaveChangesAsync(ct);
             }
         }
@@ -1407,8 +1488,20 @@ public sealed class LeadsController : TenantControllerBase
             .Distinct()
             .ToListAsync(ct);
 
+        var latestPackageConfirmationDates = await _db.Packages.AsNoTracking()
+            .Where(p =>
+                p.TenantId == TenantId &&
+                p.LeadId != null &&
+                leadIds.Contains(p.LeadId.Value) &&
+                p.IsLatestForLead)
+            .Select(p => new { LeadId = p.LeadId!.Value, p.ConfirmationDate })
+            .ToListAsync(ct);
+
         var packageByLead = packageCounts.ToDictionary(x => x.LeadId, x => x.Count);
         var reservationLeadSet = hasReservationLeadIds.ToHashSet();
+        var confirmationDateByLead = latestPackageConfirmationDates.ToDictionary(
+            x => x.LeadId,
+            x => x.ConfirmationDate?.ToString("yyyy-MM-dd"));
 
         foreach (var dto in items)
         {
@@ -1416,6 +1509,7 @@ public sealed class LeadsController : TenantControllerBase
             dto.PackageCount = packageByLead.GetValueOrDefault(leadId);
             dto.PackageLogCount = packageLogByLead.GetValueOrDefault(leadId);
             dto.HasReservation = reservationLeadSet.Contains(leadId);
+            dto.PackageConfirmationDate = confirmationDateByLead.GetValueOrDefault(leadId);
         }
     }
 

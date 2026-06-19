@@ -23,6 +23,13 @@ public sealed class TransportCompaniesController : TenantControllerBase
         _storage = storage;
     }
 
+    public sealed class TransportCompanyLookupDto
+    {
+        public required string Id { get; init; }
+        public required string Name { get; init; }
+        public required bool IsActive { get; init; }
+    }
+
     public sealed class TransportCompanyDto
     {
         public required string Id { get; init; }
@@ -71,8 +78,10 @@ public sealed class TransportCompaniesController : TenantControllerBase
         var query = _db.TransportCompanies.AsNoTracking().Where(c => c.TenantId == TenantId);
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
-            var s = searchTerm.Trim().ToLower();
-            query = query.Where(c => c.Name.ToLower().Contains(s) || c.PhoneNumber.ToLower().Contains(s));
+            var pattern = PostgresSearch.ToContainsPattern(searchTerm);
+            query = query.Where(c =>
+                EF.Functions.ILike(c.Name, pattern, "\\") ||
+                EF.Functions.ILike(c.PhoneNumber, pattern, "\\"));
         }
 
         var total = await query.CountAsync(ct);
@@ -86,6 +95,52 @@ public sealed class TransportCompaniesController : TenantControllerBase
         return ApiResponse<PaginatedResponse<TransportCompanyDto>>.Ok(new PaginatedResponse<TransportCompanyDto>
         {
             Items = companies.Select(ToDto).ToList(),
+            TotalCount = total,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalPages = totalPages
+        });
+    }
+
+    /// <summary>Lightweight transport company list for dropdowns.</summary>
+    [HttpGet("lookup")]
+    public async Task<ActionResult<ApiResponse<PaginatedResponse<TransportCompanyLookupDto>>>> GetCompanyLookup(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 200,
+        [FromQuery] string? searchTerm = null,
+        CancellationToken ct = default)
+    {
+        pageNumber = Math.Max(1, pageNumber);
+        pageSize = Math.Clamp(pageSize, 1, 500);
+
+        var query = _db.TransportCompanies.AsNoTracking()
+            .Where(c => c.TenantId == TenantId && c.IsActive);
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var pattern = PostgresSearch.ToContainsPattern(searchTerm);
+            query = query.Where(c =>
+                EF.Functions.ILike(c.Name, pattern, "\\") ||
+                EF.Functions.ILike(c.PhoneNumber, pattern, "\\"));
+        }
+
+        var total = await query.CountAsync(ct);
+        var items = await query
+            .OrderBy(c => c.Name)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(c => new TransportCompanyLookupDto
+            {
+                Id = c.Id.ToString("D"),
+                Name = c.Name,
+                IsActive = c.IsActive
+            })
+            .ToListAsync(ct);
+
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        return ApiResponse<PaginatedResponse<TransportCompanyLookupDto>>.Ok(new PaginatedResponse<TransportCompanyLookupDto>
+        {
+            Items = items,
             TotalCount = total,
             PageNumber = pageNumber,
             PageSize = pageSize,

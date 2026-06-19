@@ -10,29 +10,42 @@ public sealed class ChromiumBrowserProvider : IChromiumBrowserProvider, IAsyncDi
     private IBrowser? _browser;
     private readonly SemaphoreSlim _initLock = new(1, 1);
 
+    private readonly SemaphoreSlim _pageConcurrency;
+    private const int DefaultMaxConcurrentPages = 3;
+
     public ChromiumBrowserProvider(IConfiguration configuration, ILogger<ChromiumBrowserProvider> logger)
     {
         _configuration = configuration;
         _logger = logger;
+        var maxPages = configuration.GetValue("PdfGenerator:MaxConcurrentPages", DefaultMaxConcurrentPages);
+        _pageConcurrency = new SemaphoreSlim(Math.Clamp(maxPages, 1, 8), Math.Clamp(maxPages, 1, 8));
     }
 
     public async Task WarmUpAsync(CancellationToken cancellationToken = default) => await GetOrLaunchBrowserAsync(cancellationToken).ConfigureAwait(false);
 
     public async Task<T> RunWithPageAsync<T>(Func<IPage, Task<T>> action, CancellationToken cancellationToken = default)
     {
-        var browser = await GetOrLaunchBrowserAsync(cancellationToken).ConfigureAwait(false);
-        IPage? page = null;
+        await _pageConcurrency.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            page = await browser.NewPageAsync().ConfigureAwait(false);
-            return await action(page).ConfigureAwait(false);
+            var browser = await GetOrLaunchBrowserAsync(cancellationToken).ConfigureAwait(false);
+            IPage? page = null;
+            try
+            {
+                page = await browser.NewPageAsync().ConfigureAwait(false);
+                return await action(page).ConfigureAwait(false);
+            }
+            finally
+            {
+                if (page != null)
+                {
+                    try { await page.CloseAsync().ConfigureAwait(false); } catch { /* best effort */ }
+                }
+            }
         }
         finally
         {
-            if (page != null)
-            {
-                try { await page.CloseAsync().ConfigureAwait(false); } catch { /* best effort */ }
-            }
+            _pageConcurrency.Release();
         }
     }
 

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using TravelPathways.Api.Common;
 using TravelPathways.Api.Data;
 using TravelPathways.Api.Data.Entities;
@@ -16,11 +17,13 @@ public sealed class KpiDashboardController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly TenantContext _tenant;
+    private readonly IMemoryCache _cache;
 
-    public KpiDashboardController(AppDbContext db, TenantContext tenant)
+    public KpiDashboardController(AppDbContext db, TenantContext tenant, IMemoryCache cache)
     {
         _db = db;
         _tenant = tenant;
+        _cache = cache;
     }
 
     public sealed class KpiSalesOverviewDto
@@ -84,6 +87,10 @@ public sealed class KpiDashboardController : ControllerBase
         var toDate = ParseQueryDateUtc(to, todayUtc);
         if (toDate < fromDate)
             (fromDate, toDate) = (toDate, fromDate);
+
+        var cacheKey = $"kpi:{tenantId:D}:{fromDate:yyyy-MM-dd}:{toDate:yyyy-MM-dd}";
+        if (_cache.TryGetValue(cacheKey, out KpiDashboardDto? cached) && cached is not null)
+            return ApiResponse<KpiDashboardDto>.Ok(cached);
 
         var fromUtc = fromDate;
         var toUtcExclusive = toDate.AddDays(1);
@@ -210,7 +217,7 @@ public sealed class KpiDashboardController : ControllerBase
           .ThenByDescending(e => e.LeadCount)
           .ToList();
 
-        return ApiResponse<KpiDashboardDto>.Ok(new KpiDashboardDto
+        return ApiResponse<KpiDashboardDto>.Ok(_cache.Set(cacheKey, new KpiDashboardDto
         {
             From = fromDate.ToString("yyyy-MM-dd"),
             To = toDate.ToString("yyyy-MM-dd"),
@@ -227,6 +234,9 @@ public sealed class KpiDashboardController : ControllerBase
                 BrowserVisitsInPeriod = browserVisitsInPeriod
             },
             Employees = employees
-        });
+        }, new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2)
+        }));
     }
 }

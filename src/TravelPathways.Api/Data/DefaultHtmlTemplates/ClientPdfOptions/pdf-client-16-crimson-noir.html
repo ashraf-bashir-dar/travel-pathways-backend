@@ -6,15 +6,15 @@
   <title>Travel Itinerary — Crimson Noir</title>
   <style>
     /*
-      CLIENT PDF OPTION 16 — Crimson Noir (v5)
-      Bright premium editorial: crimson energy, open layout, no data boxes.
+      CLIENT PDF OPTION 16 — Crimson Noir (v6)
+      Single crimson accent (#C41E3A), Segoe UI body + Cambria display.
     */
     :root {
       --crimson: #C41E3A;
-      --heading: #C41E3A;
-      --red: #C41E3A;
       --black: #000000;
       --white: #FFFFFF;
+      --font-body: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+      --font-display: Cambria, Georgia, "Times New Roman", serif;
       --tp-primary: var(--black);
       --tp-secondary: var(--crimson);
       --primary: var(--black);
@@ -30,7 +30,7 @@
     body {
       margin: 0;
       padding: 0 0 40px;
-      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+      font-family: var(--font-body);
       font-size: 10.5pt;
       line-height: 1.6;
       color: var(--black);
@@ -46,43 +46,27 @@
 
     .agency-top-bar {
       margin: 0 0 48px;
-      padding: 0 0 14px;
-      border-bottom: 2px solid var(--crimson);
+      padding: 0;
       page-break-inside: avoid;
     }
     .agency-top-bar .agency-top-name {
       margin: 0 0 6px;
-      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-family: var(--font-display);
       font-size: 14pt;
       font-weight: 700;
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      color: var(--heading);
-      line-height: 1.2;
-    }
-    .agency-top-bar .agency-top-contact {
-      margin: 8px 0 0;
-      font-size: 9pt;
-      line-height: 1.5;
-      color: var(--black);
-    }
-    .agency-top-bar .agency-top-contact a {
-      color: var(--black);
-      text-decoration: none;
-    }
-    .agency-top-bar .agency-top-contact .sep {
-      margin: 0 8px;
       color: var(--crimson);
-      font-weight: 700;
+      line-height: 1.2;
     }
     .agency-top-bar .agency-top-reg {
       margin: 0;
-      font-size: 8pt;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      font-size: 8.5pt;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: none;
       color: var(--black);
-      line-height: 1.45;
+      line-height: 1.5;
     }
     .agency-top-bar .agency-top-reg + .agency-top-reg {
       margin-top: 4px;
@@ -109,32 +93,65 @@
     }
     .greeting-block p:last-child { margin-bottom: 0; }
 
+    .client-panel {
+      margin-bottom: 28px;
+      border: 1px solid rgba(196, 30, 58, 0.2);
+      border-left: 4px solid var(--crimson);
+      background: #FDF6F7;
+      page-break-inside: avoid;
+    }
+    .client-panel-head {
+      padding: 9px 18px;
+      font-family: var(--font-body);
+      font-size: 8pt;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--white);
+      background: var(--crimson);
+    }
     .client-strip {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 22px 32px;
-      margin-bottom: 26px;
-      padding-bottom: 24px;
-      border-bottom: 2px solid var(--crimson);
+      gap: 0;
+      margin: 0;
+      padding: 0;
+      border-bottom: none;
       page-break-inside: avoid;
     }
     .client-strip dl {
       margin: 0;
-      padding: 0;
+      padding: 15px 18px;
+      border-right: 1px solid rgba(196, 30, 58, 0.14);
+      border-bottom: 1px solid rgba(196, 30, 58, 0.14);
     }
+    .client-strip dl:nth-child(3n) { border-right: none; }
+    .client-strip dl:nth-last-child(-n+3) { border-bottom: none; }
     .client-strip dt {
-      font-size: 7pt;
+      font-family: var(--font-body);
+      font-size: 7.5pt;
       text-transform: uppercase;
-      letter-spacing: 0.16em;
+      letter-spacing: 0.12em;
       font-weight: 800;
-      margin-bottom: 6px;
-      color: var(--heading);
+      margin-bottom: 7px;
+      color: var(--crimson);
+    }
+    .client-strip dt::before {
+      content: "";
+      display: inline-block;
+      width: 12px;
+      height: 2px;
+      margin-right: 7px;
+      vertical-align: middle;
+      background: var(--crimson);
     }
     .client-strip dd {
       margin: 0;
+      padding-left: 19px;
       font-weight: 600;
       font-size: 10.5pt;
       line-height: 1.45;
+      color: var(--black);
     }
 
     .facts-grid {
@@ -152,14 +169,14 @@
     .fact-card h3,
     .transport-wrap .fact-card h3 {
       margin: 0 0 12px;
+      font-family: var(--font-body);
       font-size: 8pt;
       text-transform: uppercase;
-      letter-spacing: 0.18em;
+      letter-spacing: 0.12em;
       font-weight: 800;
-      padding: 0 0 6px 12px;
-      color: var(--heading);
-      border-bottom: 2px solid var(--heading);
-      border-left: 3px solid var(--heading);
+      padding: 0;
+      color: var(--crimson);
+      border: none;
     }
     .fact-rows { display: table; width: 100%; font-size: 9.5pt; }
     .fact-rows .row { display: table-row; }
@@ -202,7 +219,7 @@
       color: var(--white);
     }
     .quote-band .quote-amount {
-      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-family: var(--font-display);
       font-size: 24pt;
       font-weight: 700;
       line-height: 1;
@@ -212,15 +229,15 @@
 
     h2.section-title {
       margin: 34px 0 18px;
-      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-family: var(--font-display);
       font-size: 12pt;
       font-weight: 700;
-      letter-spacing: 0.16em;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: var(--heading);
+      color: var(--crimson);
       padding: 0 0 10px 16px;
       border: none;
-      border-bottom: 2px solid var(--heading);
+      border-bottom: 2px solid var(--crimson);
       background: none;
       position: relative;
     }
@@ -269,13 +286,14 @@
     .itv-day-pill {
       display: inline;
       padding: 0;
+      font-family: var(--font-body);
       font-size: 10pt;
       font-weight: 800;
-      letter-spacing: 0.12em;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
       background: none;
       border: none;
-      color: var(--heading);
+      color: var(--crimson);
     }
     .itv-day-pill + .itv-title::before {
       content: " — ";
@@ -283,14 +301,14 @@
       color: var(--black);
     }
     .itv-title {
-      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-family: var(--font-display);
       font-size: 11.5pt;
       font-weight: 700;
       flex: 1 1 auto;
       min-width: 0;
     }
     .itv-date {
-      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-family: var(--font-display);
       font-size: 10.5pt;
       font-weight: 600;
       font-style: italic;
@@ -333,12 +351,13 @@
       margin-bottom: 8px;
     }
     .acc-name {
-      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-family: var(--font-display);
       font-size: 12pt;
       font-weight: 700;
       color: var(--black);
     }
     .pill {
+      font-family: var(--font-body);
       font-size: 8pt;
       font-weight: 800;
       letter-spacing: 0.1em;
@@ -379,14 +398,15 @@
     }
     .list-panel h3 {
       margin: 0 0 12px;
+      font-family: var(--font-body);
       font-size: 8.5pt;
       font-weight: 800;
-      letter-spacing: 0.16em;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
       padding: 0 0 6px 10px;
-      color: var(--heading);
-      border-bottom: 2px solid var(--heading);
-      border-left: 3px solid var(--heading);
+      color: var(--crimson);
+      border-bottom: 2px solid var(--crimson);
+      border-left: 3px solid var(--crimson);
     }
     .list-panel ul { margin: 0; padding-left: 20px; }
     .list-panel li {
@@ -408,11 +428,12 @@
     .policy-block:last-of-type { border-bottom: none; }
     .policy-block h3 {
       margin: 0 0 10px;
+      font-family: var(--font-body);
       font-size: 8.5pt;
       font-weight: 800;
-      letter-spacing: 0.14em;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: var(--heading);
+      color: var(--crimson);
     }
     .policy-block ul { margin: 0; padding-left: 20px; }
     .policy-block li::marker { color: var(--crimson); }
@@ -431,12 +452,13 @@
       background: none;
       text-align: left;
       padding: 0 12px 10px 0;
+      font-family: var(--font-body);
       font-weight: 800;
       font-size: 7.5pt;
       letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: var(--black);
-      border-bottom: 3px solid var(--heading);
+      color: var(--crimson);
+      border-bottom: 3px solid var(--crimson);
     }
     table.bank td {
       padding: 11px 12px 11px 0;
@@ -493,13 +515,14 @@
     }
     .leadership-card h3 {
       margin: 0 0 14px;
+      font-family: var(--font-body);
       font-size: 8.5pt;
       font-weight: 800;
-      letter-spacing: 0.16em;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
       padding-bottom: 6px;
-      color: var(--heading);
-      border-bottom: 2px solid var(--heading);
+      color: var(--crimson);
+      border-bottom: 2px solid var(--crimson);
     }
     .leadership-card dl {
       margin: 0;
@@ -524,11 +547,12 @@
     }
     .last-page-registered-kicker {
       margin: 0 0 12px;
+      font-family: var(--font-body);
       font-size: 8pt;
       font-weight: 800;
-      letter-spacing: 0.28em;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
-      color: var(--heading);
+      color: var(--crimson);
     }
     .last-page-registered-addr {
       margin: 0 0 18px;
@@ -565,7 +589,17 @@
     @media print {
       body { background: var(--white); }
       .doc-shell { max-width: 100%; padding: 0 20px 48px; }
-      .quote-band { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .quote-band,
+      .client-panel,
+      h2.section-title::before,
+      .itv-card,
+      .acc-item,
+      .policy-block,
+      .leadership-card,
+      .last-page-registered {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
     }
   </style>
 </head>
@@ -577,13 +611,7 @@
         Registered by Government of India, Government of Jammu &amp; Kashmir
       </p>
       <p class="agency-top-reg">
-        Jammu and Kashmir Tourism Department,
-        <strong>Licence No. {{AgencyLicenseNumber}}</strong>
-      </p>
-      <p class="agency-top-contact">
-        <a href="mailto:{{AgencyEmail}}">{{AgencyEmail}}</a>
-        <span class="sep">·</span>
-        <span>{{AgencyWebsite}}</span>
+        Jammu and Kashmir Tourism Department, Licence No. {{AgencyLicenseNumber}}
       </p>
     </div>
 
@@ -595,12 +623,15 @@
       </p>
     </section>
 
-    <section class="client-strip">
-      <dl><dt>Guest</dt><dd>{{ClientName}}</dd></dl>
-      <dl><dt>Phone</dt><dd>{{ClientPhone}}</dd></dl>
-      <dl><dt>Email</dt><dd>{{ClientEmail}}</dd></dl>
-      <dl><dt>Pax</dt><dd>{{PaxSummary}}</dd></dl>
-      <dl><dt>Meal plan</dt><dd>{{MealPlan}}</dd></dl>
+    <section class="client-panel" aria-label="Guest details">
+      <div class="client-panel-head">Guest details</div>
+      <div class="client-strip">
+        <dl><dt>Guest</dt><dd>{{ClientName}}</dd></dl>
+        <dl><dt>Phone</dt><dd>{{ClientPhone}}</dd></dl>
+        <dl><dt>Email</dt><dd>{{ClientEmail}}</dd></dl>
+        <dl><dt>Pax</dt><dd>{{PaxSummary}}</dd></dl>
+        <dl><dt>Meal plan</dt><dd>{{MealPlan}}</dd></dl>
+      </div>
     </section>
 
     <div class="facts-grid">

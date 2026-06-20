@@ -54,8 +54,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PdfGenerator__ChromeExecutablePath="/usr/bin/google-chrome-stable"
+ENV Uploads__Path="/app/wwwroot/uploads"
 ENV ASPNETCORE_URLS="http://+:8080"
 EXPOSE 8080
+
+RUN mkdir -p /app/wwwroot/uploads
+VOLUME ["/app/wwwroot/uploads"]
 
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "TravelPathways.Api.dll"]

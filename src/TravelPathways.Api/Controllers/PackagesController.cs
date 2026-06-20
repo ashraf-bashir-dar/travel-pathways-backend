@@ -11,6 +11,7 @@ using TravelPathways.Api.Data.Entities;
 using TravelPathways.Api.MultiTenancy;
 using TravelPathways.Api.Localization;
 using TravelPathways.Api.Services;
+using TravelPathways.Api.Storage;
 using System.Globalization;
 using System.Text.Json;
 using Npgsql;
@@ -35,6 +36,7 @@ public sealed class PackagesController : TenantControllerBase
     private readonly IPackageMasterDataService _packageMasterData;
     private readonly IConfiguration _configuration;
     private readonly IWebHostEnvironment _env;
+    private readonly UploadsPathProvider _uploadsPath;
 
     public PackagesController(
         AppDbContext db,
@@ -43,7 +45,8 @@ public sealed class PackagesController : TenantControllerBase
         IPdfTemplateHtmlCache pdfTemplateHtmlCache,
         IPackageMasterDataService packageMasterData,
         IConfiguration configuration,
-        IWebHostEnvironment env) : base(tenant)
+        IWebHostEnvironment env,
+        UploadsPathProvider uploadsPath) : base(tenant)
     {
         _db = db;
         _pdfGenerator = pdfGenerator;
@@ -51,6 +54,7 @@ public sealed class PackagesController : TenantControllerBase
         _packageMasterData = packageMasterData;
         _configuration = configuration;
         _env = env;
+        _uploadsPath = uploadsPath;
     }
 
     private static int DaysInclusive(DateTime start, DateTime end)
@@ -1325,10 +1329,7 @@ public sealed class PackagesController : TenantControllerBase
     /// <summary>Resolve image URLs to data URLs by reading from disk so Chromium doesn't fetch over network (faster PDF).</summary>
     private PackagePdfModel InlinePdfImagesFromDisk(PackagePdfModel model)
     {
-        var customUploads = _configuration["Uploads:Path"]?.Trim() ?? _configuration["Uploads__Path"]?.Trim();
-        var uploadsRoot = !string.IsNullOrEmpty(customUploads)
-            ? customUploads
-            : Path.Combine(_env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot"), "uploads");
+        var uploadsRoot = _uploadsPath.UploadsRoot;
         if (!Directory.Exists(uploadsRoot)) return model;
 
         var maxImagesPerHotel = 2;
@@ -1342,17 +1343,8 @@ public sealed class PackagesController : TenantControllerBase
             var path = url.Trim();
             if (path.StartsWith("data:", StringComparison.OrdinalIgnoreCase)) return path;
             if (!path.Contains("/uploads/", StringComparison.OrdinalIgnoreCase)) return path;
-            var pathSegment = path.Contains("?") ? path[..path.IndexOf('?')] : path;
-            if (pathSegment.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || pathSegment.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            {
-                try { pathSegment = new Uri(pathSegment).AbsolutePath; } catch { return path; }
-            }
-            pathSegment = pathSegment.TrimStart('/');
-            var relativePath = pathSegment.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase)
-                ? pathSegment["uploads/".Length..]
-                : pathSegment;
-            var fullPath = Path.Combine(uploadsRoot, relativePath);
-            if (!System.IO.File.Exists(fullPath)) return path;
+            var fullPath = _uploadsPath.ResolvePhysicalPathFromUploadUrl(path);
+            if (fullPath is null || !System.IO.File.Exists(fullPath)) return path;
             try
             {
                 var bytes = System.IO.File.ReadAllBytes(fullPath);
@@ -1554,7 +1546,7 @@ public sealed class PackagesController : TenantControllerBase
 
     private byte[] MergePdfWithTenantAssets(byte[] generatedPdf, Tenant? tenant)
     {
-        var uploadsRoot = ResolveUploadsRoot();
+        var uploadsRoot = _uploadsPath.UploadsRoot;
         if (tenant?.Documents is null || tenant.Documents.Count == 0 || !Directory.Exists(uploadsRoot))
             return generatedPdf;
 
@@ -1581,7 +1573,7 @@ public sealed class PackagesController : TenantControllerBase
 
         if (coverDoc is not null)
         {
-            var coverBytes = TryReadTenantDocumentPdfBytes(coverDoc.Url, uploadsRoot);
+            var coverBytes = TryReadTenantDocumentPdfBytes(coverDoc.Url);
             if (coverBytes is not null) AppendPdfBytes(PackagePdfSanitizer.StripDangerousCatalogEntries(coverBytes));
         }
 
@@ -1589,7 +1581,7 @@ public sealed class PackagesController : TenantControllerBase
 
         foreach (var appendix in appendixDocs)
         {
-            var appendixBytes = TryReadTenantDocumentPdfBytes(appendix.Url, uploadsRoot);
+            var appendixBytes = TryReadTenantDocumentPdfBytes(appendix.Url);
             if (appendixBytes is not null) AppendPdfBytes(PackagePdfSanitizer.StripDangerousCatalogEntries(appendixBytes));
         }
 
@@ -1618,41 +1610,10 @@ public sealed class PackagesController : TenantControllerBase
         return s + ext;
     }
 
-    private string ResolveUploadsRoot()
+    private byte[]? TryReadTenantDocumentPdfBytes(string? url)
     {
-        var customUploads = _configuration["Uploads:Path"]?.Trim() ?? _configuration["Uploads__Path"]?.Trim();
-        return !string.IsNullOrEmpty(customUploads)
-            ? customUploads
-            : Path.Combine(_env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot"), "uploads");
-    }
-
-    private static byte[]? TryReadTenantDocumentPdfBytes(string? url, string uploadsRoot)
-    {
-        if (string.IsNullOrWhiteSpace(url))
-            return null;
-
-        var pathSegment = url.Trim();
-        if (pathSegment.Contains("?")) pathSegment = pathSegment[..pathSegment.IndexOf('?')];
-        if (pathSegment.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            pathSegment.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            try
-            {
-                pathSegment = new Uri(pathSegment).AbsolutePath;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        pathSegment = pathSegment.TrimStart('/');
-        if (!pathSegment.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase))
-            return null;
-
-        var relativePath = pathSegment["uploads/".Length..];
-        var fullPath = Path.Combine(uploadsRoot, relativePath);
-        if (!System.IO.File.Exists(fullPath))
+        var fullPath = _uploadsPath.ResolvePhysicalPathFromUploadUrl(url);
+        if (fullPath is null || !System.IO.File.Exists(fullPath))
             return null;
         if (!string.Equals(Path.GetExtension(fullPath), ".pdf", StringComparison.OrdinalIgnoreCase))
             return null;

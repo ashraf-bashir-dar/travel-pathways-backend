@@ -74,3 +74,14 @@ Before selling or hosting for multiple tenants, set these in environment variabl
 - **CORS**: Set `Cors:AllowedOrigins` to your frontend origin(s) only (no `*` in production if using credentials).
 - **IncludeExceptionDetailsInResponse**: Keep `false` in production so stack traces are not sent to clients.
 - Run `dotnet ef database update` against the production database and ensure migrations are applied.
+
+### Uploads (production Docker)
+
+Set **`Uploads:Path`** to `/app/wwwroot/uploads` and mount a persistent volume when running the container:
+
+```bash
+-v /home/ubuntu/uploads:/app/wwwroot/uploads
+-e Uploads__Path=/app/wwwroot/uploads
+```
+
+See `scripts/run-myapi.sh` and `../docs/AWS-HOSTING.md`. Locally, leave `Uploads:Path` empty to use `wwwroot/uploads` under the project.

@@ -110,6 +110,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<RequireTenantActionFilter>();
 builder.Services.AddScoped<TenantMiddleware>();
+builder.Services.AddSingleton<UploadsPathProvider>();
 builder.Services.AddScoped<FileStorage>();
 builder.Services.AddScoped<TravelPathways.Api.Services.IPdfTemplateHtmlCache, TravelPathways.Api.Services.PdfTemplateHtmlCache>();
 builder.Services.AddSingleton<TravelPathways.Api.Services.IChromiumBrowserProvider, TravelPathways.Api.Services.ChromiumBrowserProvider>();
@@ -851,11 +852,8 @@ if (!app.Environment.IsDevelopment())
 }
 
 /* -------------------- Static Files & Uploads -------------------- */
-var customUploadsPath = app.Configuration["Uploads:Path"]?.Trim() ?? app.Configuration["Uploads__Path"]?.Trim();
-var uploadsPath = !string.IsNullOrEmpty(customUploadsPath)
-    ? customUploadsPath
-    : Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads");
-if (!Directory.Exists(uploadsPath)) Directory.CreateDirectory(uploadsPath);
+var uploadsPathProvider = app.Services.GetRequiredService<UploadsPathProvider>();
+var uploadsPath = uploadsPathProvider.UploadsRoot;
 var uploadsProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath);
 app.UseStaticFiles(new StaticFileOptions
 {

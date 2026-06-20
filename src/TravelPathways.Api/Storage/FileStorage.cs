@@ -1,200 +1,166 @@
-using Microsoft.Extensions.Configuration;
-
 namespace TravelPathways.Api.Storage;
 
 public sealed class FileStorage
 {
-    private readonly IWebHostEnvironment _env;
-    private readonly string _uploadsRoot;
+    private readonly UploadsPathProvider _uploadsPath;
 
-    public FileStorage(IWebHostEnvironment env, IConfiguration configuration)
+    public FileStorage(UploadsPathProvider uploadsPath)
     {
-        _env = env;
-        var customPath = configuration["Uploads:Path"]?.Trim() ?? configuration["Uploads__Path"]?.Trim();
-        _uploadsRoot = !string.IsNullOrEmpty(customPath)
-            ? customPath
-            : Path.Combine(env.WebRootPath ?? Path.Combine(env.ContentRootPath, "wwwroot"), "uploads");
+        _uploadsPath = uploadsPath;
     }
+
+    private string UploadsRoot => _uploadsPath.UploadsRoot;
 
     public async Task<string> SaveTenantFileAsync(Guid tenantId, string category, IFormFile file, CancellationToken ct)
     {
-        var uploadsRoot = _uploadsRoot;
-        var folder = Path.Combine(uploadsRoot, "tenants", tenantId.ToString("D"), category);
-        Directory.CreateDirectory(folder);
-
+        var folder = Path.Combine(UploadsRoot, "tenants", tenantId.ToString("D"), category);
         var safeName = MakeSafeFileName(file.FileName);
         var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}_{safeName}";
         var fullPath = Path.Combine(folder, fileName);
 
-        await using (var stream = File.Create(fullPath))
-        {
-            await file.CopyToAsync(stream, ct);
-        }
+        await SaveUploadedFileAsync(fullPath, file, ct);
 
-        // URL served by static files middleware
         return $"/uploads/tenants/{tenantId:D}/{category}/{fileName}";
     }
 
     public async Task<string> SaveB2bAgentDocumentAsync(Guid tenantId, Guid agentId, IFormFile file, CancellationToken ct)
     {
-        var folder = Path.Combine(_uploadsRoot, "tenants", tenantId.ToString("D"), "b2b-agents", agentId.ToString("D"), "documents");
-        Directory.CreateDirectory(folder);
-
+        var folder = Path.Combine(UploadsRoot, "tenants", tenantId.ToString("D"), "b2b-agents", agentId.ToString("D"), "documents");
         var safeName = MakeSafeFileName(file.FileName);
         var ext = Path.GetExtension(safeName);
         if (string.IsNullOrEmpty(ext) || !IsPdfExtension(ext)) ext = ".pdf";
         var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}{ext}";
         var fullPath = Path.Combine(folder, fileName);
 
-        await using (var stream = File.Create(fullPath))
-        {
-            await file.CopyToAsync(stream, ct);
-        }
+        await SaveUploadedFileAsync(fullPath, file, ct);
 
         return $"/uploads/tenants/{tenantId:D}/b2b-agents/{agentId:D}/documents/{fileName}";
     }
 
     public async Task<string> SaveTransportCompanyFileAsync(Guid tenantId, Guid companyId, string category, IFormFile file, CancellationToken ct)
     {
-        var uploadsRoot = _uploadsRoot;
-        var folder = Path.Combine(uploadsRoot, "tenants", tenantId.ToString("D"), "transport-companies", companyId.ToString("D"), category);
-        Directory.CreateDirectory(folder);
-
+        var folder = Path.Combine(UploadsRoot, "tenants", tenantId.ToString("D"), "transport-companies", companyId.ToString("D"), category);
         var safeName = MakeSafeFileName(file.FileName);
         var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}_{safeName}";
         var fullPath = Path.Combine(folder, fileName);
 
-        await using (var stream = File.Create(fullPath))
-        {
-            await file.CopyToAsync(stream, ct);
-        }
+        await SaveUploadedFileAsync(fullPath, file, ct);
 
         return $"/uploads/tenants/{tenantId:D}/transport-companies/{companyId:D}/{category}/{fileName}";
     }
 
     public async Task<string> SaveDriverFileAsync(Guid tenantId, Guid driverId, string category, IFormFile file, CancellationToken ct)
     {
-        var folder = Path.Combine(_uploadsRoot, "tenants", tenantId.ToString("D"), "drivers", driverId.ToString("D"), category);
-        Directory.CreateDirectory(folder);
-
+        var folder = Path.Combine(UploadsRoot, "tenants", tenantId.ToString("D"), "drivers", driverId.ToString("D"), category);
         var safeName = MakeSafeFileName(file.FileName);
         var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}_{safeName}";
         var fullPath = Path.Combine(folder, fileName);
 
-        await using (var stream = File.Create(fullPath))
-        {
-            await file.CopyToAsync(stream, ct);
-        }
+        await SaveUploadedFileAsync(fullPath, file, ct);
 
         return $"/uploads/tenants/{tenantId:D}/drivers/{driverId:D}/{category}/{fileName}";
     }
 
     public async Task<string> SaveDriverAssignmentVehicleImageAsync(Guid tenantId, Guid assignmentId, IFormFile file, CancellationToken ct)
     {
-        var folder = Path.Combine(_uploadsRoot, "tenants", tenantId.ToString("D"), "driver-assignments", assignmentId.ToString("D"), "vehicle");
-        Directory.CreateDirectory(folder);
-
+        var folder = Path.Combine(UploadsRoot, "tenants", tenantId.ToString("D"), "driver-assignments", assignmentId.ToString("D"), "vehicle");
         var safeName = MakeSafeFileName(file.FileName);
         var ext = Path.GetExtension(safeName);
         if (string.IsNullOrEmpty(ext) || (!IsImageExtension(ext) && !IsPdfExtension(ext))) ext = ".jpg";
         var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}{ext}";
         var fullPath = Path.Combine(folder, fileName);
 
-        await using (var stream = File.Create(fullPath))
-        {
-            await file.CopyToAsync(stream, ct);
-        }
+        await SaveUploadedFileAsync(fullPath, file, ct);
 
         return $"/uploads/tenants/{tenantId:D}/driver-assignments/{assignmentId:D}/vehicle/{fileName}";
     }
 
     public async Task<string> SaveHotelImageAsync(Guid tenantId, Guid hotelId, IFormFile file, CancellationToken ct)
     {
-        var uploadsRoot = _uploadsRoot;
-        var folder = Path.Combine(uploadsRoot, "tenants", tenantId.ToString("D"), "hotels", hotelId.ToString("D"), "images");
-        Directory.CreateDirectory(folder);
-
+        var folder = Path.Combine(UploadsRoot, "tenants", tenantId.ToString("D"), "hotels", hotelId.ToString("D"), "images");
         var safeName = MakeSafeFileName(file.FileName);
         var ext = Path.GetExtension(safeName);
         if (string.IsNullOrEmpty(ext) || !IsImageExtension(ext)) ext = ".jpg";
         var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}{ext}";
         var fullPath = Path.Combine(folder, fileName);
 
-        await using (var stream = File.Create(fullPath))
-        {
-            await file.CopyToAsync(stream, ct);
-        }
+        await SaveUploadedFileAsync(fullPath, file, ct);
 
         return $"/uploads/tenants/{tenantId:D}/hotels/{hotelId:D}/images/{fileName}";
     }
 
-    /// <summary>Save a payment screenshot. Returns relative URL for the saved file.</summary>
     public async Task<string> SavePaymentScreenshotAsync(Guid tenantId, Guid paymentId, IFormFile file, CancellationToken ct)
     {
-        var uploadsRoot = _uploadsRoot;
-        var folder = Path.Combine(uploadsRoot, "tenants", tenantId.ToString("D"), "payments");
-        Directory.CreateDirectory(folder);
-
+        var folder = Path.Combine(UploadsRoot, "tenants", tenantId.ToString("D"), "payments");
         var safeName = MakeSafeFileName(file.FileName);
         var ext = Path.GetExtension(safeName);
         if (string.IsNullOrEmpty(ext) || (!IsImageExtension(ext) && !IsPdfExtension(ext))) ext = ".jpg";
         var fileName = $"{paymentId:D}{ext}";
         var fullPath = Path.Combine(folder, fileName);
 
-        await using (var stream = File.Create(fullPath))
-        {
-            await file.CopyToAsync(stream, ct);
-        }
+        await SaveUploadedFileAsync(fullPath, file, ct);
 
         return $"/uploads/tenants/{tenantId:D}/payments/{fileName}";
     }
 
-    /// <summary>Save or replace a user profile photo. Returns relative URL under /uploads/...</summary>
     public async Task<string> SaveUserProfilePhotoAsync(Guid? tenantId, Guid userId, IFormFile file, CancellationToken ct)
     {
         if (file.Length == 0)
             throw new InvalidOperationException("Profile photo file is empty.");
 
         var folder = tenantId.HasValue
-            ? Path.Combine(_uploadsRoot, "tenants", tenantId.Value.ToString("D"), "users", userId.ToString("D"))
-            : Path.Combine(_uploadsRoot, "platform", "users", userId.ToString("D"));
-        Directory.CreateDirectory(folder);
-
+            ? Path.Combine(UploadsRoot, "tenants", tenantId.Value.ToString("D"), "users", userId.ToString("D"))
+            : Path.Combine(UploadsRoot, "platform", "users", userId.ToString("D"));
         var safeName = MakeSafeFileName(file.FileName);
         var ext = Path.GetExtension(safeName);
         if (string.IsNullOrEmpty(ext) || !IsImageExtension(ext)) ext = ".jpg";
         var fileName = $"profile{ext}";
         var fullPath = Path.Combine(folder, fileName);
 
-        await using (var stream = File.Create(fullPath))
-        {
-            await file.CopyToAsync(stream, ct);
-        }
+        await SaveUploadedFileAsync(fullPath, file, ct);
 
         return tenantId.HasValue
             ? $"/uploads/tenants/{tenantId:D}/users/{userId:D}/{fileName}"
             : $"/uploads/platform/users/{userId:D}/{fileName}";
     }
 
-    /// <summary>Save a reservation payment screenshot. Multiple allowed per reservation. Returns relative URL.</summary>
     public async Task<string> SaveReservationScreenshotAsync(Guid tenantId, Guid reservationId, IFormFile file, CancellationToken ct)
     {
-        var uploadsRoot = _uploadsRoot;
-        var folder = Path.Combine(uploadsRoot, "tenants", tenantId.ToString("D"), "reservations", reservationId.ToString("D"));
-        Directory.CreateDirectory(folder);
-
+        var folder = Path.Combine(UploadsRoot, "tenants", tenantId.ToString("D"), "reservations", reservationId.ToString("D"));
         var safeName = MakeSafeFileName(file.FileName);
         var ext = Path.GetExtension(safeName);
         if (string.IsNullOrEmpty(ext) || (!IsImageExtension(ext) && !IsPdfExtension(ext))) ext = ".jpg";
         var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}{ext}";
         var fullPath = Path.Combine(folder, fileName);
 
-        await using (var stream = File.Create(fullPath))
-        {
-            await file.CopyToAsync(stream, ct);
-        }
+        await SaveUploadedFileAsync(fullPath, file, ct);
 
         return $"/uploads/tenants/{tenantId:D}/reservations/{reservationId:D}/{fileName}";
+    }
+
+    /// <summary>Write file to disk, flush, then verify it exists before returning.</summary>
+    private static async Task SaveUploadedFileAsync(string fullPath, IFormFile file, CancellationToken ct)
+    {
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(directory))
+            Directory.CreateDirectory(directory);
+
+        await using (var stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 81920, useAsync: true))
+        {
+            await file.CopyToAsync(stream, ct);
+            await stream.FlushAsync(ct);
+        }
+
+        EnsureFileSaved(fullPath);
+    }
+
+    private static void EnsureFileSaved(string fullPath)
+    {
+        if (!File.Exists(fullPath))
+            throw new InvalidOperationException("Image upload failed. File was not saved.");
+
+        if (new FileInfo(fullPath).Length <= 0)
+            throw new InvalidOperationException("Image upload failed. File was not saved.");
     }
 
     private static bool IsImageExtension(string ext)
@@ -208,10 +174,7 @@ public sealed class FileStorage
     private static string MakeSafeFileName(string name)
     {
         foreach (var c in Path.GetInvalidFileNameChars())
-        {
             name = name.Replace(c, '_');
-        }
         return name;
     }
 }
-

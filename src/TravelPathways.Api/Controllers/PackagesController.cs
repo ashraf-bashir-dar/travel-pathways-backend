@@ -1293,6 +1293,7 @@ public sealed class PackagesController : TenantControllerBase
             RegisteredOfficeAddressHtml = PdfTemplatePostProcessor.FormatRegisteredOfficeAddressHtml(
                 tenant?.Address, labels),
             AgencyWebsite = PdfTemplatePostProcessor.WebsiteFromEmail(tenant?.Email),
+            AgencyLicenseNumber = "JKTA00004788",
             GeneratedDate = FmtDate(DateTime.UtcNow),
             BankAccounts = (tenant?.BankAccounts ?? [])
                 .OrderBy(b => b.DisplayOrder)
@@ -1433,6 +1434,7 @@ public sealed class PackagesController : TenantControllerBase
             SalesHeadName = model.SalesHeadName,
             RegisteredOfficeAddressHtml = model.RegisteredOfficeAddressHtml,
             AgencyWebsite = model.AgencyWebsite,
+            AgencyLicenseNumber = model.AgencyLicenseNumber,
             GeneratedDate = model.GeneratedDate,
             BankAccounts = model.BankAccounts,
             QrCodes = (model.QrCodes ?? []).Select(q => new QrCodeItem
@@ -1529,6 +1531,7 @@ public sealed class PackagesController : TenantControllerBase
             SalesHeadName = model.SalesHeadName,
             RegisteredOfficeAddressHtml = model.RegisteredOfficeAddressHtml,
             AgencyWebsite = model.AgencyWebsite,
+            AgencyLicenseNumber = model.AgencyLicenseNumber,
             GeneratedDate = model.GeneratedDate,
             BankAccounts = model.BankAccounts,
             QrCodes = model.QrCodes,

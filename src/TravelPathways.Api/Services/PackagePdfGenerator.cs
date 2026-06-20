@@ -205,6 +205,8 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
             ["{{AgencyName}}"] = H(m.AgencyName),
             ["{{AgencyPhone}}"] = H(m.AgencyPhone),
             ["{{AgencyEmail}}"] = H(m.AgencyEmail),
+            ["{{AgencyWebsite}}"] = H(m.AgencyWebsite),
+            ["{{AgencyLicenseNumber}}"] = H(m.AgencyLicenseNumber),
             ["{{ManagingDirectorName}}"] = H(m.ManagingDirectorName),
             ["{{GeneratedDate}}"] = H(m.GeneratedDate),
             ["{{HotelsHtml}}"] = hotelsHtml,

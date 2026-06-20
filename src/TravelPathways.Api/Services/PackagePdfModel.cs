@@ -61,6 +61,8 @@ public sealed class PackagePdfModel
     public string? RegisteredOfficeAddressHtml { get; init; }
     /// <summary>Derived from tenant email domain when no website field exists.</summary>
     public string? AgencyWebsite { get; init; }
+    /// <summary>JK tourism / agency registration licence (e.g. JKTA00004788).</summary>
+    public string? AgencyLicenseNumber { get; init; }
     public string GeneratedDate { get; init; } = "";
     /// <summary>Bank accounts to show for payment (from tenant).</summary>
     public List<BankAccountItem> BankAccounts { get; init; } = [];

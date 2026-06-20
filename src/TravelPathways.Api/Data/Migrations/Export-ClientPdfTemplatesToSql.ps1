@@ -83,17 +83,22 @@ $rows = @(
         Name = "Client — Carbon & Lime"
         Desc = "Near-black shell with electric lime ribbon — bold contrast."
     }
+    @{
+        File = "pdf-client-16-crimson-noir.html"; Key = "pdf-client-16-crimson-noir"
+        Name = "Client — Crimson Noir"
+        Desc = "Luxury red, black and white — bold hero band and crimson accents."
+    }
 )
 
 # PostgreSQL dollar-quote tags ( $name$content$name ) — unique per row
 $tags = @(
     '$tpdf01$', '$tpdf02$', '$tpdf03$', '$tpdf04$', '$tpdf05$',
     '$tpdf06$', '$tpdf07$', '$tpdf08$', '$tpdf09$', '$tpdf10$',
-    '$tpdf11$', '$tpdf12$', '$tpdf13$', '$tpdf14$', '$tpdf15$'
+    '$tpdf11$', '$tpdf12$', '$tpdf13$', '$tpdf14$', '$tpdf15$', '$tpdf16$'
 )
 
 $sb = [System.Text.StringBuilder]::new()
-[void]$sb.AppendLine("-- Seed / upsert 15 client-selectable PDF HtmlTemplates.")
+[void]$sb.AppendLine("-- Seed / upsert client-selectable PDF HtmlTemplates.")
 [void]$sb.AppendLine("-- Re-run safe: updates HtmlTemplate when Key matches.")
 [void]$sb.AppendLine('-- Set tenant: UPDATE "Tenants" SET "PdfTemplateKey" = ''pdf-client-01-classic-gold'' WHERE ...')
 [void]$sb.AppendLine("BEGIN;")

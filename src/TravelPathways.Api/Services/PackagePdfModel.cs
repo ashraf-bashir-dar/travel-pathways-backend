@@ -109,6 +109,8 @@ public sealed class DayItem
     /// <summary>Representative image URL for this day (usually hotel's first image).</summary>
     public string? DayImageUrl { get; init; }
     public string Title { get; init; } = "";
+    /// <summary>Itinerary template title (dropdown label), shown after date in itinerary overview.</summary>
+    public string TemplateTitle { get; init; } = "";
     public string Description { get; init; } = "";
     /// <summary>Extra beds for this day. Shown in PDF when > 0.</summary>
     public int ExtraBedCount { get; init; }

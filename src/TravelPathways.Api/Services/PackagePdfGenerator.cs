@@ -134,20 +134,22 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
                 var dateText = string.IsNullOrWhiteSpace(d.DateLabel) ? "" : $" - {H(d.DateLabel)}";
                 return $"<div class=\"acc-day-line\"><strong>{labels.Day} {d.DayNumber}{dateText}</strong><div>{H(labels.HotelName)}: {H(d.HotelName)}</div><div>{H(labels.HotelArea)}: {H(d.HotelLocation)}</div></div>";
             }));
-        // Itinerary overview: day + description only (no accommodation block, no hotel images).
-        // Structure: .itv-head with .itv-day-pill + optional .itv-date — styled per HtmlTemplate.
+        // Itinerary overview: day pill, template title, then date (diamond before date).
         string itineraryOverviewHtml = string.Join("", (m.Days ?? []).Select(d =>
         {
             var dateHtml = string.IsNullOrWhiteSpace(d.DateLabel)
                 ? ""
                 : $"<span class=\"itv-date\">{H(d.DateLabel)}</span>";
+            var templateTitleHtml = string.IsNullOrWhiteSpace(d.TemplateTitle)
+                ? ""
+                : $"<span class=\"itv-title\">{H(d.TemplateTitle)}</span>";
             var paxParts = new List<string>();
             //if (d.ExtraBedCount > 0) paxParts.Add($"Extra bed: {d.ExtraBedCount}");
             //if (d.CnbCount > 0) paxParts.Add($"CNB: {d.CnbCount}");
             var paxHtml = paxParts.Count == 0
                 ? ""
                 : "<div class=\"itv-pax\">" + string.Join(" &bull; ", paxParts.Select(x => H(x))) + "</div>";
-            return $"<div class=\"itv-card\"><div class=\"itv-head\"><span class=\"itv-day-pill\">{labels.Day} {d.DayNumber}</span>{dateHtml}</div><div class=\"itv-desc\">{H(d.Description)}</div>{paxHtml}</div>";
+            return $"<div class=\"itv-card\"><div class=\"itv-head\"><span class=\"itv-day-pill\">{labels.Day} {d.DayNumber}</span>{templateTitleHtml}{dateHtml}</div><div class=\"itv-desc\">{H(d.Description)}</div>{paxHtml}</div>";
         }));
         string inclusionsHtml = string.Join("", (m.InclusionLabels ?? []).Select(x => $"<li>{H(x)}</li>"));
         string exclusionsHtml = string.Join("", (m.ExclusionLabels ?? []).Select(x => $"<li>{H(x)}</li>"));

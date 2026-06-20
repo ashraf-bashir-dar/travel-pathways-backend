@@ -74,8 +74,57 @@ public static class PdfTemplatePostProcessor
         }
 
         html = InjectTransportSectionIfMissing(html, model);
+        if (string.Equals(model.TemplateKey, "pdf-client-15-carbon-lime", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(model.TemplateKey, "pdf-client-16-crimson-noir", StringComparison.OrdinalIgnoreCase))
+            html = InjectItineraryTitleStyleIfMissing(html);
 
         return html;
+    }
+
+    /// <summary>Ensure template title after day pill and date at end are styled in tenant templates that predate .itv-title.</summary>
+    private static string InjectItineraryTitleStyleIfMissing(string html)
+    {
+        const string styleClose = "</style>";
+        var idx = html.IndexOf(styleClose, StringComparison.OrdinalIgnoreCase);
+        if (idx < 0) return html;
+
+        var css = new System.Text.StringBuilder();
+        if (!html.Contains(".itv-day-pill + .itv-title", StringComparison.OrdinalIgnoreCase))
+        {
+            css.Append("""
+                .itv-day-pill + .itv-title::before {
+                  content: ", ";
+                  font-weight: 400;
+                }
+
+                """);
+        }
+        if (!html.Contains(".itv-title", StringComparison.OrdinalIgnoreCase))
+        {
+            css.Append("""
+                .itv-title {
+                  font-family: Cambria, Georgia, "Times New Roman", serif;
+                  font-size: 11pt;
+                  font-weight: 600;
+                  color: var(--primary, #1a2f4d);
+                  letter-spacing: 0.02em;
+                  line-height: 1.25;
+                }
+
+                """);
+        }
+        if (!html.Contains(".itv-title + .itv-date", StringComparison.OrdinalIgnoreCase))
+        {
+            css.Append("""
+                .itv-title + .itv-date {
+                  margin-left: auto;
+                }
+
+                """);
+        }
+
+        if (css.Length == 0) return html;
+        return html.Insert(idx, css.ToString());
     }
 
     /// <summary>Inject transport block for tenant templates that predate {{TransportHtml}}.</summary>

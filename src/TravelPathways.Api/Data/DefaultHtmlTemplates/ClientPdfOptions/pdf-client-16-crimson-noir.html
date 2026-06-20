@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="description" content="Client PDF Option 16 — Crimson Noir: open editorial layout" />
+  <title>Travel Itinerary — Crimson Noir</title>
+  <style>
+    /*
+      CLIENT PDF OPTION 16 — Crimson Noir (v4)
+      Open editorial design: no boxes. Cardinal red accents + black text on white.
+    */
+    :root {
+      --crimson: #C41E3A;
+      --heading: #C41E3A;
+      --red: #C41E3A;
+      --black: #000000;
+      --white: #FFFFFF;
+      --tp-primary: var(--black);
+      --tp-secondary: var(--crimson);
+      --primary: var(--black);
+      --secondary: var(--crimson);
+      --quote-amount: var(--black);
+    }
+
+    * { box-sizing: border-box; }
+    html {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body {
+      margin: 0;
+      padding: 0 0 36px;
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.55;
+      color: var(--black);
+      background: var(--white);
+    }
+
+    .doc-shell {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 8px 28px 40px;
+      background: var(--white);
+    }
+
+    .header {
+      margin-bottom: 24px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--red);
+    }
+    .brand .logo-slot { margin-bottom: 12px; min-height: 48px; }
+    .brand .logo-slot img {
+      max-height: 56px;
+      max-width: 220px;
+      object-fit: contain;
+    }
+    .doc-eyebrow {
+      margin: 0 0 6px;
+      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-size: 18pt;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--heading);
+      line-height: 1.15;
+    }
+    .proposal-title {
+      margin: 0;
+      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-size: 12pt;
+      font-weight: 500;
+      color: var(--black);
+      line-height: 1.25;
+      letter-spacing: 0.02em;
+    }
+    .package-line {
+      margin: 8px 0 0;
+      font-size: 9.5pt;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--black);
+    }
+
+    .greeting-block {
+      margin-bottom: 22px;
+      page-break-inside: avoid;
+    }
+    .greeting-block .salutation {
+      margin: 0 0 8px;
+      font-size: 11pt;
+      font-weight: 700;
+    }
+    .greeting-block p {
+      margin: 0 0 8px;
+      font-size: 10.5pt;
+      line-height: 1.65;
+    }
+    .greeting-block p:last-child { margin-bottom: 0; }
+
+    .client-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px 20px;
+      margin-bottom: 22px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--red);
+      page-break-inside: avoid;
+    }
+    .client-strip dl { margin: 0; }
+    .client-strip dt {
+      font-size: 7pt;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-weight: 800;
+      margin-bottom: 3px;
+      color: var(--black);
+    }
+    .client-strip dd {
+      margin: 0;
+      font-weight: 600;
+      font-size: 10pt;
+    }
+
+    .facts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px 32px;
+      margin-bottom: 8px;
+    }
+    .fact-card,
+    .fact-card.transport-section {
+      border: none;
+      padding: 0;
+      background: none;
+    }
+    .fact-card h3,
+    .transport-wrap .fact-card h3 {
+      margin: 0 0 10px;
+      font-size: 7.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      font-weight: 800;
+      padding-bottom: 4px;
+      color: var(--heading);
+      border-bottom: 1px solid var(--heading);
+    }
+    .fact-rows { display: table; width: 100%; font-size: 9.5pt; }
+    .fact-rows .row { display: table-row; }
+    .fact-rows .row > span {
+      display: table-cell;
+      padding: 6px 12px 6px 0;
+      vertical-align: top;
+    }
+    .fact-rows .row > span:first-child {
+      font-weight: 700;
+      width: 38%;
+      font-size: 8.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--black);
+    }
+
+    .transport-wrap {
+      margin-bottom: 22px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--red);
+    }
+    .transport-wrap .fact-card { max-width: 50%; }
+
+    .quote-band {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin: 26px 0;
+      padding: 18px 0;
+      border-top: 2px solid var(--red);
+      border-bottom: 2px solid var(--red);
+      page-break-inside: avoid;
+    }
+    .quote-band .quote-label {
+      font-size: 8pt;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--heading);
+    }
+    .quote-band .quote-amount {
+      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-size: 26pt;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    h2.section-title {
+      margin: 30px 0 16px;
+      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-size: 11pt;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--heading);
+      padding: 0 0 8px;
+      border: none;
+      border-bottom: 1px solid var(--heading);
+      background: none;
+    }
+    h2.section-title:first-of-type { margin-top: 0; }
+    h2.section-title.section-itinerary-overview {
+      page-break-before: always;
+      break-before: page;
+    }
+
+    .itv-section {
+      border: none;
+      padding: 0;
+      margin-bottom: 8px;
+      background: none;
+    }
+    .itv-card {
+      border: none;
+      padding: 0 0 16px;
+      margin-bottom: 16px;
+      page-break-inside: avoid;
+      background: none;
+      border-bottom: 1px solid var(--red);
+    }
+    .itv-card:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+    .itv-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 6px 10px;
+      margin: 0 0 6px;
+    }
+    .itv-day-pill {
+      display: inline;
+      padding: 0;
+      font-size: 9.5pt;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      background: none;
+      border: none;
+      color: var(--heading);
+    }
+    .itv-day-pill + .itv-title::before {
+      content: " — ";
+      font-weight: 400;
+    }
+    .itv-title {
+      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-size: 11pt;
+      font-weight: 700;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .itv-date {
+      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-size: 10.5pt;
+      font-weight: 600;
+      font-style: italic;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+    .itv-title + .itv-date { margin-left: auto; }
+    .itv-date::before {
+      content: "|";
+      margin-right: 10px;
+      font-style: normal;
+      font-weight: 400;
+    }
+    .itv-desc {
+      white-space: pre-wrap;
+      font-size: 10.5pt;
+      line-height: 1.65;
+      padding-left: 0;
+    }
+
+    .acc-item {
+      border: none;
+      padding: 0 0 18px;
+      margin-bottom: 18px;
+      page-break-inside: avoid;
+      background: none;
+      border-bottom: 1px solid var(--red);
+    }
+    .acc-item:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+    .acc-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+    .acc-name {
+      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-size: 11.5pt;
+      font-weight: 700;
+    }
+    .pill {
+      font-size: 8pt;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--black);
+    }
+    .pill::before { content: "("; font-weight: 400; }
+    .pill::after { content: ")"; font-weight: 400; }
+    .acc-meta { font-size: 9.5pt; font-weight: 600; margin-bottom: 4px; }
+    .acc-divider { display: none; }
+    .acc-imgs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .acc-imgs img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+    }
+
+    .dual-column {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      margin-bottom: 24px;
+    }
+    .list-panel {
+      border: none;
+      padding: 0;
+      background: none;
+      page-break-inside: avoid;
+    }
+    .list-panel h3 {
+      margin: 0 0 10px;
+      font-size: 8pt;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding-bottom: 4px;
+      color: var(--heading);
+      border-bottom: 1px solid var(--heading);
+    }
+    .list-panel ul { margin: 0; padding-left: 18px; }
+    .list-panel li { margin: 5px 0; }
+
+    .policy-block {
+      border: none;
+      padding: 0 0 16px;
+      margin-bottom: 16px;
+      page-break-inside: avoid;
+      font-size: 9.5pt;
+      background: none;
+      border-bottom: 1px solid var(--red);
+    }
+    .policy-block:last-of-type { border-bottom: none; }
+    .policy-block h3 {
+      margin: 0 0 8px;
+      font-size: 8pt;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--heading);
+    }
+    .policy-block ul { margin: 0; padding-left: 18px; }
+
+    .bank-wrap {
+      border: none;
+      margin-bottom: 24px;
+      overflow: visible;
+    }
+    table.bank {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.5pt;
+    }
+    table.bank th {
+      background: none;
+      text-align: left;
+      padding: 0 12px 8px 0;
+      font-weight: 800;
+      font-size: 7.5pt;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--black);
+      border-bottom: 2px solid var(--heading);
+    }
+    table.bank td {
+      padding: 10px 12px 10px 0;
+      vertical-align: top;
+      border-bottom: 1px solid var(--red);
+    }
+    table.bank tr:last-child td { border-bottom: none; }
+
+    .qr-section {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      padding: 0;
+      margin-bottom: 24px;
+      background: none;
+      border: none;
+      page-break-inside: avoid;
+    }
+    .qr-section > div {
+      text-align: center;
+      padding: 0;
+      background: none;
+      border: none;
+      font-size: 8pt;
+      font-weight: 600;
+    }
+    .qr-section img {
+      width: 88px;
+      height: 88px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto 6px;
+    }
+
+    .last-page {
+      page-break-before: always;
+      margin-top: 8px;
+      padding-top: 8px;
+    }
+    .last-page .about-copy {
+      font-size: 10.5pt;
+      line-height: 1.7;
+      margin: 0 0 22px;
+    }
+    .last-page .about-copy p { margin: 0 0 10px; }
+
+    .leadership-card {
+      border: none;
+      padding: 0 0 22px;
+      margin-bottom: 22px;
+      background: none;
+      border-bottom: 1px solid var(--red);
+    }
+    .leadership-card h3 {
+      margin: 0 0 12px;
+      font-size: 8pt;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding-bottom: 4px;
+      color: var(--heading);
+      border-bottom: 1px solid var(--heading);
+    }
+    .leadership-card dl {
+      margin: 0;
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 8px 16px;
+      font-size: 10.5pt;
+    }
+    .leadership-card dt {
+      margin: 0;
+      font-weight: 700;
+      color: var(--black);
+    }
+    .leadership-card dd { margin: 0; font-weight: 600; }
+
+    .last-page-registered {
+      margin: 0;
+      padding: 0;
+      border: none;
+      background: none;
+    }
+    .last-page-registered-kicker {
+      margin: 0 0 10px;
+      font-size: 7.5pt;
+      font-weight: 800;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--heading);
+    }
+    .last-page-registered-addr {
+      margin: 0 0 16px;
+      font-size: 9.5pt;
+      line-height: 1.65;
+    }
+    .last-page-reg-meta { display: flex; flex-direction: column; gap: 8px; }
+    .last-page-reg-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 8px 16px;
+    }
+    .last-page-reg-label {
+      font-size: 7pt;
+      font-weight: 800;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      min-width: 72px;
+      color: var(--black);
+    }
+    .last-page-reg-value {
+      font-size: 10pt;
+      font-weight: 600;
+    }
+    .last-page-reg-value a {
+      color: var(--black);
+      text-decoration: underline;
+    }
+
+    /* Hide legacy boxed pricing markup if cached template still injects it */
+    .pricing-panel { display: none; }
+
+    @media print {
+      body { background: var(--white); }
+      .doc-shell { max-width: 100%; padding-left: 16px; padding-right: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="doc-shell">
+    <header class="header">
+      <div class="brand">
+        <div class="logo-slot">{{AgencyLogoHtml}}</div>
+        <p class="doc-eyebrow">{{AgencyName}}</p>
+        <h1 class="proposal-title">{{CoverTitle}}</h1>
+        <p class="package-line">{{DaysLabel}}</p>
+      </div>
+    </header>
+
+    <section class="greeting-block" aria-label="Greeting">
+      <p class="salutation">Dear {{ClientName}},</p>
+      <p class="lead">Thank you for choosing {{AgencyName}} for your journey.</p>
+      <p>
+        We are delighted to craft this itinerary for you — designed for comfort, clarity, and unforgettable experiences from your first arrival to your final departure.
+      </p>
+    </section>
+
+    <section class="client-strip">
+      <dl><dt>Guest</dt><dd>{{ClientName}}</dd></dl>
+      <dl><dt>Phone</dt><dd>{{ClientPhone}}</dd></dl>
+      <dl><dt>Email</dt><dd>{{ClientEmail}}</dd></dl>
+      <dl><dt>Pax</dt><dd>{{PaxSummary}}</dd></dl>
+      <dl><dt>Meal plan</dt><dd>{{MealPlan}}</dd></dl>
+    </section>
+
+    <div class="facts-grid">
+      <div class="fact-card">
+        <h3>Trip details</h3>
+        <div class="fact-rows">
+          <div class="row"><span>Arrival</span><span>{{StartDate}}</span></div>
+          <div class="row"><span>Departure</span><span>{{EndDate}}</span></div>
+          <div class="row"><span>Duration</span><span>{{DaysLabel}}</span></div>
+        </div>
+      </div>
+      <div class="fact-card">
+        <h3>Transfer</h3>
+        <div class="fact-rows">
+          <div class="row"><span>Pick-up</span><span>{{PickUpLocation}}</span></div>
+          <div class="row"><span>Drop-off</span><span>{{DropLocation}}</span></div>
+          <div class="row"><span>Vehicle</span><span>{{VehicleName}}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="transport-wrap">{{TransportHtml}}</div>
+
+    <div class="quote-band">
+      <span class="quote-label">Total quoted amount</span>
+      <span class="quote-amount">{{FinalAmount}}</span>
+    </div>
+
+    <h2 class="section-title section-itinerary-overview">Day-wise details</h2>
+    <div class="itv-section">
+      {{ItineraryOverviewHtml}}
+    </div>
+
+    <h2 class="section-title">Accomdation</h2>
+    {{HotelsHtml}}
+
+    <h2 class="section-title">Inclusions &amp; exclusions</h2>
+    <div class="dual-column">
+      <div class="list-panel incl">
+        <h3>Inclusions</h3>
+        <ul>{{InclusionsHtml}}</ul>
+      </div>
+      <div class="list-panel excl">
+        <h3>Exclusions</h3>
+        <ul>{{ExclusionsHtml}}</ul>
+      </div>
+    </div>
+
+    <div class="policy-block">
+      <h3>Terms &amp; conditions</h3>
+      <ul>{{TermsHtml}}</ul>
+    </div>
+    <div class="policy-block">
+      <h3>Cancellation policy</h3>
+      <ul>{{CancellationHtml}}</ul>
+    </div>
+    <div class="policy-block">
+      <h3>Supplements &amp; notes</h3>
+      <ul>{{SupplementHtml}}</ul>
+    </div>
+
+    <h2 class="section-title">Bank details</h2>
+    <div class="bank-wrap">
+      <table class="bank">
+        <thead>
+          <tr>
+            <th>Account holder</th>
+            <th>Bank</th>
+            <th>Account no.</th>
+            <th>IFSC</th>
+          </tr>
+        </thead>
+        <tbody>{{BankRowsHtml}}</tbody>
+      </table>
+    </div>
+
+    <h2 class="section-title">Pay online</h2>
+    <div class="qr-section">{{QrHtml}}</div>
+
+    <section class="last-page" id="about-us">
+      <h2 class="section-title">About us</h2>
+      <div class="about-copy">
+        <p>
+          <strong>{{AgencyName}}</strong> delivers curated journeys with reliable service and attention to every detail.
+          From accommodation to transfers, our team ensures your trip is seamless and memorable.
+        </p>
+        <p>We appreciate your trust and look forward to welcoming you.</p>
+      </div>
+      <div class="leadership-card">
+        <h3>Leadership &amp; contact</h3>
+        <dl>
+          <dt>Managing Director</dt>
+          <dd>{{ManagingDirectorName}}</dd>
+          <dt>Sales Head</dt>
+          <dd>Mr Ashraf Dar</dd>
+          <dt>Contact</dt>
+          <dd>9906372023</dd>
+        </dl>
+      </div>
+      <div class="last-page-registered last-page-registered-end" role="note">
+        <div class="last-page-registered-kicker">Registered office</div>
+        <p class="last-page-registered-addr">
+          3rd Floor, Asad Complex Sangrama, Sopore,<br />
+          Jammu and Kashmir — 193201
+        </p>
+        <div class="last-page-reg-meta">
+          <div class="last-page-reg-row">
+            <span class="last-page-reg-label">Email</span>
+            <span class="last-page-reg-value"><a href="mailto:info@travelpathways.in">info@travelpathways.in</a></span>
+          </div>
+          <div class="last-page-reg-row">
+            <span class="last-page-reg-label">Website</span>
+            <span class="last-page-reg-value">www.travelpathways.in</span>
+          </div>
+          <div class="last-page-reg-row">
+            <span class="last-page-reg-label">Phone</span>
+            <span class="last-page-reg-value last-page-reg-phone">9906372023</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

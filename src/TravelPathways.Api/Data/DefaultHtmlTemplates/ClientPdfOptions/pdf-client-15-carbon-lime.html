@@ -354,22 +354,22 @@
     /* Itinerary overview cards from API */
     .itv-card {
       border: 1px solid var(--line);
-      border-left: 3px solid rgba(201, 162, 39, 0.85);
+      border-left: 3px solid rgba(132, 204, 22, 0.9);
       border-radius: 0 12px 12px 0;
       padding: 14px 16px 16px;
       margin-bottom: 12px;
       page-break-inside: avoid;
-      background: linear-gradient(90deg, rgba(201, 162, 39, 0.06) 0%, #fff 46%);
+      background: linear-gradient(90deg, rgba(132, 204, 22, 0.08) 0%, #fff 50%);
       box-shadow: var(--shadow-tight);
     }
     .itv-head {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 8px 16px;
+      gap: 8px 12px;
       margin: 0 0 12px;
       padding: 0 0 11px;
-      border-bottom: 1px solid rgba(201, 162, 39, 0.2);
+      border-bottom: 1px solid rgba(132, 204, 22, 0.22);
     }
     .itv-day-pill {
       display: inline-flex;
@@ -382,10 +382,25 @@
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: #fff;
-      background: linear-gradient(145deg, #1a2f4d 0%, var(--primary) 55%, #0a1424 100%);
-      border: 1px solid rgba(201, 162, 39, 0.45);
-      box-shadow: 0 2px 6px rgba(12, 18, 32, 0.14);
+      background: linear-gradient(145deg, #000000 0%, var(--primary) 55%, #171717 100%);
+      border: 1px solid rgba(132, 204, 22, 0.55);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
       flex-shrink: 0;
+    }
+    .itv-day-pill + .itv-title::before {
+      content: ", ";
+      font-weight: 400;
+      color: var(--muted);
+    }
+    .itv-title {
+      font-family: Cambria, Georgia, "Times New Roman", serif;
+      font-size: 11pt;
+      font-weight: 600;
+      color: var(--primary);
+      letter-spacing: 0.02em;
+      line-height: 1.25;
+      flex: 1 1 auto;
+      min-width: 0;
     }
     .itv-date {
       font-family: Cambria, Georgia, "Times New Roman", serif;
@@ -395,6 +410,11 @@
       color: var(--primary);
       letter-spacing: 0.03em;
       line-height: 1.2;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+    .itv-title + .itv-date {
+      margin-left: auto;
     }
     .itv-date::before {
       content: "";

@@ -1149,14 +1149,23 @@ public sealed class PackagesController : TenantControllerBase
             return url.StartsWith("/") ? baseUrl + url : baseUrl + "/" + url;
         }
 
-        var pdfDays = days.Select(d =>
+        string ResolveDayDescription(DayItinerary d)
         {
-            var title = (d.ItineraryTemplate?.Title ?? d.Hotel?.Name ?? labels.DayActivities).Trim();
-            if (string.IsNullOrEmpty(title)) title = labels.DayActivities;
             var descParts = new List<string>();
             if (d.Activities?.Count > 0) descParts.Add(string.Join(". ", d.Activities));
-            if (!string.IsNullOrWhiteSpace(d.Notes)) descParts.Add(d.Notes.Trim());
-            var description = descParts.Count > 0 ? string.Join(" ", descParts) : "–";
+            var notes = d.Notes?.Trim();
+            if (!string.IsNullOrWhiteSpace(notes))
+                descParts.Add(notes);
+            else if (!string.IsNullOrWhiteSpace(d.ItineraryTemplate?.Description))
+                descParts.Add(d.ItineraryTemplate!.Description!.Trim());
+            return descParts.Count > 0 ? string.Join(" ", descParts) : "–";
+        }
+
+        var pdfDays = days.Select(d =>
+        {
+            var templateTitle = d.ItineraryTemplate?.Title?.Trim() ?? "";
+            var title = (!string.IsNullOrEmpty(templateTitle) ? templateTitle : (d.Hotel?.Name ?? labels.DayActivities)).Trim();
+            if (string.IsNullOrEmpty(title)) title = labels.DayActivities;
             return new DayItem
             {
                 DayNumber = d.DayNumber,
@@ -1165,7 +1174,8 @@ public sealed class PackagesController : TenantControllerBase
                 HotelLocation = d.Hotel is null ? null : GetHotelAreaString(d.Hotel),
                 DayImageUrl = d.Hotel?.ImageUrls?.Select(ToAbsolute).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
                 Title = title,
-                Description = description,
+                TemplateTitle = templateTitle,
+                Description = ResolveDayDescription(d),
                 ExtraBedCount = d.ExtraBedCount ?? 0,
                 CnbCount = d.CnbCount ?? 0
             };
@@ -1375,6 +1385,7 @@ public sealed class PackagesController : TenantControllerBase
             HotelLocation = d.HotelLocation,
             DayImageUrl = ToDataUrl(d.DayImageUrl) ?? d.DayImageUrl,
             Title = d.Title,
+            TemplateTitle = d.TemplateTitle,
             Description = d.Description,
             ExtraBedCount = d.ExtraBedCount,
             CnbCount = d.CnbCount

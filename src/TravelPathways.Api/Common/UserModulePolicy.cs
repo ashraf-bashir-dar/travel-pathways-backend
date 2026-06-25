@@ -7,7 +7,8 @@ public static class UserModulePolicy
   [
     AppModuleKey.TimeSheet,
     AppModuleKey.EmployeeManagement,
-    AppModuleKey.EmployeeMonitoring
+    AppModuleKey.EmployeeMonitoring,
+    AppModuleKey.HR
   ];
 
   private static readonly AppModuleKey[] AssigneeOnlyModules = [AppModuleKey.Tasks];

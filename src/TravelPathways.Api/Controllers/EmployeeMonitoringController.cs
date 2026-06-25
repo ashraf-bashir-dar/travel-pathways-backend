@@ -33,7 +33,7 @@ public sealed class EmployeeMonitoringController : TenantControllerBase
             .Select(t => t.EnabledModules)
             .FirstOrDefaultAsync(ct);
         if (enabled == null || enabled.Count == 0) return null;
-        if (enabled.Contains(AppModuleKey.TimeSheet) || enabled.Contains(AppModuleKey.EmployeeManagement) || enabled.Contains(AppModuleKey.EmployeeMonitoring))
+        if (EmployeeModuleAccess.IsEmployeeModuleEnabled(enabled))
             return null;
         return StatusCode(403, ApiResponse<object>.Fail("TimeSheet or Employee Management module is not enabled for this tenant."));
     }

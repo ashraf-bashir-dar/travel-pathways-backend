@@ -85,6 +85,10 @@ public sealed class AppDbContext : DbContext
             .Property(u => u.Department)
             .HasConversion<string>();
 
+        modelBuilder.Entity<AppUser>()
+            .Property(u => u.LifecycleStatus)
+            .HasConversion<string>();
+
         modelBuilder.Entity<Lead>()
             .Property(x => x.LeadSource)
             .HasConversion<string>();

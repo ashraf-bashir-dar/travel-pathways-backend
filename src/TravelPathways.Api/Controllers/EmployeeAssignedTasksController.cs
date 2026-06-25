@@ -96,7 +96,7 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
         if (!_tenant.TenantId.HasValue) return BadRequest(ApiResponse<object>.Fail("Tenant context is missing."));
         var enabled = await GetTenantEnabledModulesAsync(ct);
         if (enabled == null || enabled.Count == 0) return null;
-        if (enabled.Contains(AppModuleKey.TimeSheet) || enabled.Contains(AppModuleKey.EmployeeManagement) || enabled.Contains(AppModuleKey.EmployeeMonitoring))
+        if (EmployeeModuleAccess.IsEmployeeModuleEnabled(enabled))
             return null;
         return StatusCode(403, ApiResponse<object>.Fail("Employee module is not enabled for this tenant."));
     }

@@ -32,7 +32,7 @@ public sealed class LeavesController : TenantControllerBase
             .Select(t => t.EnabledModules)
             .FirstOrDefaultAsync(ct);
         if (enabled == null || enabled.Count == 0) return null;
-        if (enabled.Contains(AppModuleKey.TimeSheet) || enabled.Contains(AppModuleKey.EmployeeManagement) || enabled.Contains(AppModuleKey.EmployeeMonitoring))
+        if (EmployeeModuleAccess.IsEmployeeModuleEnabled(enabled))
             return null;
         return StatusCode(403, ApiResponse<object>.Fail("Employee module is not enabled for this tenant."));
     }
@@ -56,6 +56,17 @@ public sealed class LeavesController : TenantControllerBase
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
         public string Reason { get; set; } = string.Empty;
+    }
+
+    public sealed class AdminApplyLeaveRequestDto
+    {
+        public Guid UserId { get; set; }
+        public LeaveType LeaveType { get; set; }
+        public DateTime StartDate { get; set; }
+        public DateTime EndDate { get; set; }
+        public string Reason { get; set; } = string.Empty;
+        /// <summary>When true (default), leave is recorded as Approved immediately.</summary>
+        public bool AutoApprove { get; set; } = true;
     }
 
     private Guid? GetCurrentUserId()
@@ -92,8 +103,8 @@ public sealed class LeavesController : TenantControllerBase
         var currentUserId = GetCurrentUserId();
         if (!currentUserId.HasValue)
             return Unauthorized(ApiResponse<LeaveDto>.Fail("User not identified."));
-        var start = request.StartDate.Date;
-        var end = request.EndDate.Date;
+        var start = DateTimeUtcHelper.ToUtcDate(request.StartDate);
+        var end = DateTimeUtcHelper.ToUtcDate(request.EndDate);
         if (start > end)
             return BadRequest(ApiResponse<LeaveDto>.Fail("Start date must be on or before end date."));
         if (string.IsNullOrWhiteSpace(request.Reason))
@@ -112,6 +123,48 @@ public sealed class LeavesController : TenantControllerBase
         _db.Leaves.Add(leave);
         await _db.SaveChangesAsync(ct);
         return ApiResponse<LeaveDto>.Ok(ToDto(leave));
+    }
+
+    /// <summary>Admin/HR: add leave on behalf of any employee.</summary>
+    [HttpPost("manual")]
+    public async Task<ActionResult<ApiResponse<LeaveDto>>> AddLeaveForEmployee(
+        [FromBody] AdminApplyLeaveRequestDto request,
+        CancellationToken ct = default)
+    {
+        var check = await EnsureEmployeeModuleAsync(ct);
+        if (check != null) return check;
+        if (!IsTenantAdmin(User))
+            return Forbid();
+
+        if (request.UserId == Guid.Empty)
+            return BadRequest(ApiResponse<LeaveDto>.Fail("Employee is required."));
+        var start = DateTimeUtcHelper.ToUtcDate(request.StartDate);
+        var end = DateTimeUtcHelper.ToUtcDate(request.EndDate);
+        if (start > end)
+            return BadRequest(ApiResponse<LeaveDto>.Fail("Start date must be on or before end date."));
+        if (string.IsNullOrWhiteSpace(request.Reason))
+            return BadRequest(ApiResponse<LeaveDto>.Fail("Reason is required."));
+
+        var userExists = await _db.Users.AsNoTracking()
+            .AnyAsync(u => u.TenantId == TenantId && u.Id == request.UserId, ct);
+        if (!userExists)
+            return BadRequest(ApiResponse<LeaveDto>.Fail("Employee not found."));
+
+        var leave = new Leave
+        {
+            TenantId = TenantId,
+            UserId = request.UserId,
+            LeaveType = request.LeaveType,
+            StartDate = start,
+            EndDate = end,
+            Reason = request.Reason.Trim(),
+            Status = request.AutoApprove ? LeaveStatus.Approved : LeaveStatus.Pending
+        };
+        _db.Leaves.Add(leave);
+        await _db.SaveChangesAsync(ct);
+        await _db.Entry(leave).Reference(l => l.User).LoadAsync(ct);
+        var message = request.AutoApprove ? "Leave added and approved." : "Leave added (pending approval).";
+        return ApiResponse<LeaveDto>.Ok(ToDto(leave), message);
     }
 
     /// <summary>Get leaves: my leaves (employee) or all with filters (admin).</summary>
@@ -149,10 +202,24 @@ public sealed class LeavesController : TenantControllerBase
         }
         if (status.HasValue)
             query = query.Where(l => l.Status == status.Value);
-        if (from.HasValue)
-            query = query.Where(l => l.EndDate >= from.Value.Date);
-        if (to.HasValue)
-            query = query.Where(l => l.StartDate <= to.Value.Date);
+        if (from.HasValue || to.HasValue)
+        {
+            if (isAdmin)
+            {
+                // Admins always see pending requests; date range filters other statuses.
+                query = query.Where(l =>
+                    l.Status == LeaveStatus.Pending
+                    || ((!from.HasValue || l.EndDate >= DateTimeUtcHelper.ToUtcDate(from.Value))
+                        && (!to.HasValue || l.StartDate <= DateTimeUtcHelper.ToUtcDate(to.Value))));
+            }
+            else
+            {
+                if (from.HasValue)
+                    query = query.Where(l => l.EndDate >= DateTimeUtcHelper.ToUtcDate(from.Value));
+                if (to.HasValue)
+                    query = query.Where(l => l.StartDate <= DateTimeUtcHelper.ToUtcDate(to.Value));
+            }
+        }
 
         var list = await query
             .Include(l => l.User)

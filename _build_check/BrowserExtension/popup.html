@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Travel Pathways Activity</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <h1>Travel Pathways</h1>
+    <p class="tagline">Activity tracker</p>
+  </header>
+
+  <div id="login-view">
+    <label>
+      API URL
+      <input id="api-url" type="url" placeholder="https://localhost:44396" />
+    </label>
+    <label>
+      Email
+      <input id="email" type="email" autocomplete="username" />
+    </label>
+    <label>
+      Password
+      <input id="password" type="password" autocomplete="current-password" />
+    </label>
+    <label>
+      Tenant code <span class="optional">(if required)</span>
+      <input id="tenant-code" type="text" placeholder="Optional" />
+    </label>
+    <button id="login-btn" type="button">Sign in &amp; start tracking</button>
+    <p id="login-error" class="error" hidden></p>
+  </div>
+
+  <div id="status-view" hidden>
+    <div class="status-card">
+      <span class="status-dot" id="status-dot"></span>
+      <div>
+        <strong id="user-name">—</strong>
+        <p id="status-text" class="muted">Tracking active</p>
+      </div>
+    </div>
+    <p class="muted small" id="last-sync">Last sync: —</p>
+    <p class="hint">Sites you visit in this browser are reported to your employer admin panel.</p>
+    <button id="sync-btn" type="button" class="secondary">Sync now</button>
+    <button id="logout-btn" type="button" class="danger">Sign out</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

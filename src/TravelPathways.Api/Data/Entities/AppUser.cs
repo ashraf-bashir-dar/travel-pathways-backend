@@ -20,6 +20,8 @@ public sealed class AppUser : EntityBase
     public DateTime? JoinDate { get; set; }
     /// <summary>Date the employee left the organization (if applicable).</summary>
     public DateTime? LeaveDate { get; set; }
+    /// <summary>HR lifecycle stage: onboarding, active employment, exit in progress, or exited.</summary>
+    public EmployeeLifecycleStatus? LifecycleStatus { get; set; }
     /// <summary>Job title or designation (e.g. "Senior Tour Manager", "Sales Executive").</summary>
     public string? Designation { get; set; }
     /// <summary>Residential or official address.</summary>

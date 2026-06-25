@@ -48,7 +48,7 @@ public sealed class TenantReportsController : ControllerBase
             .Select(t => t.EnabledModules)
             .FirstOrDefaultAsync(ct);
         if (enabledModules == null || enabledModules.Count == 0) return null;
-        if (enabledModules.Contains(AppModuleKey.EmployeeManagement) || enabledModules.Contains(AppModuleKey.EmployeeMonitoring))
+        if (EmployeeModuleAccess.IsManagementModuleEnabled(enabledModules))
             return null;
         return StatusCode(403, ApiResponse<object>.Fail("Employee Management module is not enabled for this tenant."));
     }

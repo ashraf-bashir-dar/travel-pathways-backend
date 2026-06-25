@@ -70,6 +70,7 @@ public sealed class TenantUsersController : ControllerBase
         public List<LeadSource> InboundAllowedLeadSources { get; init; } = [];
         public string? ShiftStartTime { get; init; }
         public string? ShiftEndTime { get; init; }
+        public EmployeeLifecycleStatus? LifecycleStatus { get; init; }
     }
 
     public sealed class CreateTenantUserRequestDto
@@ -453,6 +454,7 @@ public sealed class TenantUsersController : ControllerBase
         user.InboundAllowedLeadSources = request.Department == UserDepartment.Sales
             ? request.InboundAllowedLeadSources?.ToList() ?? []
             : [];
+        EmployeeLifecycleHelper.ApplyOnCreate(user);
     }
 
     private static DateTime? NormalizeNullableUtc(DateTime? value)
@@ -496,6 +498,7 @@ public sealed class TenantUsersController : ControllerBase
             InboundDailyLeadQuota = u.InboundDailyLeadQuota,
             InboundAllowedLeadSources = u.InboundAllowedLeadSources ?? [],
             ShiftStartTime = UserShiftTimeHelper.Format(u.ShiftStartTime),
-            ShiftEndTime = UserShiftTimeHelper.Format(u.ShiftEndTime)
+            ShiftEndTime = UserShiftTimeHelper.Format(u.ShiftEndTime),
+            LifecycleStatus = EmployeeLifecycleHelper.Resolve(u)
         };
 }

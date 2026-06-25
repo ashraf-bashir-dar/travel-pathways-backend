@@ -289,6 +289,29 @@ using (var scope = app.Services.CreateScope())
             "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"ShiftStartTime\" time without time zone;");
         await db.Database.ExecuteSqlRawAsync(
             "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"ShiftEndTime\" time without time zone;");
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"LifecycleStatus\" text;");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "EmployeeSalary" (
+                "Id" uuid NOT NULL,
+                "UserId" uuid NOT NULL,
+                "Type" text NOT NULL,
+                "Amount" numeric(18,2) NOT NULL,
+                "PeriodLabel" text,
+                "PaidOn" timestamp with time zone,
+                "Notes" text,
+                "CreatedAt" timestamp with time zone NOT NULL DEFAULT NOW(),
+                "UpdatedAt" timestamp with time zone NOT NULL DEFAULT NOW(),
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "DeletedAtUtc" timestamp with time zone,
+                "TenantId" uuid NOT NULL,
+                "IsActive" boolean NOT NULL DEFAULT true,
+                CONSTRAINT "PK_EmployeeSalary" PRIMARY KEY ("Id")
+            );
+            CREATE INDEX IF NOT EXISTS "IX_EmployeeSalary_UserId" ON "EmployeeSalary" ("UserId");
+            CREATE INDEX IF NOT EXISTS "IX_EmployeeSalary_TenantId" ON "EmployeeSalary" ("TenantId");
+            """);
         // Same for package margin (PDF / price override); avoids 42703 if migrations were not applied to this DB.
         await db.Database.ExecuteSqlRawAsync(
             "ALTER TABLE \"Packages\" ADD COLUMN IF NOT EXISTS \"MarginAmount\" numeric(18,2) NOT NULL DEFAULT 0;");

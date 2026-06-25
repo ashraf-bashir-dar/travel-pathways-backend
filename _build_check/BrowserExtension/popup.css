@@ -1,0 +1,119 @@
+body {
+  width: 320px;
+  margin: 0;
+  padding: 16px;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 14px;
+  color: #1e293b;
+  background: #f8fafc;
+}
+
+header {
+  margin-bottom: 16px;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.tagline {
+  margin: 2px 0 0;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-sizing: border-box;
+  font-size: 0.9rem;
+}
+
+.optional {
+  font-weight: 400;
+  color: #94a3b8;
+}
+
+button {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #4338ca;
+  color: #fff;
+}
+
+button.secondary {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+button.danger {
+  background: #fff;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error {
+  color: #b91c1c;
+  font-size: 0.82rem;
+  margin: 8px 0 0;
+}
+
+.muted {
+  color: #64748b;
+}
+
+.small {
+  font-size: 0.78rem;
+}
+
+.hint {
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.4;
+  margin: 12px 0;
+}
+
+.status-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+}
+
+.status-dot.off {
+  background: #f59e0b;
+}

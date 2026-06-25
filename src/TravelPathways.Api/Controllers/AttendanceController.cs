@@ -32,7 +32,7 @@ public sealed class AttendanceController : TenantControllerBase
             .Select(t => t.EnabledModules)
             .FirstOrDefaultAsync(ct);
         if (enabled == null || enabled.Count == 0) return null;
-        if (enabled.Contains(AppModuleKey.TimeSheet) || enabled.Contains(AppModuleKey.EmployeeManagement) || enabled.Contains(AppModuleKey.EmployeeMonitoring))
+        if (EmployeeModuleAccess.IsEmployeeModuleEnabled(enabled))
             return null;
         return StatusCode(403, ApiResponse<object>.Fail("Employee module is not enabled for this tenant."));
     }
@@ -45,6 +45,16 @@ public sealed class AttendanceController : TenantControllerBase
         public required DateTime AttendanceDate { get; init; }
         public DateTime? TimeInUtc { get; init; }
         public DateTime? TimeOutUtc { get; init; }
+    }
+
+    public sealed class ManualAttendanceRequestDto
+    {
+        public Guid UserId { get; set; }
+        public DateTime AttendanceDate { get; set; }
+        /// <summary>Time in as HH:mm (IST).</summary>
+        public string? TimeIn { get; set; }
+        /// <summary>Time out as HH:mm (IST).</summary>
+        public string? TimeOut { get; set; }
     }
 
     private Guid? GetCurrentUserId()
@@ -70,7 +80,7 @@ public sealed class AttendanceController : TenantControllerBase
         var currentUserId = GetCurrentUserId();
         if (!currentUserId.HasValue)
             return Unauthorized(ApiResponse<AttendanceDto?>.Fail("User not identified."));
-        var effectiveDate = (date?.Date ?? DateTime.UtcNow.Date);
+        var effectiveDate = DateTimeUtcHelper.ToUtcDate(date ?? DateTime.UtcNow);
         var att = await _db.Attendances.AsNoTracking()
             .Where(a => a.TenantId == TenantId && a.UserId == currentUserId.Value && a.AttendanceDate == effectiveDate)
             .Include(a => a.User)
@@ -109,13 +119,13 @@ public sealed class AttendanceController : TenantControllerBase
         DateTime toDate;
         if (from.HasValue && to.HasValue)
         {
-            fromDate = from.Value.Date;
-            toDate = to.Value.Date;
+            fromDate = DateTimeUtcHelper.ToUtcDate(from.Value);
+            toDate = DateTimeUtcHelper.ToUtcDate(to.Value);
             if (fromDate > toDate) (fromDate, toDate) = (toDate, fromDate);
         }
         else
         {
-            var today = DateTime.UtcNow.Date;
+            var today = DateTimeUtcHelper.UtcToday();
             fromDate = today.AddDays(-6);
             toDate = today;
         }
@@ -168,7 +178,7 @@ public sealed class AttendanceController : TenantControllerBase
         var currentUserId = GetCurrentUserId();
         if (!currentUserId.HasValue)
             return Unauthorized(ApiResponse<AttendanceDto>.Fail("User not identified."));
-        var today = DateTime.UtcNow.Date;
+        var today = DateTimeUtcHelper.UtcToday();
         var existing = await _db.Attendances
             .FirstOrDefaultAsync(a => a.TenantId == TenantId && a.UserId == currentUserId.Value && a.AttendanceDate == today, ct);
         var now = DateTime.UtcNow;
@@ -217,7 +227,7 @@ public sealed class AttendanceController : TenantControllerBase
         var currentUserId = GetCurrentUserId();
         if (!currentUserId.HasValue)
             return Unauthorized(ApiResponse<AttendanceDto>.Fail("User not identified."));
-        var today = DateTime.UtcNow.Date;
+        var today = DateTimeUtcHelper.UtcToday();
         var existing = await _db.Attendances
             .FirstOrDefaultAsync(a => a.TenantId == TenantId && a.UserId == currentUserId.Value && a.AttendanceDate == today, ct);
         if (existing == null)
@@ -256,18 +266,18 @@ public sealed class AttendanceController : TenantControllerBase
         DateTime toDate;
         if (date.HasValue)
         {
-            fromDate = date.Value.Date;
+            fromDate = DateTimeUtcHelper.ToUtcDate(date.Value);
             toDate = fromDate;
         }
         else if (from.HasValue && to.HasValue)
         {
-            fromDate = from.Value.Date;
-            toDate = to.Value.Date;
+            fromDate = DateTimeUtcHelper.ToUtcDate(from.Value);
+            toDate = DateTimeUtcHelper.ToUtcDate(to.Value);
             if (fromDate > toDate) (fromDate, toDate) = (toDate, fromDate);
         }
         else
         {
-            var today = DateTime.UtcNow.Date;
+            var today = DateTimeUtcHelper.UtcToday();
             fromDate = today;
             toDate = today;
         }
@@ -290,5 +300,115 @@ public sealed class AttendanceController : TenantControllerBase
             TimeOutUtc = a.TimeOutUtc
         }).ToList();
         return ApiResponse<List<AttendanceDto>>.Ok(items);
+    }
+
+    /// <summary>Admin/HR: manually add or update attendance for any employee on a given date.</summary>
+    [HttpPost("manual")]
+    public async Task<ActionResult<ApiResponse<AttendanceDto>>> UpsertManualAttendance(
+        [FromBody] ManualAttendanceRequestDto request,
+        CancellationToken ct = default)
+    {
+        var check = await EnsureEmployeeModuleAsync(ct);
+        if (check != null) return check;
+        if (!IsTenantAdmin(User))
+            return Forbid();
+
+        if (request.UserId == Guid.Empty)
+            return BadRequest(ApiResponse<AttendanceDto>.Fail("Employee is required."));
+        if (string.IsNullOrWhiteSpace(request.TimeIn) && string.IsNullOrWhiteSpace(request.TimeOut))
+            return BadRequest(ApiResponse<AttendanceDto>.Fail("Provide at least Time In or Time Out."));
+
+        var attendanceDate = DateTimeUtcHelper.ToUtcDate(request.AttendanceDate);
+        var userExists = await _db.Users.AsNoTracking()
+            .AnyAsync(u => u.TenantId == TenantId && u.Id == request.UserId, ct);
+        if (!userExists)
+            return BadRequest(ApiResponse<AttendanceDto>.Fail("Employee not found."));
+
+        DateTime? timeInUtc = null;
+        DateTime? timeOutUtc = null;
+        if (!string.IsNullOrWhiteSpace(request.TimeIn))
+        {
+            if (!TryParseIstTime(attendanceDate, request.TimeIn, out var parsedIn))
+                return BadRequest(ApiResponse<AttendanceDto>.Fail("Time In must be in HH:mm format."));
+            timeInUtc = parsedIn;
+        }
+        if (!string.IsNullOrWhiteSpace(request.TimeOut))
+        {
+            if (!TryParseIstTime(attendanceDate, request.TimeOut, out var parsedOut))
+                return BadRequest(ApiResponse<AttendanceDto>.Fail("Time Out must be in HH:mm format."));
+            timeOutUtc = parsedOut;
+        }
+        if (timeInUtc.HasValue && timeOutUtc.HasValue && timeOutUtc <= timeInUtc)
+            return BadRequest(ApiResponse<AttendanceDto>.Fail("Time Out must be after Time In."));
+
+        var existing = await _db.Attendances
+            .Include(a => a.User)
+            .FirstOrDefaultAsync(a => a.TenantId == TenantId && a.UserId == request.UserId && a.AttendanceDate == attendanceDate, ct);
+
+        if (existing != null)
+        {
+            if (timeInUtc.HasValue) existing.TimeInUtc = timeInUtc;
+            if (timeOutUtc.HasValue) existing.TimeOutUtc = timeOutUtc;
+            await _db.SaveChangesAsync(ct);
+            return ApiResponse<AttendanceDto>.Ok(ToDto(existing), "Attendance updated.");
+        }
+
+        var att = new Attendance
+        {
+            TenantId = TenantId,
+            UserId = request.UserId,
+            AttendanceDate = attendanceDate,
+            TimeInUtc = timeInUtc,
+            TimeOutUtc = timeOutUtc
+        };
+        _db.Attendances.Add(att);
+        await _db.SaveChangesAsync(ct);
+        await _db.Entry(att).Reference(a => a.User).LoadAsync(ct);
+        return ApiResponse<AttendanceDto>.Ok(ToDto(att), "Attendance added.");
+    }
+
+    /// <summary>Admin/HR: delete an attendance record.</summary>
+    [HttpDelete("{id:guid}")]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteAttendance(
+        [FromRoute] Guid id,
+        CancellationToken ct = default)
+    {
+        var check = await EnsureEmployeeModuleAsync(ct);
+        if (check != null) return check;
+        if (!IsTenantAdmin(User))
+            return Forbid();
+
+        var att = await _db.Attendances
+            .FirstOrDefaultAsync(a => a.Id == id && a.TenantId == TenantId, ct);
+        if (att is null)
+            return NotFound(ApiResponse<object>.Fail("Attendance record not found."));
+
+        att.IsDeleted = true;
+        att.DeletedAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        return ApiResponse<object>.Ok(new { }, "Attendance deleted.");
+    }
+
+    private static AttendanceDto ToDto(Attendance a) => new()
+    {
+        Id = a.Id.ToString("D"),
+        UserId = a.UserId.ToString("D"),
+        UserName = a.User == null ? null : $"{a.User.FirstName} {a.User.LastName}".Trim(),
+        AttendanceDate = a.AttendanceDate,
+        TimeInUtc = a.TimeInUtc,
+        TimeOutUtc = a.TimeOutUtc
+    };
+
+    private static bool TryParseIstTime(DateTime attendanceDate, string timeHHmm, out DateTime utc)
+    {
+        utc = default;
+        if (!TimeOnly.TryParse(timeHHmm.Trim(), out var time))
+            return false;
+        var ist = TimeZoneInfo.FindSystemTimeZoneById(
+            OperatingSystem.IsWindows() ? "India Standard Time" : "Asia/Kolkata");
+        var local = new DateTime(attendanceDate.Year, attendanceDate.Month, attendanceDate.Day,
+            time.Hour, time.Minute, 0, DateTimeKind.Unspecified);
+        utc = DateTime.SpecifyKind(TimeZoneInfo.ConvertTimeToUtc(local, ist), DateTimeKind.Utc);
+        return true;
     }
 }

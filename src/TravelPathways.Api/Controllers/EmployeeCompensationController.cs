@@ -32,9 +32,9 @@ public sealed class EmployeeCompensationController : ControllerBase
             .Select(t => t.EnabledModules)
             .FirstOrDefaultAsync(ct);
         if (enabled == null || enabled.Count == 0) return null;
-        if (enabled.Contains(AppModuleKey.EmployeeManagement) || enabled.Contains(AppModuleKey.EmployeeMonitoring))
+        if (EmployeeModuleAccess.IsManagementModuleEnabled(enabled))
             return null;
-        return StatusCode(403, ApiResponse<object>.Fail("Employee Management module is not enabled for this tenant."));
+        return StatusCode(403, ApiResponse<object>.Fail("HR or Employee Management module is not enabled for this tenant."));
     }
 
     public sealed class CompensationDto
@@ -96,22 +96,26 @@ public sealed class EmployeeCompensationController : ControllerBase
             query = query.Where(c => c.UserId == userId.Value);
         var list = await query
             .Include(c => c.User)
-            .OrderByDescending(c => c.PaidOn ?? c.CreatedAt)
             .ToListAsync(ct);
-        var items = list.Select(c => new CompensationDto
-        {
-            Id = c.Id.ToString("D"),
-            UserId = c.UserId.ToString("D"),
-            UserName = c.User == null ? null : $"{c.User.FirstName} {c.User.LastName}".Trim(),
-            Type = c.Type,
-            Amount = c.Amount,
-            PeriodLabel = c.PeriodLabel,
-            PaidOn = c.PaidOn,
-            Notes = c.Notes,
-            CreatedAt = c.CreatedAt
-        }).ToList();
+        var items = list
+            .OrderByDescending(c => c.PaidOn ?? c.CreatedAt)
+            .Select(ToDto)
+            .ToList();
         return ApiResponse<List<CompensationDto>>.Ok(items);
     }
+
+    private static CompensationDto ToDto(EmployeeCompensation c) => new()
+    {
+        Id = c.Id.ToString("D"),
+        UserId = c.UserId.ToString("D"),
+        UserName = c.User == null ? null : $"{c.User.FirstName} {c.User.LastName}".Trim(),
+        Type = c.Type,
+        Amount = c.Amount,
+        PeriodLabel = c.PeriodLabel,
+        PaidOn = c.PaidOn,
+        Notes = c.Notes,
+        CreatedAt = c.CreatedAt
+    };
 
     [HttpGet("summary")]
     [Authorize(Policy = "TenantAdminOnly")]
@@ -122,8 +126,11 @@ public sealed class EmployeeCompensationController : ControllerBase
         if (!_tenant.TenantId.HasValue)
             return BadRequest(ApiResponse<List<CompensationSummaryDto>>.Fail("Tenant context is missing."));
 
-        var grouped = await _db.EmployeeCompensations.AsNoTracking()
+        var rows = await _db.EmployeeCompensations.AsNoTracking()
             .Where(c => c.TenantId == _tenant.TenantId)
+            .Select(c => new { c.UserId, c.Type, c.Amount })
+            .ToListAsync(ct);
+        var grouped = rows
             .GroupBy(c => c.UserId)
             .Select(g => new
             {
@@ -132,7 +139,7 @@ public sealed class EmployeeCompensationController : ControllerBase
                 TotalIncentive = g.Where(x => x.Type == CompensationType.Incentive).Sum(x => x.Amount),
                 TotalBonus = g.Where(x => x.Type == CompensationType.Bonus).Sum(x => x.Amount)
             })
-            .ToListAsync(ct);
+            .ToList();
         var userIds = grouped.Select(x => x.UserId).Distinct().ToList();
         var users = await _db.Users.AsNoTracking()
             .Where(u => userIds.Contains(u.Id))
@@ -163,18 +170,7 @@ public sealed class EmployeeCompensationController : ControllerBase
             .Include(x => x.User)
             .FirstOrDefaultAsync(x => x.Id == id && x.TenantId == _tenant.TenantId, ct);
         if (c is null) return NotFound(ApiResponse<CompensationDto>.Fail("Record not found."));
-        return ApiResponse<CompensationDto>.Ok(new CompensationDto
-        {
-            Id = c.Id.ToString("D"),
-            UserId = c.UserId.ToString("D"),
-            UserName = c.User == null ? null : $"{c.User.FirstName} {c.User.LastName}".Trim(),
-            Type = c.Type,
-            Amount = c.Amount,
-            PeriodLabel = c.PeriodLabel,
-            PaidOn = c.PaidOn,
-            Notes = c.Notes,
-            CreatedAt = c.CreatedAt
-        });
+        return ApiResponse<CompensationDto>.Ok(ToDto(c));
     }
 
     [HttpPost]
@@ -198,7 +194,7 @@ public sealed class EmployeeCompensationController : ControllerBase
             Type = request.Type,
             Amount = request.Amount,
             PeriodLabel = request.PeriodLabel?.Trim(),
-            PaidOn = request.PaidOn,
+            PaidOn = DateTimeUtcHelper.ToUtcDate(request.PaidOn),
             Notes = request.Notes?.Trim()
         };
         _db.EmployeeCompensations.Add(c);
@@ -206,18 +202,7 @@ public sealed class EmployeeCompensationController : ControllerBase
         var created = await _db.EmployeeCompensations.AsNoTracking()
             .Include(x => x.User)
             .FirstAsync(x => x.Id == c.Id, ct);
-        return CreatedAtAction(nameof(GetById), new { id = c.Id }, ApiResponse<CompensationDto>.Ok(new CompensationDto
-        {
-            Id = created.Id.ToString("D"),
-            UserId = created.UserId.ToString("D"),
-            UserName = created.User == null ? null : $"{created.User.FirstName} {created.User.LastName}".Trim(),
-            Type = created.Type,
-            Amount = created.Amount,
-            PeriodLabel = created.PeriodLabel,
-            PaidOn = created.PaidOn,
-            Notes = created.Notes,
-            CreatedAt = created.CreatedAt
-        }));
+        return CreatedAtAction(nameof(GetById), new { id = c.Id }, ApiResponse<CompensationDto>.Ok(ToDto(created)));
     }
 
     [HttpPut("{id:guid}")]
@@ -236,22 +221,11 @@ public sealed class EmployeeCompensationController : ControllerBase
         c.Type = request.Type;
         c.Amount = request.Amount;
         c.PeriodLabel = request.PeriodLabel?.Trim();
-        c.PaidOn = request.PaidOn;
+        c.PaidOn = DateTimeUtcHelper.ToUtcDate(request.PaidOn);
         c.Notes = request.Notes?.Trim();
         await _db.SaveChangesAsync(ct);
         await _db.Entry(c).Reference(x => x.User).LoadAsync(ct);
-        return ApiResponse<CompensationDto>.Ok(new CompensationDto
-        {
-            Id = c.Id.ToString("D"),
-            UserId = c.UserId.ToString("D"),
-            UserName = c.User == null ? null : $"{c.User.FirstName} {c.User.LastName}".Trim(),
-            Type = c.Type,
-            Amount = c.Amount,
-            PeriodLabel = c.PeriodLabel,
-            PaidOn = c.PaidOn,
-            Notes = c.Notes,
-            CreatedAt = c.CreatedAt
-        });
+        return ApiResponse<CompensationDto>.Ok(ToDto(c));
     }
 
     [HttpDelete("{id:guid}")]

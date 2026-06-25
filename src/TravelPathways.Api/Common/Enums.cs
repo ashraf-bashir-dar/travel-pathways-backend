@@ -64,7 +64,18 @@ public enum AppModuleKey
     /// <summary>View and complete admin-assigned tasks (for non-admin users).</summary>
     Tasks = 25,
     /// <summary>Master data: transport companies, fleet vehicles, and drivers.</summary>
-    TransportMaster = 26
+    TransportMaster = 26,
+    /// <summary>HR: employee lifecycle from onboarding through exit — attendance, leaves, salary, directory.</summary>
+    HR = 27
+}
+
+/// <summary>Employee lifecycle stage from onboarding through exit.</summary>
+public enum EmployeeLifecycleStatus
+{
+    Onboarding = 0,
+    Active = 1,
+    OnExit = 2,
+    Exited = 3
 }
 
 public enum SalesPackageSourceType

@@ -133,8 +133,10 @@ public sealed class VehiclesController : TenantControllerBase
         _db.Vehicles.Add(vehicle);
         await _db.SaveChangesAsync(ct);
 
-        var created = await _db.Vehicles.AsNoTracking().Include(v => v.TransportCompany).FirstAsync(v => v.Id == vehicle.Id, ct);
-        return CreatedAtAction(nameof(GetVehicleById), new { id = vehicle.Id }, ApiResponse<VehicleDto>.Ok(ToDto(created)));
+        // ApplyTimestamps() already updated CreatedAt/UpdatedAt on the tracked `vehicle` in memory,
+        // and `company` was already loaded above — no need to round-trip the DB again for the DTO.
+        vehicle.TransportCompany = company;
+        return CreatedAtAction(nameof(GetVehicleById), new { id = vehicle.Id }, ApiResponse<VehicleDto>.Ok(ToDto(vehicle)));
     }
 
     [HttpPut("{id:guid}")]
@@ -144,8 +146,9 @@ public sealed class VehiclesController : TenantControllerBase
         if (vehicle is null) return NotFound(ApiResponse<VehicleDto>.Fail("Vehicle not found"));
 
         // Allow moving vehicle to another company in same tenant
-        var companyExists = await _db.TransportCompanies.AnyAsync(c => c.Id == request.TransportCompanyId && c.TenantId == TenantId, ct);
-        if (!companyExists) return BadRequest(ApiResponse<VehicleDto>.Fail("Transport company not found"));
+        var company = await _db.TransportCompanies.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == request.TransportCompanyId && c.TenantId == TenantId, ct);
+        if (company is null) return BadRequest(ApiResponse<VehicleDto>.Fail("Transport company not found"));
 
         vehicle.TransportCompanyId = request.TransportCompanyId;
         vehicle.VehicleType = request.VehicleType;
@@ -157,8 +160,9 @@ public sealed class VehiclesController : TenantControllerBase
 
         await _db.SaveChangesAsync(ct);
 
-        var updated = await _db.Vehicles.AsNoTracking().Include(v => v.TransportCompany).FirstAsync(v => v.Id == vehicle.Id, ct);
-        return ApiResponse<VehicleDto>.Ok(ToDto(updated));
+        // `company` was already loaded above for validation; reuse it instead of re-querying.
+        vehicle.TransportCompany = company;
+        return ApiResponse<VehicleDto>.Ok(ToDto(vehicle));
     }
 
     [HttpDelete("{id:guid}")]

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using TravelPathways.Api.Common;
 using TravelPathways.Api.Data;
 using TravelPathways.Api.Data.Entities;
@@ -12,11 +13,16 @@ namespace TravelPathways.Api.Controllers;
 [Route("api/admin/plans")]
 public sealed class PlansController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private const string PlansCacheKey = "plans:all";
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(10);
 
-    public PlansController(AppDbContext db)
+    private readonly AppDbContext _db;
+    private readonly IMemoryCache _cache;
+
+    public PlansController(AppDbContext db, IMemoryCache cache)
     {
         _db = db;
+        _cache = cache;
     }
 
     public sealed class PlanDto
@@ -63,11 +69,16 @@ public sealed class PlansController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ApiResponse<List<PlanDto>>>> GetPlans(CancellationToken ct)
     {
+        if (_cache.TryGetValue(PlansCacheKey, out List<PlanDto>? cached) && cached is not null)
+            return ApiResponse<List<PlanDto>>.Ok(cached);
+
         var plans = await _db.Plans.AsNoTracking()
             .Include(p => p.Prices)
             .OrderBy(p => p.Name)
             .ToListAsync(ct);
-        return ApiResponse<List<PlanDto>>.Ok(plans.Select(ToDto).ToList());
+        var dtos = plans.Select(ToDto).ToList();
+        _cache.Set(PlansCacheKey, dtos, CacheDuration);
+        return ApiResponse<List<PlanDto>>.Ok(dtos);
     }
 
     [HttpGet("{id:guid}")]
@@ -103,6 +114,7 @@ public sealed class PlansController : ControllerBase
         }
         _db.Plans.Add(plan);
         await _db.SaveChangesAsync(ct);
+        _cache.Remove(PlansCacheKey);
 
         return CreatedAtAction(nameof(GetPlanById), new { id = plan.Id }, ApiResponse<PlanDto>.Ok(ToDto(plan)));
     }
@@ -129,6 +141,7 @@ public sealed class PlansController : ControllerBase
             });
         }
         await _db.SaveChangesAsync(ct);
+        _cache.Remove(PlansCacheKey);
 
         return ApiResponse<PlanDto>.Ok(ToDto(plan));
     }
@@ -145,6 +158,7 @@ public sealed class PlansController : ControllerBase
         plan.IsDeleted = true;
         plan.DeletedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
+        _cache.Remove(PlansCacheKey);
         return ApiResponse<object>.Ok(new { });
     }
 

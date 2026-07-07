@@ -501,6 +501,10 @@ public sealed class UserActivityController : TenantControllerBase
         var toDate = ParseQueryDateUtc(to, todayUtc);
         if (toDate < fromDate)
             (fromDate, toDate) = (toDate, fromDate);
+        // Defensive bound: an admin passing a huge/unbounded range could otherwise pull every
+        // daily-summary row ever recorded for the tenant in one response.
+        if ((toDate - fromDate).TotalDays > 366)
+            fromDate = toDate.AddDays(-366);
 
         var query = _db.UserActivityDailySummaries.AsNoTracking()
             .Include(s => s.User)
@@ -513,6 +517,7 @@ public sealed class UserActivityController : TenantControllerBase
             .OrderByDescending(s => s.ActivityDate)
             .ThenBy(s => s.User!.FirstName)
             .ThenBy(s => s.User!.LastName)
+            .Take(5000)
             .ToListAsync(ct);
 
         return ApiResponse<List<UserActivitySummaryDto>>.Ok(list.Select(ToDto).ToList());

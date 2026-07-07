@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using TravelPathways.Api.Storage;
 
 namespace TravelPathways.Api.Services;
@@ -5,6 +6,14 @@ namespace TravelPathways.Api.Services;
 /// <summary>Reads upload files from disk and embeds them as data URLs for PDF HTML (avoids Chromium network fetches).</summary>
 public sealed class PdfImageInliner
 {
+    // Registered as a singleton, so this cache lives for the process lifetime. Keyed by the
+    // resolved file path and gated on LastWriteTimeUtc, so a re-uploaded file at the same path
+    // is picked up automatically instead of serving stale bytes forever. Cleared wholesale past a
+    // generous size to bound memory instead of implementing a full LRU for what is a small,
+    // bounded (max ~2MB per entry) set of frequently-reused tenant/hotel images.
+    private const int MaxCacheEntries = 1000;
+    private readonly ConcurrentDictionary<string, (DateTime LastWriteUtc, string DataUrl)> _cache = new();
+
     private readonly UploadsPathProvider _uploadsPath;
     private readonly int _maxBytesPerImage;
 
@@ -66,6 +75,12 @@ public sealed class PdfImageInliner
                 return "";
             }
 
+            if (_cache.TryGetValue(fullPath, out var cached) && cached.LastWriteUtc == fileInfo.LastWriteTimeUtc)
+            {
+                stats?.RecordInlined();
+                return cached.DataUrl;
+            }
+
             var bytes = File.ReadAllBytes(fullPath);
             var ext = Path.GetExtension(fullPath).ToLowerInvariant();
             var mime = ext switch
@@ -76,8 +91,14 @@ public sealed class PdfImageInliner
                 ".webp" => "image/webp",
                 _ => "image/jpeg"
             };
+            var dataUrl = "data:" + mime + ";base64," + Convert.ToBase64String(bytes);
+
+            if (_cache.Count >= MaxCacheEntries)
+                _cache.Clear();
+            _cache[fullPath] = (fileInfo.LastWriteTimeUtc, dataUrl);
+
             stats?.RecordInlined();
-            return "data:" + mime + ";base64," + Convert.ToBase64String(bytes);
+            return dataUrl;
         }
         catch (Exception ex)
         {

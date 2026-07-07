@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using TravelPathways.Api.Data;
 
 namespace TravelPathways.Api.Controllers;
@@ -10,11 +11,17 @@ namespace TravelPathways.Api.Controllers;
 [Route("api/lookups")]
 public sealed class LookupsController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    // States/cities/areas are seeded once at startup and have no admin CRUD/write path anywhere in
+    // the app, so they are safe to cache for a long time with no invalidation logic required.
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(6);
 
-    public LookupsController(AppDbContext db)
+    private readonly AppDbContext _db;
+    private readonly IMemoryCache _cache;
+
+    public LookupsController(AppDbContext db, IMemoryCache cache)
     {
         _db = db;
+        _cache = cache;
     }
 
     public sealed class StateDto
@@ -41,6 +48,9 @@ public sealed class LookupsController : ControllerBase
     [HttpGet("states")]
     public async Task<ActionResult<IEnumerable<StateDto>>> GetStates(CancellationToken ct)
     {
+        if (_cache.TryGetValue("lookups:states", out List<StateDto>? cached) && cached is not null)
+            return Ok(cached);
+
         var list = await _db.States
             .AsNoTracking()
             .OrderBy(s => s.DisplayOrder)
@@ -52,6 +62,7 @@ public sealed class LookupsController : ControllerBase
                 Code = s.Code
             })
             .ToListAsync(ct);
+        _cache.Set("lookups:states", list, CacheDuration);
         return Ok(list);
     }
 
@@ -59,6 +70,10 @@ public sealed class LookupsController : ControllerBase
     [HttpGet("states/{stateId:guid}/cities")]
     public async Task<ActionResult<IEnumerable<CityDto>>> GetCitiesByState(Guid stateId, CancellationToken ct)
     {
+        var cacheKey = $"lookups:cities:{stateId:D}";
+        if (_cache.TryGetValue(cacheKey, out List<CityDto>? cached) && cached is not null)
+            return Ok(cached);
+
         var list = await _db.Cities
             .AsNoTracking()
             .Where(c => c.StateId == stateId)
@@ -70,6 +85,7 @@ public sealed class LookupsController : ControllerBase
                 StateId = c.StateId.ToString("D")
             })
             .ToListAsync(ct);
+        _cache.Set(cacheKey, list, CacheDuration);
         return Ok(list);
     }
 
@@ -77,12 +93,16 @@ public sealed class LookupsController : ControllerBase
     [HttpGet("areas")]
     public async Task<ActionResult<IEnumerable<AreaDto>>> GetAreas(CancellationToken ct)
     {
+        if (_cache.TryGetValue("lookups:areas", out List<AreaDto>? cached) && cached is not null)
+            return Ok(cached);
+
         var list = await _db.Areas
             .AsNoTracking()
             .OrderBy(a => a.DisplayOrder)
             .ThenBy(a => a.Name)
             .Select(a => new AreaDto { Id = a.Id.ToString("D"), Name = a.Name })
             .ToListAsync(ct);
+        _cache.Set("lookups:areas", list, CacheDuration);
         return Ok(list);
     }
 }

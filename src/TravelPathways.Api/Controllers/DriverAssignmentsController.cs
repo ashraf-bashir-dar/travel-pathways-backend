@@ -303,10 +303,16 @@ public sealed class DriverAssignmentsController : TenantControllerBase
 
         await _db.SaveChangesAsync(ct);
 
-        await _db.Entry(assignment).Reference(a => a.Driver).LoadAsync(ct);
-        await _db.Entry(assignment).Reference(a => a.TransportCompany).LoadAsync(ct);
-        await _db.Entry(assignment).Reference(a => a.AssignedByUser).LoadAsync(ct);
-        await _db.Entry(assignment).Reference(a => a.Package).LoadAsync(ct);
+        // Reuse data already loaded above instead of round-tripping the DB again for the DTO:
+        // `driver` (with its TransportCompany) came from ResolveDriverAsync, and `reservation.Package`
+        // was Included on the initial reservation fetch. AssignedByUser only needs a reload when its
+        // id was just set for the first time (new assignment, or first-ever assignee on an existing one) —
+        // otherwise the original `.Include(a => a.AssignedByUser)` above is already correct and unchanged.
+        assignment.Driver = driver;
+        assignment.TransportCompany = driver.TransportCompany;
+        assignment.Package = reservation.Package;
+        if (assignment.AssignedByUser is null && assignment.AssignedByUserId.HasValue)
+            await _db.Entry(assignment).Reference(a => a.AssignedByUser).LoadAsync(ct);
 
         return ApiResponse<PackageDriverAssignmentDto>.Ok(ToDto(assignment, reservation.IsLocked));
     }
@@ -323,7 +329,9 @@ public sealed class DriverAssignmentsController : TenantControllerBase
         if (string.IsNullOrWhiteSpace(request.DriverId) || !Guid.TryParse(request.DriverId, out var driverId))
             return (null, BadRequest(ApiResponse<PackageDriverAssignmentDto>.Fail("Select a driver from the list. Add new drivers under Transport → Drivers first.")));
 
-        var existing = await _db.Drivers.FirstOrDefaultAsync(d => d.Id == driverId && d.TenantId == TenantId, ct);
+        var existing = await _db.Drivers
+            .Include(d => d.TransportCompany)
+            .FirstOrDefaultAsync(d => d.Id == driverId && d.TenantId == TenantId, ct);
         if (existing is null)
             return (null, NotFound(ApiResponse<PackageDriverAssignmentDto>.Fail("Driver not found.")));
 

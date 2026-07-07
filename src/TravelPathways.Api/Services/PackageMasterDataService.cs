@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using TravelPathways.Api.Common;
 using TravelPathways.Api.Data;
@@ -20,12 +21,20 @@ public interface IPackageMasterDataService
 
 public sealed class PackageMasterDataService : IPackageMasterDataService
 {
+    // Master data is seeded once per tenant and essentially never changes afterwards, so once a
+    // tenant is known to be seeded we skip the two existence-check queries entirely instead of
+    // re-running them on every PDF generation / master-data dropdown load.
+    private static readonly ConcurrentDictionary<Guid, bool> SeededTenants = new();
+
     private readonly AppDbContext _db;
 
     public PackageMasterDataService(AppDbContext db) => _db = db;
 
     public async Task EnsureSeededAsync(Guid tenantId, CancellationToken ct = default)
     {
+        if (SeededTenants.ContainsKey(tenantId))
+            return;
+
         await PackageMasterSchemaBootstrap.EnsureAsync(_db, ct);
 
         var hasInclusions = await _db.PackageInclusionMasters
@@ -76,6 +85,8 @@ public sealed class PackageMasterDataService : IPackageMasterDataService
 
         if (_db.ChangeTracker.HasChanges())
             await _db.SaveChangesAsync(ct);
+
+        SeededTenants[tenantId] = true;
     }
 
     public async Task<IReadOnlyList<PackageInclusionMaster>> GetInclusionsAsync(Guid tenantId, CancellationToken ct = default)

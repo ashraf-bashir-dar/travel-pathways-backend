@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -1621,16 +1622,16 @@ public sealed class PackagesController : TenantControllerBase
 
         if (coverDoc is not null)
         {
-            var coverBytes = TryReadTenantDocumentPdfBytes(coverDoc.Url);
-            if (coverBytes is not null) AppendPdfBytes(PackagePdfSanitizer.StripDangerousCatalogEntries(coverBytes));
+            var coverBytes = TryReadSanitizedTenantDocumentPdfBytes(coverDoc.Url);
+            if (coverBytes is not null) AppendPdfBytes(coverBytes);
         }
 
         AppendPdfBytes(generatedPdf);
 
         foreach (var appendix in appendixDocs)
         {
-            var appendixBytes = TryReadTenantDocumentPdfBytes(appendix.Url);
-            if (appendixBytes is not null) AppendPdfBytes(PackagePdfSanitizer.StripDangerousCatalogEntries(appendixBytes));
+            var appendixBytes = TryReadSanitizedTenantDocumentPdfBytes(appendix.Url);
+            if (appendixBytes is not null) AppendPdfBytes(appendixBytes);
         }
 
         using var ms = new MemoryStream();
@@ -1658,7 +1659,12 @@ public sealed class PackagesController : TenantControllerBase
         return s + ext;
     }
 
-    private byte[]? TryReadTenantDocumentPdfBytes(string? url)
+    // Tenant cover/appendix PDFs are static branding assets re-used on every package PDF for that
+    // tenant. Caching the already-sanitized bytes (keyed by path + mtime) avoids re-reading the file
+    // and re-parsing/re-sanitizing it on every single PDF generation.
+    private static readonly ConcurrentDictionary<string, (DateTime LastWriteUtc, byte[] SanitizedBytes)> TenantDocumentPdfCache = new();
+
+    private byte[]? TryReadSanitizedTenantDocumentPdfBytes(string? url)
     {
         var fullPath = _uploadsPath.ResolvePhysicalPathFromUploadUrl(url);
         if (fullPath is null || !System.IO.File.Exists(fullPath))
@@ -1668,7 +1674,18 @@ public sealed class PackagesController : TenantControllerBase
 
         try
         {
-            return System.IO.File.ReadAllBytes(fullPath);
+            var lastWriteUtc = System.IO.File.GetLastWriteTimeUtc(fullPath);
+            if (TenantDocumentPdfCache.TryGetValue(fullPath, out var cached) && cached.LastWriteUtc == lastWriteUtc)
+                return cached.SanitizedBytes;
+
+            var bytes = System.IO.File.ReadAllBytes(fullPath);
+            var sanitized = PackagePdfSanitizer.StripDangerousCatalogEntries(bytes);
+
+            if (TenantDocumentPdfCache.Count >= 200)
+                TenantDocumentPdfCache.Clear();
+            TenantDocumentPdfCache[fullPath] = (lastWriteUtc, sanitized);
+
+            return sanitized;
         }
         catch
         {

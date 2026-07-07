@@ -237,12 +237,22 @@ public sealed class LeadIntegrationsController : TenantControllerBase
         if (DenyUnlessTenantAdmin() is { } deny) return deny;
         if (await DenyUnlessLeadIntegrationsModuleAsync(ct) is { } modDeny) return modDeny;
 
+        var userIds = request.Rules
+            .Select(r => Guid.TryParse(r.UserId, out var id) ? id : (Guid?)null)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+
+        var usersById = await _db.Users
+            .Where(u => userIds.Contains(u.Id) && u.TenantId == TenantId)
+            .ToDictionaryAsync(u => u.Id, ct);
+
         foreach (var rule in request.Rules)
         {
             if (!Guid.TryParse(rule.UserId, out var userId))
                 continue;
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId && u.TenantId == TenantId, ct);
-            if (user is null || user.Department != UserDepartment.Sales)
+            if (!usersById.TryGetValue(userId, out var user) || user.Department != UserDepartment.Sales)
                 continue;
 
             user.ParticipateInInboundAutoAssign = rule.ParticipateInInboundAutoAssign;

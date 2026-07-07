@@ -109,6 +109,7 @@ public sealed class VehiclePricingController : TenantControllerBase
             .ThenBy(p => p.Vehicle != null ? (p.Vehicle.VehicleModel ?? p.Vehicle.VehicleNumber ?? "") : "")
             .ThenBy(p => p.PickupLocation)
             .ThenBy(p => p.DropLocation)
+            .Take(2000)
             .Select(p => new VehiclePricingListDto
             {
                 Id = p.Id.ToString(),

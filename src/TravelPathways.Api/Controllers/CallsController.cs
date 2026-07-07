@@ -118,6 +118,21 @@ public sealed class CallsController : ControllerBase
         var updated = 0;
         var skipped = 0;
 
+        var providerCallIds = items
+            .Select(i => (i.ProviderCallId ?? string.Empty).Trim())
+            .Where(id => id.Length > 0)
+            .Distinct()
+            .ToList();
+
+        var existingByProviderCallId = await _db.CallLogs
+            .Where(l =>
+                l.TenantId == tenantId &&
+                l.Provider == MobileProvider &&
+                !l.IsDeleted &&
+                l.ProviderCallId != null &&
+                providerCallIds.Contains(l.ProviderCallId))
+            .ToDictionaryAsync(l => l.ProviderCallId!, ct);
+
         foreach (var item in items)
         {
             var providerCallId = (item.ProviderCallId ?? string.Empty).Trim();
@@ -134,12 +149,7 @@ public sealed class CallsController : ControllerBase
                 continue;
             }
 
-            var existing = await _db.CallLogs
-                .FirstOrDefaultAsync(l =>
-                    l.TenantId == tenantId &&
-                    l.Provider == MobileProvider &&
-                    l.ProviderCallId == providerCallId &&
-                    !l.IsDeleted, ct);
+            existingByProviderCallId.TryGetValue(providerCallId, out var existing);
 
             var rawPayload = JsonSerializer.Serialize(item);
 

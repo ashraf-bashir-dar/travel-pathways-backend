@@ -224,6 +224,7 @@ public sealed class LeavesController : TenantControllerBase
         var list = await query
             .Include(l => l.User)
             .OrderByDescending(l => l.CreatedAt)
+            .Take(2000)
             .ToListAsync(ct);
         return ApiResponse<List<LeaveDto>>.Ok(list.Select(ToDto).ToList());
     }

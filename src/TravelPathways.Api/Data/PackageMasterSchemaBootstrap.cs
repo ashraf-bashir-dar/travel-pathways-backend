@@ -46,22 +46,26 @@ internal static class PackageMasterSchemaBootstrap
 
     public static async Task EnsureAsync(AppDbContext db, CancellationToken ct = default)
     {
-        try
-        {
-            await db.Database.ExecuteSqlRawAsync(
-                """ALTER TABLE "PackageInclusionMasters" ADD COLUMN IF NOT EXISTS "IsInclusion" boolean NOT NULL DEFAULT true;""",
-                ct);
-        }
-        catch
-        {
-            // Table may not exist yet; CREATE below will add the column for new installs.
-        }
-
+        // Gate the whole schema check (including the column backfill below) behind the
+        // one-time flag. Previously the ALTER TABLE ran on every call regardless of this
+        // flag, issuing a DDL statement (which takes a table lock in Postgres even when the
+        // column already exists) on every PDF generation / master-data read.
         if (Interlocked.CompareExchange(ref _ensured, 1, 0) == 1)
             return;
 
         try
         {
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync(
+                    """ALTER TABLE "PackageInclusionMasters" ADD COLUMN IF NOT EXISTS "IsInclusion" boolean NOT NULL DEFAULT true;""",
+                    ct);
+            }
+            catch
+            {
+                // Table may not exist yet; CREATE below will add the column for new installs.
+            }
+
             await db.Database.ExecuteSqlRawAsync(Sql, ct);
         }
         catch

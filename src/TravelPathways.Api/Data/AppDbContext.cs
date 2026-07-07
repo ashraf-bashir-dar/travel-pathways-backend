@@ -895,6 +895,70 @@ public sealed class AppDbContext : DbContext
 
         // ---------- Multi-tenancy and soft-delete query filters ----------
         ConfigureTenantFilters(modelBuilder);
+
+        // ---------- Indexes for tenant-scoped tables that were missing one ----------
+        // Every entity below carries a global TenantId query filter, so without an index on
+        // TenantId (or TenantId + the next most common filter column) these queries force a
+        // full table scan that grows with total rows across ALL tenants, not just the current one.
+        ConfigureMissingTenantIndexes(modelBuilder);
+    }
+
+    private void ConfigureMissingTenantIndexes(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Reservation>()
+            .HasIndex(r => new { r.TenantId, r.CreatedAt })
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<Payment>()
+            .HasIndex(p => new { p.TenantId, p.CreatedAt })
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<TransportCompany>()
+            .HasIndex(c => c.TenantId)
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<ItineraryTemplate>()
+            .HasIndex(t => t.TenantId)
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<Hotel>()
+            .HasIndex(h => h.TenantId)
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<AccommodationRate>()
+            .HasIndex(r => r.TenantId)
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<Vehicle>()
+            .HasIndex(v => v.TenantId)
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<VehiclePricing>()
+            .HasIndex(p => p.TenantId)
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<PackageDriverAssignment>()
+            .HasIndex(a => a.TenantId)
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<DayItinerary>()
+            .HasIndex(d => d.TenantId)
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<EmployeeDailyTask>()
+            .HasIndex(t => new { t.TenantId, t.UserId })
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<EmployeeCompensation>()
+            .HasIndex(c => new { c.TenantId, c.UserId })
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<Leave>()
+            .HasIndex(l => new { l.TenantId, l.UserId })
+            .HasFilter("\"IsDeleted\" = false");
+
+        modelBuilder.Entity<PackageLog>()
+            .HasIndex(l => new { l.TenantId, l.CreatedAt });
     }
 
     private void ConfigureTenantFilters(ModelBuilder modelBuilder)

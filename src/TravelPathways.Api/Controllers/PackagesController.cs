@@ -37,6 +37,8 @@ public sealed class PackagesController : TenantControllerBase
     private readonly IConfiguration _configuration;
     private readonly IWebHostEnvironment _env;
     private readonly UploadsPathProvider _uploadsPath;
+    private readonly PdfImageInliner _pdfImageInliner;
+    private readonly ILogger<PackagesController> _logger;
 
     public PackagesController(
         AppDbContext db,
@@ -46,7 +48,9 @@ public sealed class PackagesController : TenantControllerBase
         IPackageMasterDataService packageMasterData,
         IConfiguration configuration,
         IWebHostEnvironment env,
-        UploadsPathProvider uploadsPath) : base(tenant)
+        UploadsPathProvider uploadsPath,
+        PdfImageInliner pdfImageInliner,
+        ILogger<PackagesController> logger) : base(tenant)
     {
         _db = db;
         _pdfGenerator = pdfGenerator;
@@ -55,6 +59,8 @@ public sealed class PackagesController : TenantControllerBase
         _configuration = configuration;
         _env = env;
         _uploadsPath = uploadsPath;
+        _pdfImageInliner = pdfImageInliner;
+        _logger = logger;
     }
 
     private static int DaysInclusive(DateTime start, DateTime end)
@@ -65,20 +71,33 @@ public sealed class PackagesController : TenantControllerBase
         return Math.Max(1, days);
     }
 
-    /// <summary>Returns (current user email for CreatedBy match, can see all packages in tenant). Only Admin/SuperAdmin sees all.</summary>
-    private (string? CurrentUserEmail, bool CanSeeAllPackages) GetCurrentUserPackageScope()
+    /// <summary>Returns (current user email for CreatedBy match, can see all packages in tenant).</summary>
+    private async Task<(string? CurrentUserEmail, bool CanSeeAllPackages)> GetCurrentUserPackageScopeAsync(CancellationToken ct)
     {
-        if (IsTenantAdmin())
+        var user = await TenantUserPermissions.LoadCurrentUserAsync(_db, TenantId, User, ct);
+        if (user is null)
+        {
+            var email = User.FindFirstValue(ClaimTypes.Email);
+            return (string.IsNullOrWhiteSpace(email) ? null : email.Trim(), false);
+        }
+
+        if (ModulePermissionResolver.CanSeeAllPackages(user))
             return (null, true);
 
-        var email = User.FindFirstValue(ClaimTypes.Email);
-        return (string.IsNullOrWhiteSpace(email) ? null : email.Trim(), false);
+        var userEmail = User.FindFirstValue(ClaimTypes.Email);
+        return (string.IsNullOrWhiteSpace(userEmail) ? null : userEmail.Trim(), false);
     }
 
     private Guid? GetCurrentUserId()
     {
         var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(claim, out var id) ? id : null;
+    }
+
+    private async Task<ActionResult?> DenyUnlessPackageActionAsync(ModuleAction action, CancellationToken ct)
+    {
+        var user = await TenantUserPermissions.LoadCurrentUserAsync(_db, TenantId, User, ct);
+        return TenantUserPermissions.DenyUnless(user, AppModuleKey.Packages, action);
     }
 
     /// <summary>Packages the user created or packages for leads assigned to them (sales, reservation, tour manager).</summary>
@@ -243,7 +262,7 @@ public sealed class PackagesController : TenantControllerBase
         pageNumber = Math.Max(1, pageNumber);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+        var (currentUserEmail, canSeeAllPackages) = await GetCurrentUserPackageScopeAsync(ct);
         var userId = GetCurrentUserId();
 
         var query = ApplyPackageOwnershipFilter(
@@ -375,7 +394,7 @@ public sealed class PackagesController : TenantControllerBase
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<ApiResponse<PackageDto>>> GetPackageById([FromRoute] Guid id, CancellationToken ct)
     {
-        var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+        var (currentUserEmail, canSeeAllPackages) = await GetCurrentUserPackageScopeAsync(ct);
 
         var pkg = await _db.Packages.AsNoTracking()
             .Include(p => p.DayWiseItinerary)
@@ -412,7 +431,7 @@ public sealed class PackagesController : TenantControllerBase
     [HttpGet("by-lead/{leadId:guid}")]
     public async Task<ActionResult<ApiResponse<List<PackageDto>>>> GetByLead([FromRoute] Guid leadId, CancellationToken ct)
     {
-        var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+        var (currentUserEmail, canSeeAllPackages) = await GetCurrentUserPackageScopeAsync(ct);
         var userId = GetCurrentUserId();
 
         var query = ApplyPackageOwnershipFilter(
@@ -455,7 +474,9 @@ public sealed class PackagesController : TenantControllerBase
             .FirstOrDefaultAsync(l => l.Id == leadId && l.TenantId == TenantId && !l.IsDeleted, ct);
         if (lead is null) return false;
 
-        if (IsTenantAdmin()) return true;
+        var user = await TenantUserPermissions.LoadCurrentUserAsync(_db, TenantId, User, ct);
+        if (user is not null && ModulePermissionResolver.CanSeeAllLeads(user))
+            return true;
 
         var userId = GetCurrentUserId();
         return userId.HasValue && lead.AssignedToUserId == userId.Value;
@@ -654,7 +675,7 @@ public sealed class PackagesController : TenantControllerBase
     [ProducesResponseType(500)]
     public async Task<IActionResult> GetPackagePdf([FromRoute] Guid id, [FromQuery] string? lang, CancellationToken ct)
     {
-        var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+        var (currentUserEmail, canSeeAllPackages) = await GetCurrentUserPackageScopeAsync(ct);
 
         var pkg = await _db.Packages.AsNoTracking()
             .Include(p => p.Vehicle)
@@ -708,9 +729,10 @@ public sealed class PackagesController : TenantControllerBase
 
         try
         {
-            var pdfBytes = await GeneratePackagePdfWithTenantAssetsAsync(pkg, tenant, lang, ct);
+            var (pdfBytes, timing) = await GeneratePackagePdfWithTenantAssetsAsync(pkg, tenant, lang, ct);
             var filename = ToSafeAsciiDownloadFileName(BuildPdfFilename(pkg));
             Response.Headers.Append("X-Content-Type-Options", "nosniff");
+            timing.AppendResponseHeaders(Response);
             return File(pdfBytes, "application/pdf", filename);
         }
         catch (PdfTemplateConfigurationException ex)
@@ -731,7 +753,7 @@ public sealed class PackagesController : TenantControllerBase
     [ProducesResponseType(500)]
     public async Task<IActionResult> PreviewPackagePdf([FromRoute] Guid id, [FromQuery] string? lang, CancellationToken ct)
     {
-        var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+        var (currentUserEmail, canSeeAllPackages) = await GetCurrentUserPackageScopeAsync(ct);
 
         var pkg = await _db.Packages.AsNoTracking()
             .Include(p => p.Vehicle)
@@ -756,9 +778,10 @@ public sealed class PackagesController : TenantControllerBase
 
         try
         {
-            var pdfBytes = await GeneratePackagePdfWithTenantAssetsAsync(pkg, tenant, lang, ct);
+            var (pdfBytes, timing) = await GeneratePackagePdfWithTenantAssetsAsync(pkg, tenant, lang, ct);
             var filename = ToSafeAsciiDownloadFileName(BuildPdfFilename(pkg));
             Response.Headers.Append("X-Content-Type-Options", "nosniff");
+            timing.AppendResponseHeaders(Response);
             Response.Headers.ContentDisposition = $"inline; filename=\"{filename}\"";
             return File(pdfBytes, "application/pdf");
         }
@@ -776,6 +799,9 @@ public sealed class PackagesController : TenantControllerBase
     [HttpPost]
     public async Task<ActionResult<ApiResponse<PackageDto>>> CreatePackage([FromBody] CreatePackageRequestDto request, CancellationToken ct)
     {
+        var permCheck = await DenyUnlessPackageActionAsync(ModuleAction.Create, ct);
+        if (permCheck != null) return permCheck;
+
         var createdBy = User.FindFirstValue(ClaimTypes.Email) ?? User.Identity?.Name ?? "system";
 
         // Validate referenced entities in same tenant
@@ -871,7 +897,10 @@ public sealed class PackagesController : TenantControllerBase
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<PackageDto>>> UpdatePackage([FromRoute] Guid id, [FromBody] UpdatePackageRequestDto request, CancellationToken ct)
     {
-        var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+        var permCheck = await DenyUnlessPackageActionAsync(ModuleAction.Edit, ct);
+        if (permCheck != null) return permCheck;
+
+        var (currentUserEmail, canSeeAllPackages) = await GetCurrentUserPackageScopeAsync(ct);
 
         var pkg = await _db.Packages.Include(p => p.DayWiseItinerary).FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
         if (pkg is null) return NotFound(ApiResponse<PackageDto>.Fail("Package not found"));
@@ -1045,10 +1074,12 @@ public sealed class PackagesController : TenantControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeletePackage([FromRoute] Guid id, CancellationToken ct)
     {
-        var (currentUserEmail, canSeeAllPackages) = GetCurrentUserPackageScope();
+        var permCheck = await DenyUnlessPackageActionAsync(ModuleAction.Delete, ct);
+        if (permCheck != null) return permCheck;
+
+        var (currentUserEmail, canSeeAllPackages) = await GetCurrentUserPackageScopeAsync(ct);
 
         var pkg = await _db.Packages.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
         if (pkg is null) return NotFound(ApiResponse<object>.Fail("Package not found"));
@@ -1313,7 +1344,7 @@ public sealed class PackagesController : TenantControllerBase
             QrCodes = (tenant?.QrCodes ?? [])
                 .OrderBy(q => q.DisplayOrder)
                 .ThenBy(q => q.CreatedAt)
-                .Select(q => new QrCodeItem { Label = q.Label, ImageUrl = q.ImageUrl }).ToList(),
+                .Select(q => new QrCodeItem { Label = q.Label, ImageUrl = ToAbsolute(q.ImageUrl) }).ToList(),
             PrimaryColor = tenant?.PdfPrimaryColor?.Trim(),
             SecondaryColor = tenant?.PdfSecondaryColor?.Trim(),
             CoverTitle = tenant?.PdfCoverTitle?.Trim(),
@@ -1327,33 +1358,24 @@ public sealed class PackagesController : TenantControllerBase
     }
 
     /// <summary>Resolve image URLs to data URLs by reading from disk so Chromium doesn't fetch over network (faster PDF).</summary>
-    private PackagePdfModel InlinePdfImagesFromDisk(PackagePdfModel model)
+    private (PackagePdfModel Model, PackagePdfInlineStats Stats) InlinePdfImagesFromDisk(PackagePdfModel model)
     {
-        var uploadsRoot = _uploadsPath.UploadsRoot;
-        if (!Directory.Exists(uploadsRoot)) return model;
+        var inlineStats = new PackagePdfInlineStats();
+        if (!Directory.Exists(_uploadsPath.UploadsRoot))
+        {
+            _logger.LogWarning(
+                "PDF image inlining skipped: uploads root does not exist ({UploadsRoot}). Images may be missing from PDF.",
+                _uploadsPath.UploadsRoot);
+            return (model, inlineStats);
+        }
 
         var maxImagesPerHotel = 2;
         var maxConfig = _configuration["PdfGenerator:MaxImagesPerHotel"]?.Trim() ?? _configuration["PdfGenerator__MaxImagesPerHotel"]?.Trim();
         if (!string.IsNullOrEmpty(maxConfig) && int.TryParse(maxConfig, out var n) && n >= 0)
             maxImagesPerHotel = Math.Min(n, 4);
 
-        string? ToDataUrl(string? url)
-        {
-            if (string.IsNullOrWhiteSpace(url)) return null;
-            var path = url.Trim();
-            if (path.StartsWith("data:", StringComparison.OrdinalIgnoreCase)) return path;
-            if (!path.Contains("/uploads/", StringComparison.OrdinalIgnoreCase)) return path;
-            var fullPath = _uploadsPath.ResolvePhysicalPathFromUploadUrl(path);
-            if (fullPath is null || !System.IO.File.Exists(fullPath)) return path;
-            try
-            {
-                var bytes = System.IO.File.ReadAllBytes(fullPath);
-                var ext = Path.GetExtension(fullPath).ToLowerInvariant();
-                var mime = ext switch { ".jpg" or ".jpeg" => "image/jpeg", ".png" => "image/png", ".gif" => "image/gif", ".webp" => "image/webp", _ => "image/jpeg" };
-                return "data:" + mime + ";base64," + Convert.ToBase64String(bytes);
-            }
-            catch { return path; }
-        }
+        string? ToDataUrl(string? url) =>
+            _pdfImageInliner.ToDataUrlOrEmpty(url, inlineStats, msg => _logger.LogWarning("Package PDF: {Message}", msg));
 
         var inlinedHotels = model.Hotels.Select(h => new HotelItem
         {
@@ -1376,7 +1398,7 @@ public sealed class PackagesController : TenantControllerBase
             DateLabel = d.DateLabel,
             HotelName = d.HotelName,
             HotelLocation = d.HotelLocation,
-            DayImageUrl = ToDataUrl(d.DayImageUrl) ?? d.DayImageUrl,
+            DayImageUrl = ToDataUrl(d.DayImageUrl),
             Title = d.Title,
             TemplateTitle = d.TemplateTitle,
             Description = d.Description,
@@ -1384,7 +1406,7 @@ public sealed class PackagesController : TenantControllerBase
             CnbCount = d.CnbCount
         }).ToList();
 
-        return new PackagePdfModel
+        var inlined = new PackagePdfModel
         {
             Labels = model.Labels,
             PackageName = model.PackageName,
@@ -1421,7 +1443,7 @@ public sealed class PackagesController : TenantControllerBase
             AgencyName = model.AgencyName,
             AgencyPhone = model.AgencyPhone,
             AgencyEmail = model.AgencyEmail,
-            AgencyLogoUrl = ToDataUrl(model.AgencyLogoUrl) ?? model.AgencyLogoUrl,
+            AgencyLogoUrl = ToDataUrl(model.AgencyLogoUrl),
             ManagingDirectorName = model.ManagingDirectorName,
             SalesHeadName = model.SalesHeadName,
             RegisteredOfficeAddressHtml = model.RegisteredOfficeAddressHtml,
@@ -1432,7 +1454,7 @@ public sealed class PackagesController : TenantControllerBase
             QrCodes = (model.QrCodes ?? []).Select(q => new QrCodeItem
             {
                 Label = q.Label,
-                ImageUrl = ToDataUrl(q.ImageUrl) ?? q.ImageUrl
+                ImageUrl = ToDataUrl(q.ImageUrl)
             }).ToList(),
             PrimaryColor = model.PrimaryColor,
             SecondaryColor = model.SecondaryColor,
@@ -1445,10 +1467,17 @@ public sealed class PackagesController : TenantControllerBase
             CancellationPolicy = model.CancellationPolicy,
             SupplementCosts = model.SupplementCosts
         };
+        return (inlined, inlineStats);
     }
 
-    private async Task<byte[]> GeneratePackagePdfWithTenantAssetsAsync(TourPackage pkg, Tenant? tenant, string? language, CancellationToken ct)
+    private async Task<(byte[] Pdf, PackagePdfTiming Timing)> GeneratePackagePdfWithTenantAssetsAsync(TourPackage pkg, Tenant? tenant, string? language, CancellationToken ct)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var timing = new PackagePdfTiming { UploadsRoot = _uploadsPath.UploadsRoot };
+        _logger.LogInformation(
+            "Package PDF generation started for package {PackageId} (tenant {TenantId}, uploads root {UploadsRoot})",
+            pkg.Id, pkg.TenantId, _uploadsPath.UploadsRoot);
+
         // Use configured base URL so PDF images load in production; Request.Scheme/Host can be wrong behind a proxy.
         var baseUrl = _configuration["Api:BaseUrl"]?.Trim()
             ?? _configuration["Api__BaseUrl"]?.Trim()
@@ -1466,6 +1495,7 @@ public sealed class PackagesController : TenantControllerBase
             ct);
 
         var model = BuildPdfModel(pkg, tenant, baseUrl, language, inclusionLabels.ToList(), exclusionLabels.ToList());
+        timing.DataLoadMs = sw.ElapsedMilliseconds;
         var templateKey = model.TemplateKey?.Trim();
         if (string.IsNullOrWhiteSpace(templateKey))
             throw new PdfTemplateConfigurationException(
@@ -1538,10 +1568,28 @@ public sealed class PackagesController : TenantControllerBase
             CancellationPolicy = model.CancellationPolicy,
             SupplementCosts = model.SupplementCosts
         };
-        model = InlinePdfImagesFromDisk(model);
-        var generatedPdf = await _pdfGenerator.GenerateAsync(model, ct);
-        generatedPdf = PackagePdfSanitizer.StripDangerousCatalogEntries(generatedPdf);
-        return MergePdfWithTenantAssets(generatedPdf, tenant);
+        var inlineSw = System.Diagnostics.Stopwatch.StartNew();
+        (model, var inlineStats) = InlinePdfImagesFromDisk(model);
+        timing.ImageInlineMs = inlineSw.ElapsedMilliseconds;
+        timing.ImagesInlined = inlineStats.Inlined;
+        timing.ImagesSkipped = inlineStats.Skipped;
+        timing.ImageSkipReasons.AddRange(inlineStats.SkipReasons);
+        _logger.LogInformation("Package PDF images inlined in {ElapsedMs}ms", timing.ImageInlineMs);
+
+        var generated = await _pdfGenerator.GenerateAsync(model, ct);
+        timing.HtmlBuildMs = generated.HtmlBuildMs;
+        timing.ChromiumMs = generated.ChromiumRenderMs;
+        timing.HtmlChars = generated.HtmlLength;
+        _logger.LogInformation("Package PDF Chromium step finished in {ElapsedMs}ms", sw.ElapsedMilliseconds);
+
+        var sanitized = PackagePdfSanitizer.StripDangerousCatalogEntries(generated.PdfBytes);
+        var mergeSw = System.Diagnostics.Stopwatch.StartNew();
+        var merged = MergePdfWithTenantAssets(sanitized, tenant);
+        timing.MergeMs = mergeSw.ElapsedMilliseconds;
+        timing.PdfBytes = merged.Length;
+        timing.TotalMs = sw.ElapsedMilliseconds;
+        _logger.LogInformation("Package PDF generation completed in {ElapsedMs}ms ({PdfBytes} bytes)", timing.TotalMs, timing.PdfBytes);
+        return (merged, timing);
     }
 
     private byte[] MergePdfWithTenantAssets(byte[] generatedPdf, Tenant? tenant)

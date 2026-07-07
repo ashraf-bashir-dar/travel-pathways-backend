@@ -100,7 +100,7 @@ builder.Services.AddCors(options =>
           .AllowAnyHeader()
           .AllowAnyMethod()
           .AllowCredentials()
-          .WithExposedHeaders("Content-Disposition"); // so frontend can read PDF download filename
+          .WithExposedHeaders("Content-Disposition", "X-Pdf-Timing"); // PDF filename + server-side generation timings
     });
 });
 
@@ -111,6 +111,7 @@ builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<RequireTenantActionFilter>();
 builder.Services.AddScoped<TenantMiddleware>();
 builder.Services.AddSingleton<UploadsPathProvider>();
+builder.Services.AddSingleton<TravelPathways.Api.Services.PdfImageInliner>();
 builder.Services.AddScoped<FileStorage>();
 builder.Services.AddScoped<TravelPathways.Api.Services.IPdfTemplateHtmlCache, TravelPathways.Api.Services.PdfTemplateHtmlCache>();
 builder.Services.AddSingleton<TravelPathways.Api.Services.IChromiumBrowserProvider, TravelPathways.Api.Services.ChromiumBrowserProvider>();
@@ -291,6 +292,8 @@ using (var scope = app.Services.CreateScope())
             "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"ShiftEndTime\" time without time zone;");
         await db.Database.ExecuteSqlRawAsync(
             "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"LifecycleStatus\" text;");
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"ModulePermissions\" text NOT NULL DEFAULT '[]';");
         await db.Database.ExecuteSqlRawAsync(
             """
             CREATE TABLE IF NOT EXISTS "EmployeeSalary" (

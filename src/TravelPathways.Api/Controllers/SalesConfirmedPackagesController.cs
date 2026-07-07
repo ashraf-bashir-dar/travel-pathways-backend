@@ -23,6 +23,21 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         _db = db;
     }
 
+    private async Task<AppUser?> GetCurrentAppUserAsync(CancellationToken ct) =>
+        await TenantUserPermissions.LoadCurrentUserAsync(_db, TenantId, User, ct);
+
+    private async Task<bool> CanSeeAllSalesAsync(CancellationToken ct)
+    {
+        var user = await GetCurrentAppUserAsync(ct);
+        return user is not null && ModulePermissionResolver.CanSeeAllSales(user);
+    }
+
+    private async Task<ActionResult?> DenyUnlessSalesActionAsync(ModuleAction action, CancellationToken ct)
+    {
+        var user = await GetCurrentAppUserAsync(ct);
+        return TenantUserPermissions.DenyUnless(user, AppModuleKey.Sales, action);
+    }
+
     public sealed class SalesConfirmedPackageDto
     {
         public required string Id { get; init; }
@@ -108,7 +123,7 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         var query = _db.SalesConfirmedPackages.AsNoTracking()
             .Where(p => p.TenantId == TenantId);
 
-        if (IsTenantAdmin())
+        if (await CanSeeAllSalesAsync(ct))
         {
             if (recordedByUserId.HasValue)
                 query = query.Where(p => p.RecordedByUserId == recordedByUserId.Value);
@@ -172,7 +187,7 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         }
 
         var total = await query.CountAsync(ct);
-        var includeProfitDetails = IsTenantAdmin();
+        var includeProfitDetails = await CanSeeAllSalesAsync(ct);
         var totalExpectedProfit = includeProfitDetails && total > 0
             ? await query.SumAsync(p => p.ExpectedProfit, ct)
             : 0m;
@@ -239,7 +254,7 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         var denied = await EnsureSalesModuleAsync(ct);
         if (denied != null) return denied;
 
-        if (!IsTenantAdmin())
+        if (!await CanSeeAllSalesAsync(ct))
             return Forbid();
 
         var query = _db.SalesConfirmedPackages.AsNoTracking()
@@ -338,7 +353,7 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
                 query = query.Where(p => p.ArrivalDate <= to);
         }
 
-        if (IsTenantAdmin())
+        if (await CanSeeAllSalesAsync(ct))
         {
             if (recordedByUserId.HasValue)
                 query = query.Where(p => p.RecordedByUserId == recordedByUserId.Value);
@@ -353,7 +368,7 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         }
 
         var total = await query.CountAsync(ct);
-        var includeProfitDetails = IsTenantAdmin();
+        var includeProfitDetails = await CanSeeAllSalesAsync(ct);
         var totalExpectedProfit = includeProfitDetails && total > 0
             ? await query.SumAsync(p => p.ExpectedProfit, ct)
             : 0m;
@@ -390,7 +405,7 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         var denied = await EnsureSalesModuleAsync(ct);
         if (denied != null) return denied;
 
-        if (!IsTenantAdmin())
+        if (!await CanSeeAllSalesAsync(ct))
             return Forbid();
 
         var packages = await _db.SalesConfirmedPackages.AsNoTracking()
@@ -441,11 +456,11 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         if (row == null)
             return NotFound(ApiResponse<SalesConfirmedPackageDto>.Fail("Record not found."));
 
-        if (!CanView(row))
+        if (!await CanViewAsync(row, ct))
             return NotFound(ApiResponse<SalesConfirmedPackageDto>.Fail("Record not found."));
 
         return ApiResponse<SalesConfirmedPackageDto>.Ok(
-            (await ToDtosAsync([row], IsTenantAdmin(), ct)).Single());
+            (await ToDtosAsync([row], await CanSeeAllSalesAsync(ct), ct)).Single());
     }
 
     [HttpPost]
@@ -456,6 +471,9 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         var denied = await EnsureSalesModuleAsync(ct);
         if (denied != null) return denied;
 
+        var actionDenied = await DenyUnlessSalesActionAsync(ModuleAction.Create, ct);
+        if (actionDenied != null) return actionDenied;
+
         var userId = GetCurrentUserId();
         if (!userId.HasValue)
             return BadRequest(ApiResponse<SalesConfirmedPackageDto>.Fail("User context is missing."));
@@ -464,7 +482,7 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         if (!valid)
             return BadRequest(ApiResponse<SalesConfirmedPackageDto>.Fail(error!));
 
-        var (expectedProfit, actualProfit) = ResolveProfitFieldsForSave(dto, existing: null);
+        var (expectedProfit, actualProfit) = await ResolveProfitFieldsForSaveAsync(dto, existing: null, ct);
         var (tourPackageId, totalPackageCost) = await ResolvePackageCostForLeadAsync(
             dto.LeadId!.Value,
             dto.TourPackageId,
@@ -503,7 +521,7 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
 
         await LoadNavigationsAsync(entity, ct);
         return ApiResponse<SalesConfirmedPackageDto>.Ok(
-            (await ToDtosAsync([entity], IsTenantAdmin(), ct)).Single());
+            (await ToDtosAsync([entity], await CanSeeAllSalesAsync(ct), ct)).Single());
     }
 
     [HttpPut("{id:guid}")]
@@ -515,20 +533,23 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         var denied = await EnsureSalesModuleAsync(ct);
         if (denied != null) return denied;
 
+        var actionDenied = await DenyUnlessSalesActionAsync(ModuleAction.Edit, ct);
+        if (actionDenied != null) return actionDenied;
+
         var entity = await _db.SalesConfirmedPackages
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
 
         if (entity == null)
             return NotFound(ApiResponse<SalesConfirmedPackageDto>.Fail("Record not found."));
 
-        if (!CanModify(entity))
+        if (!await CanModifyAsync(entity, ct))
             return Forbid();
 
         var (valid, error) = await ValidateDtoAsync(dto, ct, excludePackageId: id, existingPackageLeadId: entity.LeadId);
         if (!valid)
             return BadRequest(ApiResponse<SalesConfirmedPackageDto>.Fail(error!));
 
-        var (expectedProfit, actualProfit) = ResolveProfitFieldsForSave(dto, existing: entity);
+        var (expectedProfit, actualProfit) = await ResolveProfitFieldsForSaveAsync(dto, existing: entity, ct);
 
         entity.ClientName = dto.ClientName.Trim();
         entity.ClientPhone = dto.ClientPhone.Trim();
@@ -546,13 +567,13 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
             ? TrimOrNull(dto.ReferenceContact)
             : null;
         entity.ReferenceSourceType = null;
-        ApplyCompletionFieldsForSave(entity, dto);
+        await ApplyCompletionFieldsForSaveAsync(entity, dto, ct);
         entity.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
         await LoadNavigationsAsync(entity, ct);
         return ApiResponse<SalesConfirmedPackageDto>.Ok(
-            (await ToDtosAsync([entity], IsTenantAdmin(), ct)).Single());
+            (await ToDtosAsync([entity], await CanSeeAllSalesAsync(ct), ct)).Single());
     }
 
     [HttpDelete("{id:guid}")]
@@ -561,13 +582,16 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         var denied = await EnsureSalesModuleAsync(ct);
         if (denied != null) return denied;
 
+        var actionDenied = await DenyUnlessSalesActionAsync(ModuleAction.Delete, ct);
+        if (actionDenied != null) return actionDenied;
+
         var entity = await _db.SalesConfirmedPackages
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
 
         if (entity == null)
             return NotFound(ApiResponse<object>.Fail("Record not found."));
 
-        if (!CanModify(entity))
+        if (!await CanModifyAsync(entity, ct))
             return Forbid();
 
         entity.IsDeleted = true;
@@ -578,11 +602,12 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         return ApiResponse<object>.Ok(new { });
     }
 
-    private bool CanModify(SalesConfirmedPackage entity) => CanView(entity);
+    private Task<bool> CanModifyAsync(SalesConfirmedPackage entity, CancellationToken ct) =>
+        CanViewAsync(entity, ct);
 
-    private bool CanView(SalesConfirmedPackage entity)
+    private async Task<bool> CanViewAsync(SalesConfirmedPackage entity, CancellationToken ct)
     {
-        if (IsTenantAdmin()) return true;
+        if (await CanSeeAllSalesAsync(ct)) return true;
         var userId = GetCurrentUserId();
         if (!userId.HasValue || entity.RecordedByUserId != userId.Value)
             return false;
@@ -685,7 +710,7 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         if (dto.ActualProfit is { } actual && actual < 0)
             return (false, "Actual profit cannot be negative.");
 
-        if (!IsTenantAdmin() && dto.ActualProfit is not null)
+        if (!await CanSeeAllSalesAsync(ct) && dto.ActualProfit is not null)
             return (false, "Only an administrator can set actual profit.");
 
         if (!dto.LeadId.HasValue)
@@ -701,7 +726,7 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         if (leadInfo.Status != LeadStatus.Confirmed)
             return (false, "Only confirmed leads can be added to confirmed packages.");
 
-        if (!IsTenantAdmin())
+        if (!await CanSeeAllSalesAsync(ct))
         {
             var userId = GetCurrentUserId();
             if (!userId.HasValue)
@@ -739,7 +764,7 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
             return (false, "Invalid source type.");
         }
 
-        if (IsTenantAdmin() && dto.IsCompleted == true && string.IsNullOrWhiteSpace(dto.FinalReview))
+        if (await CanSeeAllSalesAsync(ct) && dto.IsCompleted == true && string.IsNullOrWhiteSpace(dto.FinalReview))
             return (false, "Final review is required when marking a package as completed.");
 
         return (true, null);
@@ -754,11 +779,12 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
         await _db.Entry(entity).Reference(p => p.RecordedBy).LoadAsync(ct);
     }
 
-    private (decimal ExpectedProfit, decimal? ActualProfit) ResolveProfitFieldsForSave(
+    private async Task<(decimal ExpectedProfit, decimal? ActualProfit)> ResolveProfitFieldsForSaveAsync(
         SaveSalesConfirmedPackageDto dto,
-        SalesConfirmedPackage? existing)
+        SalesConfirmedPackage? existing,
+        CancellationToken ct)
     {
-        if (!IsTenantAdmin())
+        if (!await CanSeeAllSalesAsync(ct))
         {
             if (existing is null)
                 return (dto.ExpectedProfit, null);
@@ -785,9 +811,12 @@ public sealed class SalesConfirmedPackagesController : TenantControllerBase
             : (dto.ExpectedProfit, null);
     }
 
-    private void ApplyCompletionFieldsForSave(SalesConfirmedPackage entity, SaveSalesConfirmedPackageDto dto)
+    private async Task ApplyCompletionFieldsForSaveAsync(
+        SalesConfirmedPackage entity,
+        SaveSalesConfirmedPackageDto dto,
+        CancellationToken ct)
     {
-        if (!IsTenantAdmin() || !dto.IsCompleted.HasValue)
+        if (!await CanSeeAllSalesAsync(ct) || !dto.IsCompleted.HasValue)
             return;
 
         if (dto.IsCompleted.Value)

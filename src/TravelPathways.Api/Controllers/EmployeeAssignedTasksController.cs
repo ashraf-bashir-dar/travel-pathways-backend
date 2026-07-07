@@ -81,6 +81,72 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
         public string? AssigneeNotes { get; set; }
     }
 
+    private async Task<AppUser?> GetCurrentAppUserAsync(CancellationToken ct) =>
+        await TenantUserPermissions.LoadCurrentUserAsync(_db, TenantId, User, ct);
+
+    private async Task<bool> CanUseEmployeeTaskManagementAsync(CancellationToken ct)
+    {
+        if (await EnsureEmployeeModuleAsync(ct) is not null)
+            return false;
+
+        var user = await GetCurrentAppUserAsync(ct);
+        if (user is null || !UserModulePolicy.IsAdminRole(user.Role))
+            return false;
+
+        return ModulePermissionResolver.Can(user, AppModuleKey.EmployeeManagement, ModuleAction.View)
+               || ModulePermissionResolver.Can(user, AppModuleKey.HR, ModuleAction.View);
+    }
+
+    private async Task<bool> CanSeeAllTasksAsync(CancellationToken ct)
+    {
+        var user = await GetCurrentAppUserAsync(ct);
+        if (user is not null && ModulePermissionResolver.CanSeeAllTasks(user))
+            return true;
+
+        return await CanUseEmployeeTaskManagementAsync(ct);
+    }
+
+    private async Task<ActionResult?> DenyUnlessTaskWriteActionAsync(ModuleAction action, CancellationToken ct)
+    {
+        if (await CanUseEmployeeTaskManagementAsync(ct))
+        {
+            var user = await GetCurrentAppUserAsync(ct);
+            if (user is null)
+                return StatusCode(403, ApiResponse<object>.Fail("User context is missing."));
+
+            if (ModulePermissionResolver.Can(user, AppModuleKey.EmployeeManagement, action))
+                return null;
+            if (ModulePermissionResolver.Can(user, AppModuleKey.HR, action))
+                return null;
+
+            return TenantUserPermissions.DenyUnless(user, AppModuleKey.EmployeeManagement, action);
+        }
+
+        return await DenyUnlessTasksActionAsync(action, ct);
+    }
+
+    private async Task<ActionResult?> EnsureCanViewAssignedTasksAsync(CancellationToken ct)
+    {
+        if (await CanUseEmployeeTaskManagementAsync(ct))
+            return null;
+
+        var tasksDenied = await EnsureTasksModuleAsync(ct);
+        if (tasksDenied != null)
+            return tasksDenied;
+
+        var user = await GetCurrentAppUserAsync(ct);
+        if (user is null)
+            return Unauthorized(ApiResponse<object>.Fail("User not identified."));
+
+        return TenantUserPermissions.DenyUnless(user, AppModuleKey.Tasks, ModuleAction.View);
+    }
+
+    private async Task<ActionResult?> DenyUnlessTasksActionAsync(ModuleAction action, CancellationToken ct)
+    {
+        var user = await GetCurrentAppUserAsync(ct);
+        return TenantUserPermissions.DenyUnless(user, AppModuleKey.Tasks, action);
+    }
+
     private async Task<List<AppModuleKey>?> GetTenantEnabledModulesAsync(CancellationToken ct)
     {
         if (!_tenant.TenantId.HasValue) return null;
@@ -110,12 +176,6 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
         if (enabled.Contains(AppModuleKey.Tasks))
             return null;
         return StatusCode(403, ApiResponse<object>.Fail("Tasks module is not enabled for this tenant."));
-    }
-
-    private async Task<ActionResult?> EnsureCanViewAssignedTasksAsync(CancellationToken ct)
-    {
-        if (IsTenantAdmin()) return await EnsureEmployeeModuleAsync(ct);
-        return await EnsureTasksModuleAsync(ct);
     }
 
     private Guid? GetCurrentUserId()
@@ -187,11 +247,11 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
         if (!currentUserId.HasValue)
             return Unauthorized(ApiResponse<List<EmployeeAssignedTaskDto>>.Fail("User not identified."));
 
-        var isAdmin = IsTenantAdmin();
+        var canSeeAll = await CanSeeAllTasksAsync(ct);
         var query = _db.EmployeeAssignedTasks.AsNoTracking()
             .Where(t => t.TenantId == TenantId);
 
-        if (isAdmin)
+        if (canSeeAll)
         {
             if (assignedToUserId.HasValue)
                 query = query.Where(t => t.AssignedToUserId == assignedToUserId.Value);
@@ -232,8 +292,8 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
         var check = await EnsureEmployeeModuleAsync(ct);
         if (check != null) return check;
 
-        var adminDenied = DenyUnlessTenantAdmin();
-        if (adminDenied != null) return adminDenied;
+        var actionDenied = await DenyUnlessTaskWriteActionAsync(ModuleAction.Create, ct);
+        if (actionDenied != null) return actionDenied;
 
         var currentUserId = GetCurrentUserId();
         if (!currentUserId.HasValue)
@@ -249,6 +309,10 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
 
         if (!await IsAssignableTenantUserAsync(request.AssignedToUserId, ct))
             return BadRequest(ApiResponse<EmployeeAssignedTaskDto>.Fail("Assigned user not found or inactive."));
+
+        if (request.AssignedToUserId != currentUserId.Value && !await CanSeeAllTasksAsync(ct))
+            return StatusCode(403, ApiResponse<EmployeeAssignedTaskDto>.Fail(
+                "You can only assign tasks to yourself unless you have All scope for Tasks."));
 
         var task = new EmployeeAssignedTask
         {
@@ -281,8 +345,12 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
         var check = await EnsureEmployeeModuleAsync(ct);
         if (check != null) return check;
 
-        var adminDenied = DenyUnlessTenantAdmin();
-        if (adminDenied != null) return adminDenied;
+        var actionDenied = await DenyUnlessTaskWriteActionAsync(ModuleAction.Create, ct);
+        if (actionDenied != null) return actionDenied;
+
+        if (!await CanSeeAllTasksAsync(ct))
+            return StatusCode(403, ApiResponse<BulkCreateEmployeeAssignedTaskResultDto>.Fail(
+                "Bulk task assignment requires All scope for Tasks."));
 
         var currentUserId = GetCurrentUserId();
         if (!currentUserId.HasValue)
@@ -337,8 +405,8 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
         var check = await EnsureEmployeeModuleAsync(ct);
         if (check != null) return check;
 
-        var adminDenied = DenyUnlessTenantAdmin();
-        if (adminDenied != null) return adminDenied;
+        var actionDenied = await DenyUnlessTaskWriteActionAsync(ModuleAction.Edit, ct);
+        if (actionDenied != null) return actionDenied;
 
         var task = await _db.EmployeeAssignedTasks
             .Include(t => t.AssignedToUser)
@@ -357,6 +425,19 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
 
         if (!await IsAssignableTenantUserAsync(request.AssignedToUserId, ct))
             return BadRequest(ApiResponse<EmployeeAssignedTaskDto>.Fail("Assigned user not found or inactive."));
+
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
+            return Unauthorized(ApiResponse<EmployeeAssignedTaskDto>.Fail("User not identified."));
+
+        if (!await CanSeeAllTasksAsync(ct))
+        {
+            if (task.AssignedToUserId != currentUserId.Value)
+                return Forbid();
+            if (request.AssignedToUserId != currentUserId.Value)
+                return StatusCode(403, ApiResponse<EmployeeAssignedTaskDto>.Fail(
+                    "You can only assign tasks to yourself unless you have All scope for Tasks."));
+        }
 
         task.Title = title;
         task.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
@@ -383,6 +464,9 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
         var check = await EnsureCanViewAssignedTasksAsync(ct);
         if (check != null) return check;
 
+        var actionDenied = await DenyUnlessTaskWriteActionAsync(ModuleAction.Edit, ct);
+        if (actionDenied != null) return actionDenied;
+
         var currentUserId = GetCurrentUserId();
         if (!currentUserId.HasValue)
             return Unauthorized(ApiResponse<EmployeeAssignedTaskDto>.Fail("User not identified."));
@@ -394,7 +478,7 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
         if (task == null)
             return NotFound(ApiResponse<EmployeeAssignedTaskDto>.Fail("Task not found."));
 
-        if (!IsTenantAdmin() && task.AssignedToUserId != currentUserId.Value)
+        if (!await CanSeeAllTasksAsync(ct) && task.AssignedToUserId != currentUserId.Value)
             return Forbid();
 
         if (task.Status != EmployeeAssignedTaskStatus.Pending)
@@ -418,6 +502,9 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
         var check = await EnsureCanViewAssignedTasksAsync(ct);
         if (check != null) return check;
 
+        var actionDenied = await DenyUnlessTaskWriteActionAsync(ModuleAction.Edit, ct);
+        if (actionDenied != null) return actionDenied;
+
         var currentUserId = GetCurrentUserId();
         if (!currentUserId.HasValue)
             return Unauthorized(ApiResponse<EmployeeAssignedTaskDto>.Fail("User not identified."));
@@ -429,7 +516,7 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
         if (task == null)
             return NotFound(ApiResponse<EmployeeAssignedTaskDto>.Fail("Task not found."));
 
-        if (!IsTenantAdmin() && task.AssignedToUserId != currentUserId.Value)
+        if (!await CanSeeAllTasksAsync(ct) && task.AssignedToUserId != currentUserId.Value)
             return Forbid();
 
         if (task.Status == EmployeeAssignedTaskStatus.Cancelled)
@@ -456,8 +543,12 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
         var check = await EnsureEmployeeModuleAsync(ct);
         if (check != null) return check;
 
-        var adminDenied = DenyUnlessTenantAdmin();
-        if (adminDenied != null) return adminDenied;
+        var actionDenied = await DenyUnlessTaskWriteActionAsync(ModuleAction.Edit, ct);
+        if (actionDenied != null) return actionDenied;
+
+        if (!await CanSeeAllTasksAsync(ct))
+            return StatusCode(403, ApiResponse<EmployeeAssignedTaskDto>.Fail(
+                "Cancelling tasks requires All scope for Tasks."));
 
         var task = await _db.EmployeeAssignedTasks
             .Include(t => t.AssignedToUser)
@@ -482,8 +573,12 @@ public sealed class EmployeeAssignedTasksController : TenantControllerBase
         var check = await EnsureEmployeeModuleAsync(ct);
         if (check != null) return check;
 
-        var adminDenied = DenyUnlessTenantAdmin();
-        if (adminDenied != null) return adminDenied;
+        var actionDenied = await DenyUnlessTaskWriteActionAsync(ModuleAction.Delete, ct);
+        if (actionDenied != null) return actionDenied;
+
+        if (!await CanSeeAllTasksAsync(ct))
+            return StatusCode(403, ApiResponse<object>.Fail(
+                "Deleting tasks requires All scope for Tasks."));
 
         var task = await _db.EmployeeAssignedTasks.FirstOrDefaultAsync(t => t.Id == id && t.TenantId == TenantId, ct);
         if (task == null)

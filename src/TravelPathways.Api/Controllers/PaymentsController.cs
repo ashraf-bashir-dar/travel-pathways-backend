@@ -99,11 +99,16 @@ public sealed class PaymentsController : TenantControllerBase
         var moduleError = await EnsurePaymentsModuleAsync(ct);
         if (moduleError != null) return moduleError;
 
+        var viewDenied = await DenyUnlessPaymentActionAsync(ModuleAction.View, ct);
+        if (viewDenied != null) return viewDenied;
+
         pageNumber = Math.Max(1, pageNumber);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
         var query = _db.Payments.AsNoTracking().Where(p => p.TenantId == TenantId);
-        if (IsTenantAdmin())
+        var appUser = await TenantUserPermissions.LoadCurrentUserAsync(_db, TenantId, User, ct);
+        var canSeeAllPayments = appUser is not null && ModulePermissionResolver.CanSeeAllPayments(appUser);
+        if (canSeeAllPayments)
         {
             if (recordedByUserId.HasValue)
                 query = query.Where(p => p.RecordedByUserId == recordedByUserId.Value);
@@ -246,6 +251,9 @@ public sealed class PaymentsController : TenantControllerBase
         var moduleError = await EnsurePaymentsModuleAsync(ct);
         if (moduleError != null) return moduleError;
 
+        var viewDenied = await DenyUnlessPaymentActionAsync(ModuleAction.View, ct);
+        if (viewDenied != null) return viewDenied;
+
         var payment = await _db.Payments
             .AsNoTracking()
             .Include(p => p.Lead)
@@ -259,6 +267,10 @@ public sealed class PaymentsController : TenantControllerBase
         if (payment == null)
             return NotFound(ApiResponse<PaymentDto>.Fail("Payment not found."));
 
+        var appUser = await GetCurrentAppUserAsync(ct);
+        if (appUser is null || !CanModifyPayment(appUser, payment))
+            return NotFound(ApiResponse<PaymentDto>.Fail("Payment not found."));
+
         return ApiResponse<PaymentDto>.Ok(ToDto(payment));
     }
 
@@ -267,6 +279,9 @@ public sealed class PaymentsController : TenantControllerBase
     {
         var moduleError = await EnsurePaymentsModuleAsync(ct);
         if (moduleError != null) return moduleError;
+
+        var createDenied = await DenyUnlessPaymentActionAsync(ModuleAction.Create, ct);
+        if (createDenied != null) return createDenied;
 
         var (valid, error) = await ValidatePaymentDtoAsync(dto, ct);
         if (!valid)
@@ -304,6 +319,9 @@ public sealed class PaymentsController : TenantControllerBase
         var moduleError = await EnsurePaymentsModuleAsync(ct);
         if (moduleError != null) return moduleError;
 
+        var editDenied = await DenyUnlessPaymentActionAsync(ModuleAction.Edit, ct);
+        if (editDenied != null) return editDenied;
+
         var (valid, error) = await ValidatePaymentDtoAsync(dto, ct);
         if (!valid)
             return BadRequest(ApiResponse<PaymentDto>.Fail(error!));
@@ -312,6 +330,10 @@ public sealed class PaymentsController : TenantControllerBase
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
         if (payment == null)
             return NotFound(ApiResponse<PaymentDto>.Fail("Payment not found."));
+
+        var appUser = await GetCurrentAppUserAsync(ct);
+        if (appUser is null || !CanModifyPayment(appUser, payment))
+            return Forbid();
 
         payment.PaymentType = dto.PaymentType;
         payment.Amount = dto.Amount;
@@ -334,16 +356,22 @@ public sealed class PaymentsController : TenantControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeletePayment(Guid id, CancellationToken ct)
     {
         var moduleError = await EnsurePaymentsModuleAsync(ct);
         if (moduleError != null) return moduleError;
 
+        var deleteDenied = await DenyUnlessPaymentActionAsync(ModuleAction.Delete, ct);
+        if (deleteDenied != null) return deleteDenied;
+
         var payment = await _db.Payments
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
         if (payment == null)
             return NotFound(ApiResponse<object>.Fail("Payment not found."));
+
+        var appUser = await GetCurrentAppUserAsync(ct);
+        if (appUser is null || !CanModifyPayment(appUser, payment))
+            return Forbid();
 
         payment.IsDeleted = true;
         payment.DeletedAtUtc = DateTime.UtcNow;
@@ -359,6 +387,9 @@ public sealed class PaymentsController : TenantControllerBase
         var moduleError = await EnsurePaymentsModuleAsync(ct);
         if (moduleError != null) return moduleError;
 
+        var editDenied = await DenyUnlessPaymentActionAsync(ModuleAction.Edit, ct);
+        if (editDenied != null) return editDenied;
+
         if (file == null || file.Length == 0)
             return BadRequest(ApiResponse<PaymentDto>.Fail("No file provided."));
 
@@ -366,6 +397,10 @@ public sealed class PaymentsController : TenantControllerBase
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId, ct);
         if (payment == null)
             return NotFound(ApiResponse<PaymentDto>.Fail("Payment not found."));
+
+        var appUser = await GetCurrentAppUserAsync(ct);
+        if (appUser is null || !CanModifyPayment(appUser, payment))
+            return Forbid();
 
         var url = await _storage.SavePaymentScreenshotAsync(TenantId, id, file, ct);
         payment.ScreenshotUrl = url;
@@ -389,6 +424,30 @@ public sealed class PaymentsController : TenantControllerBase
     {
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(userIdClaim, out var userId) ? userId : null;
+    }
+
+    private async Task<AppUser?> GetCurrentAppUserAsync(CancellationToken ct) =>
+        await TenantUserPermissions.LoadCurrentUserAsync(_db, TenantId, User, ct);
+
+    private async Task<ActionResult?> DenyUnlessPaymentActionAsync(ModuleAction action, CancellationToken ct)
+    {
+        var user = await GetCurrentAppUserAsync(ct);
+        if (user is null)
+            return StatusCode(403, ApiResponse<object>.Fail("User context is missing."));
+
+        return ModulePermissionResolver.CanPaymentAction(user, action)
+            ? null
+            : StatusCode(403, ApiResponse<object>.Fail(
+                $"You do not have {action.ToString().ToLowerInvariant()} access for payments."));
+    }
+
+    private bool CanModifyPayment(AppUser user, Payment payment)
+    {
+        if (ModulePermissionResolver.CanSeeAllPayments(user))
+            return true;
+
+        var userId = GetCurrentUserId();
+        return userId.HasValue && payment.RecordedByUserId == userId.Value;
     }
 
     private async Task<ActionResult?> EnsurePaymentsModuleAsync(CancellationToken ct)
@@ -420,7 +479,12 @@ public sealed class PaymentsController : TenantControllerBase
             if (!userId.HasValue)
                 return (false, "User context is missing.");
 
-            if (IsTenantAdmin())
+            var appUser = await GetCurrentAppUserAsync(ct);
+            var canUseAnyLead = appUser is not null
+                && (ModulePermissionResolver.CanSeeAllLeads(appUser)
+                    || ModulePermissionResolver.CanSeeAllPayments(appUser));
+
+            if (canUseAnyLead)
             {
                 var leadExists = await _db.Leads.AsNoTracking()
                     .AnyAsync(l => l.Id == dto.LeadId.Value && l.TenantId == TenantId && !l.IsDeleted, ct);

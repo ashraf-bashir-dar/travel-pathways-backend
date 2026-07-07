@@ -66,7 +66,16 @@ public enum AppModuleKey
     /// <summary>Master data: transport companies, fleet vehicles, and drivers.</summary>
     TransportMaster = 26,
     /// <summary>HR: employee lifecycle from onboarding through exit — attendance, leaves, salary, directory.</summary>
-    HR = 27
+    HR = 27,
+    /// <summary>Manage per-user module access, feature flags, and data scope (e.g. own vs all leads).</summary>
+    UserAccess = 28
+}
+
+/// <summary>Whether a user sees only their own records or all tenant records for a module.</summary>
+public enum ModuleDataScope
+{
+    Own = 0,
+    All = 1
 }
 
 /// <summary>Employee lifecycle stage from onboarding through exit.</summary>

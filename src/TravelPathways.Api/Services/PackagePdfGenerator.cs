@@ -10,20 +10,29 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
 {
     private readonly IChromiumBrowserProvider _browserProvider;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<PackagePdfGenerator> _logger;
 
-    public PackagePdfGenerator(IChromiumBrowserProvider browserProvider, IConfiguration configuration)
+    public PackagePdfGenerator(
+        IChromiumBrowserProvider browserProvider,
+        IConfiguration configuration,
+        ILogger<PackagePdfGenerator> logger)
     {
         _browserProvider = browserProvider;
         _configuration = configuration;
+        _logger = logger;
     }
 
-    public async Task<byte[]> GenerateAsync(PackagePdfModel model, CancellationToken cancellationToken = default)
+    public async Task<PackagePdfGenerateResult> GenerateAsync(PackagePdfModel model, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(model.CustomHtmlTemplate))
             throw new InvalidOperationException(
                 "No PDF HtmlTemplate is configured. Assign an active PDF template with HTML content to this tenant.");
 
+        var htmlSw = System.Diagnostics.Stopwatch.StartNew();
         var html = BuildCustomHtml(model);
+        var htmlBuildMs = htmlSw.ElapsedMilliseconds;
+        _logger.LogInformation("Package PDF HTML built in {ElapsedMs}ms ({HtmlLength} chars)", htmlBuildMs, html.Length);
+
         var timeoutMs = 60000; // 60s default
         var timeoutConfig = _configuration["PdfGenerator:TimeoutSeconds"]?.Trim() ?? _configuration["PdfGenerator__TimeoutSeconds"]?.Trim();
         if (!string.IsNullOrEmpty(timeoutConfig) && int.TryParse(timeoutConfig, out var seconds) && seconds > 0)
@@ -32,23 +41,29 @@ public sealed class PackagePdfGenerator : IPackagePdfGenerator
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(timeoutMs);
 
-        return await _browserProvider.RunWithPageAsync(async page =>
+        var pdfOptions = new PdfOptions
         {
-            await page.SetJavaScriptEnabledAsync(false);
-            await page.SetContentAsync(html, new NavigationOptions { WaitUntil = new[] { WaitUntilNavigation.Load } });
-            return await page.PdfDataAsync(new PdfOptions
+            Format = PaperFormat.A4,
+            PrintBackground = true,
+            MarginOptions = new MarginOptions
             {
-                Format = PaperFormat.A4,
-                PrintBackground = true,
-                MarginOptions = new MarginOptions
-                {
-                    Top = "18mm",
-                    Right = "15mm",
-                    Bottom = "18mm",
-                    Left = "15mm"
-                }
-            });
-        }, cts.Token).ConfigureAwait(false);
+                Top = "18mm",
+                Right = "15mm",
+                Bottom = "18mm",
+                Left = "15mm"
+            }
+        };
+
+        var chromiumSw = System.Diagnostics.Stopwatch.StartNew();
+        var pdfBytes = await _browserProvider.RunWithPageAsync(
+            page => PdfChromiumRenderer.RenderHtmlToPdfAsync(page, html, pdfOptions, timeoutMs, cts.Token),
+            cts.Token).ConfigureAwait(false);
+        var chromiumMs = chromiumSw.ElapsedMilliseconds;
+
+        _logger.LogInformation(
+            "Package PDF Chromium render completed in {ChromiumMs}ms (html build {HtmlBuildMs}ms, {PdfBytes} bytes)",
+            chromiumMs, htmlBuildMs, pdfBytes.Length);
+        return new PackagePdfGenerateResult(pdfBytes, htmlBuildMs, chromiumMs, html.Length);
     }
 
     private static readonly Regex PlaceholderRegex = new(@"\{\{[^{}]+\}\}", RegexOptions.Compiled);

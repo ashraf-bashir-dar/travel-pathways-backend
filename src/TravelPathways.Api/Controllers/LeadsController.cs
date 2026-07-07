@@ -161,15 +161,21 @@ public sealed class LeadsController : TenantControllerBase
     private async Task<(Guid? UserId, bool CanSeeAllLeads)> GetCurrentUserLeadScopeAsync(CancellationToken ct)
     {
         var role = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
-        var isAdmin = string.Equals(role, UserRole.Admin.ToString(), StringComparison.OrdinalIgnoreCase);
         var isSuperAdmin = string.Equals(role, UserRole.SuperAdmin.ToString(), StringComparison.OrdinalIgnoreCase);
         if (isSuperAdmin)
             return (null, true);
 
-        if (isAdmin)
-            return (null, true);
+        var userId = GetCurrentUserId();
+        if (!userId.HasValue)
+            return (null, false);
 
-        return (GetCurrentUserId(), false);
+        var user = await _db.Users.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == userId.Value && u.TenantId == TenantId, ct);
+        if (user is null)
+            return (userId, false);
+
+        var canSeeAll = ModulePermissionResolver.CanSeeAllLeads(user);
+        return canSeeAll ? (null, true) : (userId, false);
     }
 
     private Guid? GetCurrentUserId()
@@ -177,6 +183,15 @@ public sealed class LeadsController : TenantControllerBase
         var claim = User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
         return Guid.TryParse(claim, out var id) ? id : null;
+    }
+
+    private async Task<AppUser?> GetCurrentAppUserAsync(CancellationToken ct) =>
+        await TenantUserPermissions.LoadCurrentUserAsync(_db, TenantId, User, ct);
+
+    private async Task<ActionResult?> DenyUnlessLeadActionAsync(ModuleAction action, CancellationToken ct)
+    {
+        var user = await GetCurrentAppUserAsync(ct);
+        return TenantUserPermissions.DenyUnless(user, AppModuleKey.Leads, action);
     }
 
     private static IQueryable<Lead> ApplyActiveFollowUpScope(IQueryable<Lead> query) =>
@@ -349,6 +364,8 @@ public sealed class LeadsController : TenantControllerBase
     {
         var moduleCheck = await EnsureLeadsModuleAsync(ct);
         if (moduleCheck != null) return moduleCheck;
+        var permCheck = await DenyUnlessLeadActionAsync(ModuleAction.View, ct);
+        if (permCheck != null) return permCheck;
 
         pageNumber = Math.Max(1, pageNumber);
         pageSize = Math.Clamp(pageSize, 1, 200);
@@ -423,8 +440,9 @@ public sealed class LeadsController : TenantControllerBase
         pageNumber = Math.Max(1, pageNumber);
         pageSize = Math.Clamp(pageSize, 1, 50);
 
+        var (_, canSeeAllLeads) = await GetCurrentUserLeadScopeAsync(ct);
         IQueryable<Lead> query;
-        if (assignedToMeOnly || !IsTenantAdmin())
+        if (assignedToMeOnly || !canSeeAllLeads)
         {
             List<Guid>? paymentHistoryLeadIds = null;
             if (!assignedToMeOnly && includePaymentHistoryLeads)
@@ -761,6 +779,8 @@ public sealed class LeadsController : TenantControllerBase
     {
         var moduleCheck = await EnsureLeadsModuleAsync(ct);
         if (moduleCheck != null) return moduleCheck;
+        var permCheck = await DenyUnlessLeadActionAsync(ModuleAction.Create, ct);
+        if (permCheck != null) return permCheck;
 
         var createdBy = User.FindFirstValue(ClaimTypes.Email) ?? User.Identity?.Name ?? "system";
         var (scopeUserId, canManageAssignment) = await GetCurrentUserLeadScopeAsync(ct);
@@ -813,6 +833,8 @@ public sealed class LeadsController : TenantControllerBase
     {
         var moduleCheck = await EnsureLeadsModuleAsync(ct);
         if (moduleCheck != null) return moduleCheck;
+        var permCheck = await DenyUnlessLeadActionAsync(ModuleAction.Edit, ct);
+        if (permCheck != null) return permCheck;
 
         var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<LeadDto>.Fail("Lead not found"));
@@ -824,8 +846,7 @@ public sealed class LeadsController : TenantControllerBase
         if (lead.IsLocked)
             return BadRequest(ApiResponse<LeadDto>.Fail("This lead is locked. Ask an admin to unlock it before editing."));
 
-        // Once any package for this lead has a reservation, Tour Manager should not edit lead/package details.
-        // Allow Admin/SuperAdmin (canSeeAllLeads) to override if needed.
+        // Once any package for this lead has a reservation, scoped users should not edit lead/package details.
         if (!canSeeAllLeads)
         {
             var role = User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
@@ -939,11 +960,12 @@ public sealed class LeadsController : TenantControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteLead([FromRoute] Guid id, CancellationToken ct)
     {
         var moduleCheck = await EnsureLeadsModuleAsync(ct);
         if (moduleCheck != null) return moduleCheck;
+        var permCheck = await DenyUnlessLeadActionAsync(ModuleAction.Delete, ct);
+        if (permCheck != null) return permCheck;
 
         var lead = await _db.Leads.FirstOrDefaultAsync(l => l.Id == id && l.TenantId == TenantId, ct);
         if (lead is null) return NotFound(ApiResponse<object>.Fail("Lead not found"));
@@ -966,11 +988,15 @@ public sealed class LeadsController : TenantControllerBase
     }
 
     [HttpPost("{id:guid}/unlock")]
-    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<LeadDto>>> UnlockLead([FromRoute] Guid id, CancellationToken ct)
     {
         var moduleCheck = await EnsureLeadsModuleAsync(ct);
         if (moduleCheck != null) return moduleCheck;
+        var permCheck = await DenyUnlessLeadActionAsync(ModuleAction.Edit, ct);
+        if (permCheck != null) return permCheck;
+        var (_, canSeeAllLeads) = await GetCurrentUserLeadScopeAsync(ct);
+        if (!canSeeAllLeads)
+            return StatusCode(403, ApiResponse<LeadDto>.Fail("Unlocking leads requires agency-wide leads access."));
 
         var lead = await _db.Leads
             .Include(l => l.AssignedToUser)

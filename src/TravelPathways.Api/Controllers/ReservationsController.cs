@@ -920,11 +920,8 @@ public sealed class ReservationsController : TenantControllerBase
         var html = isDriverCopy
             ? BuildDriverTourPlannerHtml(reservation, agencyLogoUrl)
             : BuildTourPlannerHtml(reservation, tenant, agencyLogoUrl);
-        var pdfBytes = await _browserProvider.RunWithPageAsync(async page =>
-        {
-            await page.SetJavaScriptEnabledAsync(false);
-            await page.SetContentAsync(html, new NavigationOptions { WaitUntil = new[] { WaitUntilNavigation.Load } });
-            return await page.PdfDataAsync(new PdfOptions
+        var pdfBytes = await _browserProvider.RunWithPageAsync(
+            page => PdfChromiumRenderer.RenderHtmlToPdfAsync(page, html, new PdfOptions
             {
                 Format = PaperFormat.A4,
                 PrintBackground = true,
@@ -935,8 +932,8 @@ public sealed class ReservationsController : TenantControllerBase
                     Bottom = "14mm",
                     Left = "12mm"
                 }
-            });
-        }, ct);
+            }, 60000, ct),
+            ct);
 
         var pkg = reservation.Package;
         var filenameBase = string.Join("_", new[]

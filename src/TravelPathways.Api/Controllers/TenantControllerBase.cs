@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.EntityFrameworkCore;
 using TravelPathways.Api.Common;
+using TravelPathways.Api.Data;
+using TravelPathways.Api.Data.Entities;
 using TravelPathways.Api.MultiTenancy;
 
 namespace TravelPathways.Api.Controllers;
@@ -35,5 +38,18 @@ public abstract class TenantControllerBase : ControllerBase
 
   /// <summary>Returns Forbid() when the current user is not a tenant admin.</summary>
   protected ActionResult? DenyUnlessTenantAdmin() => IsTenantAdmin() ? null : Forbid();
+
+  protected async Task<AppUser?> LoadCurrentAppUserAsync(AppDbContext db, CancellationToken ct) =>
+      await TenantUserPermissions.LoadCurrentUserAsync(db, TenantId, User, ct);
+
+  protected async Task<ActionResult?> DenyUnlessModuleActionAsync(
+      AppDbContext db,
+      AppModuleKey module,
+      ModuleAction action,
+      CancellationToken ct)
+  {
+    var user = await LoadCurrentAppUserAsync(db, ct);
+    return TenantUserPermissions.DenyUnless(user, module, action);
+  }
 }
 

@@ -198,6 +198,12 @@ public sealed class HotelsController : TenantControllerBase
         [FromQuery] decimal? maxPrice = null,
         CancellationToken ct = default)
     {
+        var viewModule = isHouseboat == true
+            ? AppModuleKey.Houseboats
+            : AppModuleKey.Hotels;
+        if (await DenyUnlessModuleActionAsync(_db, viewModule, ModuleAction.View, ct) is { } viewDenied)
+            return viewDenied;
+
         pageNumber = Math.Max(1, pageNumber);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
@@ -329,12 +335,17 @@ public sealed class HotelsController : TenantControllerBase
             .Include(h => h.Area)
             .FirstOrDefaultAsync(h => h.Id == id && h.TenantId == TenantId, ct);
         if (hotel is null) return NotFound(ApiResponse<HotelDto>.Fail("Hotel not found"));
+        if (await DenyUnlessModuleActionAsync(_db, ModuleForHotel(hotel.IsHouseboat), ModuleAction.View, ct) is { } viewDenied)
+            return viewDenied;
         return ApiResponse<HotelDto>.Ok(ToHotelDto(hotel));
     }
 
     [HttpPost]
     public async Task<ActionResult<ApiResponse<HotelDto>>> CreateHotel([FromBody] CreateHotelRequestDto request, CancellationToken ct)
     {
+        if (await DenyUnlessModuleActionAsync(_db, ModuleForHotel(request.IsHouseboat), ModuleAction.Create, ct) is { } createDenied)
+            return createDenied;
+
         var hotel = new Hotel
         {
             TenantId = TenantId,
@@ -390,6 +401,8 @@ public sealed class HotelsController : TenantControllerBase
     {
         var hotel = await _db.Hotels.Include(h => h.Rates).Include(h => h.Area).FirstOrDefaultAsync(h => h.Id == id && h.TenantId == TenantId, ct);
         if (hotel is null) return NotFound(ApiResponse<HotelDto>.Fail("Hotel not found"));
+        if (await DenyUnlessModuleActionAsync(_db, ModuleForHotel(hotel.IsHouseboat), ModuleAction.Edit, ct) is { } editDenied)
+            return editDenied;
 
         hotel.Name = request.Name.Trim();
         hotel.Address = request.Address.Trim();
@@ -445,11 +458,12 @@ public sealed class HotelsController : TenantControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<object>>> DeleteHotel([FromRoute] Guid id, CancellationToken ct)
     {
         var hotel = await _db.Hotels.FirstOrDefaultAsync(h => h.Id == id && h.TenantId == TenantId, ct);
         if (hotel is null) return NotFound(ApiResponse<object>.Fail("Hotel not found"));
+        if (await DenyUnlessModuleActionAsync(_db, ModuleForHotel(hotel.IsHouseboat), ModuleAction.Delete, ct) is { } deleteDenied)
+            return deleteDenied;
         hotel.IsDeleted = true;
         hotel.DeletedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
@@ -463,6 +477,8 @@ public sealed class HotelsController : TenantControllerBase
     {
         var hotel = await _db.Hotels.FirstOrDefaultAsync(h => h.Id == id && h.TenantId == TenantId, ct);
         if (hotel is null) return NotFound(ApiResponse<List<string>>.Fail("Hotel not found"));
+        if (await DenyUnlessModuleActionAsync(_db, ModuleForHotel(hotel.IsHouseboat), ModuleAction.Edit, ct) is { } uploadDenied)
+            return uploadDenied;
 
         hotel.ImageUrls ??= [];
         foreach (var file in files ?? [])
@@ -478,12 +494,13 @@ public sealed class HotelsController : TenantControllerBase
 
     /// <summary>Remove one image URL from a hotel. Pass stored path (/uploads/...) or absolute URL (browser may send either).</summary>
     [HttpDelete("{id:guid}/images")]
-    [Authorize(Policy = "TenantAdminOnly")]
     public async Task<ActionResult<ApiResponse<List<string>>>> RemoveImage([FromRoute] Guid id, [FromQuery] string url, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(url)) return BadRequest(ApiResponse<List<string>>.Fail("url is required"));
         var hotel = await _db.Hotels.FirstOrDefaultAsync(h => h.Id == id && h.TenantId == TenantId, ct);
         if (hotel is null) return NotFound(ApiResponse<List<string>>.Fail("Hotel not found"));
+        if (await DenyUnlessModuleActionAsync(_db, ModuleForHotel(hotel.IsHouseboat), ModuleAction.Edit, ct) is { } editDenied)
+            return editDenied;
 
         hotel.ImageUrls ??= [];
         var target = NormalizeImagePathForMatch(url.Trim());
@@ -583,5 +600,8 @@ public sealed class HotelsController : TenantControllerBase
             CreatedAt = h.CreatedAt,
             UpdatedAt = h.UpdatedAt
         };
+
+    private static AppModuleKey ModuleForHotel(bool isHouseboat) =>
+        isHouseboat ? AppModuleKey.Houseboats : AppModuleKey.Hotels;
 }
 

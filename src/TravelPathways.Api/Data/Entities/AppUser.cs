@@ -41,6 +41,9 @@ public sealed class AppUser : EntityBase
     /// <summary>Modules this user can access. Empty = all enabled for tenant.</summary>
     public List<AppModuleKey> AllowedModules { get; set; } = [];
 
+    /// <summary>Per-module actions and data scope. Empty = legacy role-based defaults.</summary>
+    public List<ModulePermissionGrant> ModulePermissions { get; set; } = [];
+
     /// <summary>If true, user can see the Cost Bifurcation section on the package form. Set by Tenant Admin when editing users.</summary>
     public bool CanViewCostBifurcation { get; set; }
     /// <summary>

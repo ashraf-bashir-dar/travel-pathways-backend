@@ -71,6 +71,8 @@ public sealed class AuthController : ControllerBase
         public string? ProfilePhotoUrl { get; init; }
         public string? ShiftStartTime { get; init; }
         public string? ShiftEndTime { get; init; }
+        public ModuleDataScope LeadsDataScope { get; init; }
+        public List<ModulePermissionGrantDto> ModulePermissions { get; init; } = [];
     }
 
     public sealed class UserProfileDto
@@ -223,7 +225,7 @@ public sealed class AuthController : ControllerBase
             // Super Admin should only see an agency name when they explicitly scope context via X-Tenant-Id.
 
             var tenantDto = MapTenantDto(tenant, user.CreatedAt);
-            var userDto = MapUserDto(user);
+            var userDto = MapUserDto(user, tenant?.EnabledModules);
 
             return Ok(new LoginResponseDto { Token = token, User = userDto, Tenant = tenantDto });
         }
@@ -263,7 +265,7 @@ public sealed class AuthController : ControllerBase
 
         return Ok(new SessionResponseDto
         {
-            User = MapUserDto(user),
+            User = MapUserDto(user, tenant?.EnabledModules),
             Tenant = MapTenantDto(tenant, user.CreatedAt)
         });
     }
@@ -369,7 +371,7 @@ public sealed class AuthController : ControllerBase
             ShiftEndTime = UserShiftTimeHelper.Format(user.ShiftEndTime)
         };
 
-    private static UserDto MapUserDto(Data.Entities.AppUser user) =>
+    private static UserDto MapUserDto(Data.Entities.AppUser user, IReadOnlyList<AppModuleKey>? tenantEnabledModules = null) =>
         new()
         {
             Id = user.Id.ToString("D"),
@@ -395,7 +397,18 @@ public sealed class AuthController : ControllerBase
             EmergencyContactPhone = user.EmergencyContactPhone,
             ProfilePhotoUrl = user.ProfilePhotoUrl,
             ShiftStartTime = UserShiftTimeHelper.Format(user.ShiftStartTime),
-            ShiftEndTime = UserShiftTimeHelper.Format(user.ShiftEndTime)
+            ShiftEndTime = UserShiftTimeHelper.Format(user.ShiftEndTime),
+            LeadsDataScope = ModulePermissionResolver.GetDataScope(user, AppModuleKey.Leads),
+            ModulePermissions = ModulePermissionResolver.ResolveEffectiveGrants(user, tenantEnabledModules ?? [])
+                .Select(g => new ModulePermissionGrantDto
+                {
+                    Module = g.Module,
+                    View = g.View,
+                    Create = g.Create,
+                    Edit = g.Edit,
+                    Delete = g.Delete,
+                    DataScope = g.DataScope
+                }).ToList()
         };
 
     private static TenantDto MapTenantDto(Data.Entities.Tenant? tenant, DateTime fallbackCreatedAt) =>

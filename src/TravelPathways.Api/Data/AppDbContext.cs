@@ -595,6 +595,13 @@ public sealed class AppDbContext : DbContext
             .Property(u => u.AllowedModules)
             .Metadata.SetValueComparer(new JsonValueComparer<List<AppModuleKey>, AppModuleKey>());
 
+        modelBuilder.Entity<AppUser>()
+            .Property(u => u.ModulePermissions)
+            .HasConversion(new JsonValueConverter<List<ModulePermissionGrant>>());
+        modelBuilder.Entity<AppUser>()
+            .Property(u => u.ModulePermissions)
+            .Metadata.SetValueComparer(new JsonValueComparer<List<ModulePermissionGrant>, ModulePermissionGrant>());
+
         modelBuilder.Entity<TenantDocument>()
             .Property(d => d.Type)
             .HasConversion<string>();

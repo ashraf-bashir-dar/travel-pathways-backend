@@ -155,8 +155,6 @@ public sealed class AdminTenantUsersController : ControllerBase
         {
             return BadRequest(ApiResponse<TenantUserDto>.Fail("Email and password are required."));
         }
-        if (request.CanViewCostBifurcation && request.CanPriceOverride)
-            return BadRequest(ApiResponse<TenantUserDto>.Fail("Can view cost bifurcation and Price Override cannot both be enabled for the same user."));
 
         var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct);
         if (tenant is null) return BadRequest(ApiResponse<TenantUserDto>.Fail("Tenant not found."));
@@ -188,12 +186,14 @@ public sealed class AdminTenantUsersController : ControllerBase
             user.IsDeleted = false;
             user.DeletedAtUtc = null;
             ApplyCreateRequest(user, request);
+            ModulePermissionResolver.ApplyCreateDefaults(user, tenant.EnabledModules);
             _db.Users.Update(user);
         }
         else
         {
             user = new AppUser { TenantId = tenantId, Email = email };
             ApplyCreateRequest(user, request);
+            ModulePermissionResolver.ApplyCreateDefaults(user, tenant.EnabledModules);
             _db.Users.Add(user);
         }
 
@@ -239,8 +239,6 @@ public sealed class AdminTenantUsersController : ControllerBase
     public async Task<ActionResult<ApiResponse<TenantUserDto>>> UpdateUser([FromRoute] Guid tenantId, [FromRoute] Guid userId, [FromBody] UpdateTenantUserRequestDto request, CancellationToken ct)
     {
         if (request.Role == UserRole.SuperAdmin) return BadRequest(ApiResponse<TenantUserDto>.Fail("Role not allowed."));
-        if (request.CanViewCostBifurcation && request.CanPriceOverride)
-            return BadRequest(ApiResponse<TenantUserDto>.Fail("Can view cost bifurcation and Price Override cannot both be enabled for the same user."));
 
         var user = await _db.Users.FirstOrDefaultAsync(u => u.TenantId == tenantId && u.Id == userId, ct);
         if (user is null) return NotFound(ApiResponse<TenantUserDto>.Fail("User not found"));
@@ -255,10 +253,6 @@ public sealed class AdminTenantUsersController : ControllerBase
         user.Role = request.Role;
         user.Department = request.Department;
         user.IsActive = request.IsActive;
-        user.AllowedModules = UserModulePolicy.SanitizeAllowedModules(request.Role, request.AllowedModules);
-        user.CanViewCostBifurcation = request.CanViewCostBifurcation;
-        user.CanPriceOverride = request.CanPriceOverride;
-        user.ActivityTrackingEnabled = request.ActivityTrackingEnabled;
         user.Phone = request.Phone?.Trim();
         user.DateOfBirth = NormalizeNullableUtc(request.DateOfBirth);
         user.JoinDate = NormalizeNullableUtc(request.JoinDate);
@@ -331,10 +325,6 @@ public sealed class AdminTenantUsersController : ControllerBase
         user.Role = request.Role;
         user.Department = request.Department;
         user.IsActive = request.IsActive;
-        user.AllowedModules = UserModulePolicy.SanitizeAllowedModules(request.Role, request.AllowedModules);
-        user.CanViewCostBifurcation = request.CanViewCostBifurcation;
-        user.CanPriceOverride = request.CanPriceOverride;
-        user.ActivityTrackingEnabled = request.ActivityTrackingEnabled;
         user.PasswordHash = PasswordHasher.Hash(request.Password);
         user.PasswordEncrypted = _passwordEncryption.Encrypt(request.Password);
         user.Phone = request.Phone?.Trim();
